@@ -1,0 +1,69 @@
+#-*-Makefile-*-
+
+.PHONY: all fetch install chkrootkit rkhunter lynis clean
+
+CWD := $(shell pwd)
+
+CPTECHS := http://csi.cptechs.info
+
+WGET := $(shell which wget)
+TAR := $(shell which tar)
+
+MKDIR := $(shell which mkdir) -p
+MV := $(shell which mv) -f
+RM := $(shell which rm) -f
+CP := $(shell which cp) -f
+
+CHKROOTKIT:= chkrootkit.tar.gz
+RKHUNTER := rkhunter.tar.gz
+LYNIS := lynis.tar.gz
+
+TARGET := $(CWD)/CSI
+
+all: fetch install
+
+fetch: $(RKHUNTER) $(CHKROOTKIT) $(LYNIS)
+
+%.tar.gz:
+	$(MKDIR) $(TARGET)
+	$(WGET) $(CPTECHS)/$@ &> /dev/null
+	$(TAR) -C $(TARGET) -xzvf $@ &> /dev/null
+
+install: rkhunter chkrootkit lynis
+
+rkhunter: $(TARGET)/rkhunter	
+	$(shell cd $< ; ./bin/$@ --update &> /dev/null)
+
+chkrootkit: $(TARGET)/chkrootkit
+	make -C $(TARGET)/$@ &> /dev/null
+
+lynis: $(TARGET)/lynis
+	cd $<
+	$(shell ./lynis --check-update &> /dev/null)
+	$(WGET) $(CPTECHS)/lynispatch &> /dev/null
+	$(MV) lynispatch $</include/lynispatch
+	patch $</include/functions $</include/lynispatch
+
+$(TARGET)/rkhunter: $(TARGET)/rkhunterinstall
+	$(shell cd $< ; ./installer.sh --layout custom $@ --install &> /dev/null)
+
+$(TARGET)/rkhunterinstall: $(RKHUNTER)
+	$(MV) $(TARGET)/rkhunter-* $@
+	$(MKDIR) $(TARGET)/rkhunter
+
+$(TARGET)/chkrootkit: $(CHKROOTKIT)
+	$(MV) $(TARGET)/chkrootkit-* $(TARGET)/chkrootkit
+
+$(TARGET)/lynis: $(LYNIS)
+	$(MV) $(TARGET)/lynis-* $@
+
+clean:
+	$(RM) $(CHKROOTKIT)
+	$(RM) $(RKHUNTER)
+	$(RM) $(LYNIS)
+
+uberclean: clean
+	$(RM) chkrootkit-*.tar.gz
+	$(RM) rkhunter-*.tar.gz
+	$(RM) lynis-*.tar.gz
+	$(RM) -r $(TARGET)
