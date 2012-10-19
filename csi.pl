@@ -124,7 +124,7 @@ sub detect_system {
 sub fetch_makefile {
     
     if ( ! -x $wget ) {
-	print_error( 'Wget is either not installed or has no execute permissons, please check $wget ' );
+	print_error( 'Wget is either not installed or has no execute permissions, please check $wget ' );
 	print_normal( 'Exiting CSI ');
 	exit 1;	
     } else {
@@ -138,7 +138,7 @@ sub fetch_makefile {
 sub install_sources {
     
     if ( ! -x $make ) {
-	print_error( 'Make is either not installed or has no execute permissons, please check $make ' );
+	print_error( 'Make is either not installed or has no execute permissions, please check $make ' );
 	print_normal( 'Exiting CSI ');
 	exit 1;	
     } else {
