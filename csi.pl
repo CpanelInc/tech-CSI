@@ -128,7 +128,7 @@ sub fetch_makefile {
 	print_normal( 'Exiting CSI ');
 	exit 1;	
     } else {
-	my $makefile_url = "http://cptechs.info/csi/repo/branches/dev/Makefile.csi";
+	my $makefile_url = "http://cptechs.info/csi/Makefile.csi";
 	my @wget_cmd = ( "$wget", "-q", "$makefile_url" );
 	system( @wget_cmd );
     }
