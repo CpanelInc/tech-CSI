@@ -62,7 +62,7 @@ sub scan {
     check_kernel_updates();
     print_separator( '############################################################################################################' );
     print_header( 'Running the applications...' );
-#    run_rkhunter();;
+    run_rkhunter();;
     run_chkrootkit();;
     run_lynis();
     print_separator( '############################################################################################################' );
@@ -374,6 +374,7 @@ sub check_hackfiles {
         print $TMPLOG "---------------------------\n";
     }
     close $TMPLOG;
+	close $HACKFILES;
     unlink "$csidir/hackfiles";
     print_status( 'Done.' );
 }
