@@ -7,7 +7,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.3";
+my $version = "1.4";
 
 my $cwd = `pwd`;
 chomp($cwd);
@@ -62,7 +62,7 @@ sub scan {
     check_kernel_updates();
     print_separator( '############################################################################################################' );
     print_header( 'Running the applications...' );
-    run_rkhunter();;
+#    run_rkhunter();;
     run_chkrootkit();;
     run_lynis();
     print_separator( '############################################################################################################' );
@@ -333,13 +333,25 @@ sub check_hackfiles {
     
     my @wget_hackfiles = ( "$wget", "-q", "http://csi.cptechs.info/hackfiles" );
     system( @wget_hackfiles );
+	open( my $HACKFILES, '<', "$csidir/hackfiles" ) or
+		die( "Cannot open $csidir/hackfiles: $!");
+		
+	my @tmplist = `find /tmp -type f`; 
+	my @hackfound;
+	while (<$HACKFILES>) {
+		chomp(my $file_test = $_);
+		foreach my $name (@tmplist) {
+			if ($name =~ /\b$file_test\b/) {
+				push(@hackfound , $name);
+			}
+		}
+	}
+	print "hackfound is @hackfound\n";
     
-    chomp( my @tmplist = `find /tmp -type f | egrep -i -f $csidir/hackfiles` );
-    
-    if ( ! @tmplist) {
+    if ( ! @hackfound ) {
         print_info( "No hack files found in /tmp" );
     } else {
-        foreach my $file (@tmplist) {
+        foreach my $file (@hackfound) {
 	    print_warn( "$file found, check $csidir/tmplog for more information." );
 	    print $TMPLOG "---------------------------\n";
 	    print $TMPLOG "Processing $file\n";
