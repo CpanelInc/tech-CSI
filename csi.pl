@@ -1,6 +1,13 @@
-#-*-perl-*-
 #!/usr/bin/perl
 
+# Copyright(c) 2012 cPanel, Inc.
+# All rights Reserved.
+# copyright@cpanel.net
+# http://cpanel.net
+# Unauthorized copying is prohibited
+
+# Tested on cPanel 11.30 - 11.36
+ 
 use strict;
 use warnings;
 
@@ -24,11 +31,13 @@ my $CSISUMMARY;
 
 my $touchfile = "/var/cpanel/perl/easy/Cpanel/Easy/csi.pm";
 
-my @logfiles = ( '/usr/local/apache/logs/access_log',
-		 '/usr/local/apache/logs/error_log',
-		 '/var/log/messages',
-		 '/var/log/maillog',
-		 '/var/log/wtmp' );
+my @logfiles = (
+	'/usr/local/apache/logs/access_log',
+	'/usr/local/apache/logs/error_log',
+	'/var/log/messages',
+	'/var/log/maillog',
+	'/var/log/wtmp'
+);
 
 my $systype;
 my $os;
