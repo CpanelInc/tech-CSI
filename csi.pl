@@ -383,7 +383,6 @@ sub check_hackfiles {
             }
         }
     }
-    print "hackfound is @hackfound\n";
     
     if ( ! @hackfound ) {
         print_info( "No hack files found in /tmp" );
