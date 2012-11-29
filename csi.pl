@@ -388,6 +388,7 @@ sub check_hackfiles {
         print_info( "No hack files found in /tmp" );
     } else {
         foreach my $file (@hackfound) {
+            chomp $file;
             print_warn( "$file found, check $csidir/tmplog for more information." );
             print $TMPLOG "---------------------------\n";
             print $TMPLOG "Processing $file\n";
