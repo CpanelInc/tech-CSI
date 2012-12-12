@@ -7,6 +7,8 @@
 # Unauthorized copying is prohibited
 
 # Tested on cPanel 11.30 - 11.36
+
+# Maintainers: Charles Boyd, Paul Trost, Dan Stewart
  
 use strict;
 use warnings;
