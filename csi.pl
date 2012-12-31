@@ -465,12 +465,14 @@ sub check_httpd_config {
 
 sub check_for_processes {
     
-    my $ps_output = `ps -aux`;
+    chomp( my $ps_output = `ps -aux` );
     if ( $ps_output =~ 'sleep 7200' ) {
-        print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process\n";
+        print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process:\n";
+        print $CSISUMMARY "$1\n";
     }
     elsif ( $ps_output =~ /\bperl\b/ ) {
-        print $CSISUMMARY "Ps output contains 'perl' without a command following, which probably indicates a hack\n";
+        print $CSISUMMARY "Ps output contains 'perl' without a command following, which probably indicates a hack:\n";
+        print $CSISUMMARY "$1\n"
     }
     print_status( 'Done.' );
 }
