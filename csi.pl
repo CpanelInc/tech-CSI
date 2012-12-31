@@ -120,7 +120,7 @@ sub scan {
     print_header( 'Checking for modified suspended page...' );
     check_suspended();
     print_separator( '############################################################################################################' );
-   
+      
     print_header( 'Checking if root bash history has been tampered with...' );
     check_history();
     print_separator( '############################################################################################################' );
@@ -129,6 +129,10 @@ sub scan {
     check_hackfiles();
     print_separator( '############################################################################################################' );
    
+    print_header( 'Checking process list' );
+    check_processes();
+    print_separator( '############################################################################################################' );
+
     print_header( 'Cleaning up...' );
     cleanup();
     print_separator( '############################################################################################################' );
@@ -354,12 +358,10 @@ sub check_modsecurity {
     
     my $result = `/usr/local/apache/bin/apachectl -M 2>/dev/null`;
     
-    if ( $result =~ 'security_module' ) {
-        print_info( "Mod Security is enabled" );
-    }
-    else {
-        print_warn( "Mod Security is disabled" );
+    if ( $result !~ 'security_module' ) {
+        print $CSISUMMARY "Mod Security is disabled\n";
     }   
+
     print_status( 'Done.' );
 }
 
@@ -440,9 +442,6 @@ sub check_uids {
         }
         print $CSISUMMARY "\n";
     }
-    else {    
-        print_status( "No (non-root) users with UID 0 detected." );
-    }
 
     close( $PASSWD );
     print_status( 'Done.' );
@@ -463,16 +462,18 @@ sub check_httpd_config {
     print_status( 'Done.' );
 }
 
-sub check_for_processes {
+sub check_processes {
     
-    chomp( my $ps_output = `ps -aux` );
-    if ( $ps_output =~ 'sleep 7200' ) {
-        print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process:\n";
-        print $CSISUMMARY "$1\n";
-    }
-    elsif ( $ps_output =~ /\bperl\b/ ) {
-        print $CSISUMMARY "Ps output contains 'perl' without a command following, which probably indicates a hack:\n";
-        print $CSISUMMARY "$1\n"
+    chomp( my @ps_output = `ps aux` );
+    foreach my $line ( @ps_output ) {
+        if ( $line =~ 'sleep 7200' ) {
+            print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process:\n";
+            print $CSISUMMARY "     $line\n";
+        }
+        if ( $line =~ / perl$/ ) {
+            print $CSISUMMARY "Ps output contains 'perl' without a command following, which probably indicates a hack:\n";
+            print $CSISUMMARY "     $line\n"
+        }
     }
     print_status( 'Done.' );
 }
@@ -485,9 +486,9 @@ sub dump_summary {
     }
     else {
         open $CSISUMMARY, '<', "$csidir/summary";
-        print_info( "The following negative items were found:" );
+        print_warn( "The following negative items were found:" );
         while (<$CSISUMMARY>) {
-            print BOLD RED $_;
+            print BOLD GREEN $_;
         }
         print_normal( '' );
         print_status( "[L1/L2] If a rootkit(s) or hack files in /tmp were found then please copy/paste the summary output into the ticket and escalate it to L3." );
