@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.5";
+my $version = "1.6";
 
 my $cwd = `pwd`;
 chomp($cwd);
@@ -44,6 +44,19 @@ my @logfiles = (
 my $systype;
 my $os;
 
+
+# Verify script is being run as root
+if ($> != 0) {
+    die "This script needs to be ran as the root user\n";
+}
+
+
+# Run code main body
+scan();
+
+
+# Subs
+
 sub scan {    
     print_normal( '' );
     print_separator( '############################################################################################################' );
@@ -53,6 +66,7 @@ sub scan {
     print_header( "System Type: $systype" );
     print_header( "OS: $os" );
     print_separator( '############################################################################################################' );
+    
     print_header( 'Cleaning up from earlier runs, if needed...');
     check_previous_scans();
     print_separator( '############################################################################################################' );
@@ -64,46 +78,64 @@ sub scan {
         print_header( 'Makefile already present...');
     }
     print_separator( '############################################################################################################' );
+   
     print_header( 'Building Dependencies...');
     install_sources();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Preparing for the scan...');
     create_summary();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking if kernel update is available...' );
     check_kernel_updates();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Running the applications...' );
     run_rkhunter();;
     run_chkrootkit();;
     run_lynis();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking logfiles...' );
     check_logfiles();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking for bad UIDs...' );
     check_uids();
     print_separator( '############################################################################################################' );
+   
+    print_header( 'Checking Apache configuration' );
+    check_httpd_config();
+    print_separator( '############################################################################################################' );
+   
     print_header( 'Checking for mod_security...' );
     check_modsecurity();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking for index.html in /tmp and /home...' );
     check_index();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking for modified suspended page...' );
     check_suspended();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking if root bash history has been tampered with...' );
     check_history();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Checking /tmp for known hackfiles...' );
     check_hackfiles();
     print_separator( '############################################################################################################' );
+   
     print_header( 'Cleaning up...' );
     cleanup();
     print_separator( '############################################################################################################' );
+   
     print_header( 'cPanel Security Inspection Complete!' );
     print_separator( '############################################################################################################' );
+   
     print_header( 'CSI Summary' );
     dump_summary();
     print_separator( '############################################################################################################' );
@@ -137,15 +169,15 @@ sub detect_system {
 
 sub fetch_makefile {
     
-    if ( ! -x $wget ) {
-        print_error( 'Wget is either not installed or has no execute permissions, please check $wget ' );
-        print_normal( 'Exiting CSI ');
-        exit 1; 
-    }
-    else {
+    if ( -x $wget ) {
         my $makefile_url = "http://cptechs.info/csi/Makefile.csi";
         my @wget_cmd = ( "$wget", "-q", "$makefile_url" );
         system( @wget_cmd );
+    }
+    else {
+        print_error( 'Wget is either not installed or has no execute permissions, please check $wget ' );
+        print_normal( 'Exiting CSI ');
+        exit 1; 
     }
     
     print_status( 'Done.' );
@@ -153,12 +185,7 @@ sub fetch_makefile {
 
 sub install_sources {
     
-    if ( ! -x $make ) {
-        print_error( 'Make is either not installed or has no execute permissions, please check $make ' );
-        print_normal( 'Exiting CSI ');
-        exit 1; 
-    }
-    else {
+    if ( -x $make ) {
         my $makefile = "Makefile.csi";
         print_status( 'Cleaning up from previous runs...' );
         my @cleanup_cmd = ("$make", "-f", "$makefile", "uberclean" );
@@ -166,6 +193,11 @@ sub install_sources {
         print_status( 'Running Makefile...' );
         my @make_cmd = ("$make", "-f", "$makefile" );
         system ( @make_cmd );
+    }
+    else {
+        print_error( 'Make is either not installed or has no execute permissions, please check $make ' );
+        print_normal( 'Exiting CSI ');
+        exit 1; 
     }
     
     print_status( 'Done.' );
@@ -188,8 +220,7 @@ sub check_previous_scans {
     }
     
     if ( -e $touchfile ) {
-        print_warn( "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***" );
-        print $CSISUMMARY "Server previously flagged as compromised\n";
+        print $CSISUMMARY "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***\n";
         print $CSISUMMARY "\n";
     }
     
@@ -200,13 +231,8 @@ sub check_kernel_updates {
     
     if ( $systype eq 'Linux' ) {
         chomp (my $newkernel = `yum check-update kernel | grep kernel | awk '{ print \$2 }'`);
-        if ( $newkernel eq '' ) {
-            print_info( "Server has no kernel updates available." );
-        }
-        else {
-            print "newkernel is \"$newkernel\"\n";
-            print_warn( "Server is not running the latest kernel, kernel update available through yum." );
-            print $CSISUMMARY "Server has kernel update available: $newkernel\n";
+        if ( $newkernel ne '' ) {
+            print $CSISUMMARY "Server is not running the latest kernel, kernel update available: $newkernel\n";
         }
     }
     else {
@@ -219,41 +245,39 @@ sub check_kernel_updates {
 
 sub run_rkhunter {
     
-    print_status ( 'Running rkhunter...' );
+    print_status ( 'Running rkhunter...This will take a few minutes.' );
     
     chdir "$csidir/rkhunter/bin";
     `./rkhunter --cronjob --rwo > $csidir/rkhunter.log 2>&1`;
     
-    open( my $RKHUNTLOG, '<', "$csidir/rkhunter.log" ) or 
-    die( "Cannot create logfile $csidir/rkhunter.log: $!" );
-    my @lines = grep /Rootkit/, <$RKHUNTLOG>;
-    if ( @lines ) {
-        print $CSISUMMARY "Rkhunter has found a suspected rootkit infection(s):\n";
-        print $CSISUMMARY "@lines\n";
-        print_warn ( "Rkhunter has found a suspected rootkit infection(s):" );
-        print_warn( "@lines\n" );
-        print_info( "More information can be found in the log at $csidir/rkhunter.log" );
+    if ( -s "$csidir/rkhunter.log" ) {
+        open( my $RKHUNTLOG, '<', "$csidir/rkhunter.log" ) or 
+            die( "Cannot open logfile $csidir/rkhunter.log: $!" );
+        my @lines = grep /Rootkit/, <$RKHUNTLOG>;
+        if ( @lines ) {
+            print $CSISUMMARY "Rkhunter has found a suspected rootkit infection(s):\n";
+            print $CSISUMMARY "@lines\n";
+            print $CSISUMMARY "More information can be found in the log at $csidir/rkhunter.log\n";
+        }
+        close $RKHUNTLOG;
     }
-    close $RKHUNTLOG;
     
     print_status( 'Done.' );
 }
 
 sub run_chkrootkit {
     
-    print_status ( 'Running chkrootkit...' );
+    print_status ( 'Running chkrootkit...This will take a few minutes.' );
     
     chdir "$csidir/chkrootkit";
     `./chkrootkit | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > \$csidir/chkrootkit.log 2> /dev/null`;
     
     if ( -s "$csidir/chkrootkit.log" ) {
+        open ( my $LOG, '<', "$csidir/chkrootkit.log" ) or
+            die( "Cannot open logfile $csidir/chkrootkit.log: $!" );
         print $CSISUMMARY "Chkrootkit has found a suspected rootkit infection(s):\n";
-        open ( my $LOG, '<', "$csidir/chkrootkit.log" );
         my @results = <$LOG>;
         print $CSISUMMARY "@results\n";
-        print_error( "Chkrootkit has found a suspected rootkit infection(s):" );
-        print_error( "@results" );
-        print_normal( '' );
         close $LOG;
     }
     
@@ -266,7 +290,6 @@ sub run_lynis {
     
     chdir "$csidir/lynis";
     `./lynis -c -Q --no-colors > \$csidir/lynis.output.log 2>&1`;
-    
     rename "/var/log/lynis.log", "$csidir/lynis.report.log";
 
     print_status( 'Done.' );
@@ -275,20 +298,12 @@ sub run_lynis {
 sub check_logfiles {
 
     if ( ! -d '/usr/local/apache/logs' ) {
-        print_warn( "/usr/local/apache/logs directory is not present" );
         print $CSISUMMARY ( "/usr/local/apache/logs directory is not present" );
-    }
-    elsif ( -d '/usr/local/apache/logs' ) {
-        print_info( "/usr/local/apache/logs directory is present" );
     }
     
     foreach my $log ( @logfiles ) {
         if ( ! -f $log ) {
-            print_warn( "$log is either not present or is not a regular file" );
             print $CSISUMMARY "Log file $log is missing or not a regular file\n";
-        }
-        else {
-            print_info( "$log is present" );
         }
     }
 
@@ -298,19 +313,11 @@ sub check_logfiles {
 sub check_index {
 
     if ( -f '/tmp/index.htm' or -f '/tmp/index.html' ) {
-        print_warn( "Index file is present in /tmp" );
         print $CSISUMMARY "Index file found in /tmp\n";
-    }
-    else {
-        print_info( "No index file found in /tmp" );
     }
     
     if ( -f '/home/index.htm' or -f '/home/index.html' ) {
-        print_warn( "Index file found in /home" );
         print $CSISUMMARY "Index file found in /home\n";
-    }
-    else {
-        print_info( "No index file found in /home" );
     }
 
     print_status( 'Done.' );
@@ -319,13 +326,11 @@ sub check_index {
 sub check_suspended {
 
     if ( -f '/var/cpanel/webtemplates/root/english/suspended.tmpl' ) {
-        print_warn( "/var/cpanel/webtemplates/root/english/suspended.tmpl is present." );
-        print_info( "This could mean the admin just created a custom template or that an attacker gained access and created it (hack page)" );
         print $CSISUMMARY "Custom account suspended template found at /var/cpanel/webtemplates/root/english/suspended.tmpl\n";
+        print $CSISUMMARY "     This could mean the admin just created a custom template or that an attacker gained access\n";
+        print $CSISUMMARY "     and created it (hack page)\n" ;
     }
-    else {
-        print_info( "Server is using the default suspended page template" );
-    }
+    print_status( 'Done.' );
 }
 
 sub check_history {
@@ -333,22 +338,16 @@ sub check_history {
     if (-e '/root/.bash_history') {
         if ( -l '/root/.bash_history' ) {
             my $result = `ls -la /root/.bash_history`;
-            print_warn( "/root/.bash_history is a symlink:" );
-            print_warn( "$result" );
             print $CSISUMMARY "/root/.bash_history is a symlink, $result\n";
         }
         elsif ( ! -s '/root/.bash_history' and ! -l '/root/.bash_history' ) {
-            print_warn( "/root/.bash_history is a 0 byte file" );
             print $CSISUMMARY "/root/.bash_history is a 0 byte file\n";
-        }
-        else {
-            print_info( "No tampering detected" );
         }
     }
     else {
-        print_warn( "/root/.bash_history is not present, this indicates probably tampering" );
         print $CSISUMMARY "/root/.bash_history is not present, this indicates probable tampering\n";
     }
+    print_status( 'Done.' );
 }
 
 sub check_modsecurity {
@@ -361,6 +360,7 @@ sub check_modsecurity {
     else {
         print_warn( "Mod Security is disabled" );
     }   
+    print_status( 'Done.' );
 }
 
 sub check_hackfiles {
@@ -421,19 +421,18 @@ sub check_hackfiles {
 
 sub check_uids {
     
-    my @baduids = ();
+    my @baduids;
     
-    open( FH, "<", "/etc/passwd" ) or die "open failed: $!";
+    open( my $PASSWD, "<", "/etc/passwd" ) or die "open failed: $!";
     
-    while ( my $line = <FH> ) {
+    while ( my $line = <$PASSWD> ) {
         my ( $user, $pass, $uid, $gid, $group, $home, $shell ) = split(":", $line);
         if ( $uid == 0 && ! $user eq "root" ) {
             push @baduids, $user;
         }
     }
 
-    if ( $#baduids > 0 ) {
-        print_warn( "The following users have been detected with UID=0. This *may* indicate a compromised system." );
+    if ( @baduids ) {
         print $CSISUMMARY "Users with UID of 0 detected:\n";
         foreach my $bad ( @baduids ) {
             print_warn( "$bad" );
@@ -445,24 +444,53 @@ sub check_uids {
         print_status( "No (non-root) users with UID 0 detected." );
     }
 
+    close( $PASSWD );
     print_status( 'Done.' );
 }
 
+sub check_httpd_config {
+
+    my $httpd_conf = '/usr/local/apache/conf/httpd.conf';
+    if ( -f $httpd_conf ) {
+        my $apache_options = `grep -A1 '<Directory "/">' $httpd_conf`;
+        if ( $apache_options =~ 'FollowSymLinks' and $apache_options !~ 'SymLinksIfOwnerMatch') {
+            print $CSISUMMARY "Apache configuration allows symlinks without owner match\n";
+        }
+    }
+    else {
+        print $CSISUMMARY "Apache configuration file is missing\n";
+    }
+    print_status( 'Done.' );
+}
+
+sub check_for_processes {
+    
+    my $ps_output = `ps -aux`;
+    if ( $ps_output =~ 'sleep 7200' ) {
+        print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process\n";
+    }
+    elsif ( $ps_output =~ /\bperl\b/ ) {
+        print $CSISUMMARY "Ps output contains 'perl' without a command following, which probably indicates a hack\n";
+    }
+    print_status( 'Done.' );
+}
+
+
 sub dump_summary {
 
-    if ( -s $CSISUMMARY ) {
+    if ( -z $CSISUMMARY ) {
+        print_status( "No negative items were found" );
+    }
+    else {
         open $CSISUMMARY, '<', "$csidir/summary";
         print_info( "The following negative items were found:" );
         while (<$CSISUMMARY>) {
-            print BOLD GREEN $_;
+            print BOLD RED $_;
         }
         print_normal( '' );
         print_status( "[L1/L2] If a rootkit(s) or hack files in /tmp were found then please copy/paste the summary output into the ticket and escalate it to L3." );
         print_status( "[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as 'H4x0r3d' and run:" );
         print_normal( "touch $touchfile" );
-    }
-    else {
-        print_status( "No negative items were found" );
     }
 
     close $CSISUMMARY;
@@ -514,6 +542,5 @@ sub print_error {
     print BOLD MAGENTA "**[ERROR]**: $text\n";
 }
 
-scan();
 
 # EOF
