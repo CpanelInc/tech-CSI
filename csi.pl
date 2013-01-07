@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.6";
+my $version = "1.7";
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -51,26 +51,26 @@ sub scan {
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]" );
     print_normal('');
-    print_header('[ Cleaning up from earlier runs, if needed... ]');
+    print_header('[ Cleaning up from earlier runs, if needed ]');
     check_previous_scans();
     print_normal('');
 
     if ( !-f "Makefile.csi" ) {
-        print_header('[ Fetching Makefile... ]');
+        print_header('[ Fetching Makefile ]');
         fetch_makefile();
     }
     else {
-        print_header('[ Makefile already present... ]');
+        print_header('[ Makefile already present ]');
     }
     print_normal('');
 
-    print_header('[ Building Dependencies... ]');
+    print_header('[ Building Dependencies ]');
     install_sources();
     print_normal('');
 
     create_summary();
 
-    print_header('[ Checking if kernel update is available... ]');
+    print_header('[ Checking if kernel update is available ]');
     check_kernel_updates();
     print_normal('');
 
@@ -173,13 +173,13 @@ sub fetch_makefile {
 sub install_sources {
 
     if ( -x $make ) {
-        print_status('Cleaning up from previous runs...');
+        print_status('Cleaning up from previous runs');
         my $makefile = "Makefile.csi";
         my @cleanup_cmd = ( "$make", "-f", "$makefile", "uberclean" );
         
         system(@cleanup_cmd);
         
-        print_status('Running Makefile...');
+        print_status('Running Makefile');
         my @make_cmd = ( "$make", "-f", "$makefile" );
         system(@make_cmd);
     }
@@ -236,7 +236,7 @@ sub check_kernel_updates {
 
 sub run_rkhunter {
 
-    print_status('Running rkhunter...This will take a few minutes.');
+    print_status('Running rkhunter. This will take a few minutes.');
 
     chdir "$csidir/rkhunter/bin";
     `./rkhunter --cronjob --rwo > $csidir/rkhunter.log 2>&1`;
@@ -259,7 +259,7 @@ sub run_rkhunter {
 
 sub run_chkrootkit {
 
-    print_status('Running chkrootkit...This will take a few minutes.');
+    print_status('Running chkrootkit. This will take a few minutes.');
 
     chdir "$csidir/chkrootkit";
     `./chkrootkit | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > \$csidir/chkrootkit.log 2> /dev/null`;
@@ -280,7 +280,7 @@ sub run_chkrootkit {
 
 sub run_lynis {
 
-    print_status('Running Lynis...');
+    print_status('Running Lynis. This will take a few minutes.');
 
     chdir "$csidir/lynis";
     `./lynis -c -Q --no-colors > \$csidir/lynis.output.log 2>&1`;
