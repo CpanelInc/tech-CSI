@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.7";
+my $version = "1.8";
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
