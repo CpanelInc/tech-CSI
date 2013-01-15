@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.8";
+my $version = "1.8.1";
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -352,7 +352,7 @@ sub check_modsecurity {
 
     my $result = `/usr/local/apache/bin/apachectl -M 2>/dev/null`;
 
-    if ( $result !~ 'security_module' ) {
+    if ( $result !~ /security2_module|security_module/ ) {
         print $CSISUMMARY "Mod Security is disabled\n";
     }
 
