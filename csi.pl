@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.8.1";
+my $version = "1.8.2";
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -262,7 +262,7 @@ sub run_chkrootkit {
     print_status('Running chkrootkit. This will take a few minutes.');
 
     chdir "$csidir/chkrootkit";
-    `./chkrootkit | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > \$csidir/chkrootkit.log 2> /dev/null`;
+    `./chkrootkit 2> /dev/null | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > \$csidir/chkrootkit.log 2> /dev/null`;
 
     if ( -s "$csidir/chkrootkit.log" ) {
         open( my $LOG, '<', "$csidir/chkrootkit.log" )
@@ -377,7 +377,7 @@ sub check_hackfiles {
     while (<$HACKFILES>) {
         chomp( my $file_test = $_ );
         foreach my $name (@tmplist) {
-            if ( $name =~ /\b$file_test\b/ ) {
+            if ( $name =~ /\b$file_test$/ ) {
                 push( @hackfound, $name );
             }
         }
@@ -386,8 +386,6 @@ sub check_hackfiles {
     if ( @hackfound ) {
         foreach my $file (@hackfound) {
             chomp $file;
-            print_warn(
-                "$file found, check $csidir/tmplog for more information.");
             print $TMPLOG "---------------------------\n";
             print $TMPLOG "Processing $file\n";
             print $TMPLOG "\n";
