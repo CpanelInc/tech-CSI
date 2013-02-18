@@ -488,25 +488,35 @@ sub check_ssh {
     my @ssh_errors;
     my $ssh_verify;
 
+    # Check RPM verification for SSH packages
     foreach my $rpm ( qx(rpm -qa | grep openssh- | grep -v '/etc/' ) ) {
         chomp($rpm);
         $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config');
         if ( $ssh_verify ne "" ) {
-            push(@ssh_errors, " RPM verification on $rpm failed:\n");
-            push(@ssh_errors, " $ssh_verify");
+            push( @ssh_errors, " RPM verification on $rpm failed:\n" );
+            push( @ssh_errors, " $ssh_verify" );
         }
     }
 
+    # Check RPM verification for keyutils-libs
     chomp( my $keyutils_verify = qx(rpm -V keyutils-libs) );
     if ( $keyutils_verify ne "" ) {
-        push(@ssh_errors, " RPM verification on keyutils-libs failed:\n");
-        push(@ssh_errors, " $keyutils_verify");
+        push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
+        push( @ssh_errors, " $keyutils_verify" );
     }
-    push(@ssh_errors, " Found /lib/libkeyutils.so.9")
-     if ( -e '/lib/libkeyutils.so.9');
-    push(@ssh_errors, " Found /lib64/libkeyutils.so.9")
-     if ( -e '/lib64/libkeyutils.so.9');
-   
+    push( @ssh_errors, " Found /lib/libkeyutils.so.9" )
+     if ( -e '/lib/libkeyutils.so.9' );
+    push( @ssh_errors, " Found /lib64/libkeyutils.so.9" )
+     if ( -e '/lib64/libkeyutils.so.9' );
+
+    # Check process list for suspicious SSH processes
+    my @process_list = qx(ps aux | grep "sshd: root@" | egrep -v 'pts|priv');
+    if ( @process_list and $process_list[0] =~ 'root' ) {
+        push( @ssh_errors, " Suspicious SSH process(es) found:\n" );
+        push( @ssh_errors, " $process_list[0]" );
+    }
+
+    # If any issues were found, then write those to CSISUMMARY
     if (@ssh_errors) {
         print $CSISUMMARY "System has detected the presence of a possibly compromised SSH:\n";
         print $CSISUMMARY @ssh_errors;
