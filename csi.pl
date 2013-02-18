@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "1.8.2";
+my $version = '1.9';
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -28,7 +28,7 @@ my @logfiles  = (
     '/usr/local/apache/logs/error_log',
     '/var/log/messages',
     '/var/log/maillog',
-    '/var/log/wtmp'
+    '/var/log/wtmp',
 );
 my $systype;
 my $os;
@@ -75,9 +75,9 @@ sub scan {
     print_normal('');
 
     print_header('[ Running 3rdparty rootkit and security checking programs ]');
-    run_rkhunter();
-    run_chkrootkit();
-    run_lynis();
+#    run_rkhunter();
+#    run_chkrootkit();
+#    run_lynis();
     print_normal('');
 
     print_header('[ Checking logfiles ]');
@@ -116,6 +116,10 @@ sub scan {
     check_processes();
     print_normal('');
 
+    print_header('[ Checking for modified/hacked SSH ]');
+    check_ssh() if ( $systype eq 'Linux' );
+    print_normal('');
+
     print_header('[ Cleaning up ]');
     cleanup();
     print_normal('');
@@ -135,11 +139,11 @@ sub detect_system {
     chomp($systype);
 
     if ( $systype eq 'Linux' ) {
-        $os = `cat /etc/redhat-release`;
+        $os = qx(cat /etc/redhat-release);
         push @logfiles, '/var/log/secure';
     }
     elsif ( $systype eq 'FreeBSD' ) {
-        $os = `uname -r`;
+        $os = qx(uname -r);
         push @logfiles, '/var/log/auth.log';
     }
     else {
@@ -156,7 +160,7 @@ sub detect_system {
 sub fetch_makefile {
 
     if ( -x $wget ) {
-        my $makefile_url = "http://cptechs.info/csi/Makefile.csi";
+        my $makefile_url = 'http://cptechs.info/csi/Makefile.csi';
         my @wget_cmd = ( "$wget", "-q", "$makefile_url" );
         system(@wget_cmd);
     }
@@ -221,7 +225,7 @@ sub check_previous_scans {
 sub check_kernel_updates {
 
     if ( $systype eq 'Linux' ) {
-        chomp( my $newkernel = `yum check-update kernel | grep kernel | awk '{ print \$2 }'` );
+        chomp( my $newkernel = qx(yum check-update kernel | grep kernel | awk '{ print \$2 }') );
         if ( $newkernel ne '' ) {
             print $CSISUMMARY "Server is not running the latest kernel, kernel update available: $newkernel\n";
         }
@@ -239,7 +243,7 @@ sub run_rkhunter {
     print_status('Running rkhunter. This will take a few minutes.');
 
     chdir "$csidir/rkhunter/bin";
-    `./rkhunter --cronjob --rwo > $csidir/rkhunter.log 2>&1`;
+    qx(./rkhunter --cronjob --rwo > \$csidir/rkhunter.log 2>&1);
 
     if ( -s "$csidir/rkhunter.log" ) {
         open( my $RKHUNTLOG, '<', "$csidir/rkhunter.log" )
@@ -262,7 +266,7 @@ sub run_chkrootkit {
     print_status('Running chkrootkit. This will take a few minutes.');
 
     chdir "$csidir/chkrootkit";
-    `./chkrootkit 2> /dev/null | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > \$csidir/chkrootkit.log 2> /dev/null`;
+    qx#./chkrootkit 2> /dev/null | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > $csidir/chkrootkit.log 2> /dev/null#;
 
     if ( -s "$csidir/chkrootkit.log" ) {
         open( my $LOG, '<', "$csidir/chkrootkit.log" )
@@ -283,7 +287,7 @@ sub run_lynis {
     print_status('Running Lynis. This will take a few minutes.');
 
     chdir "$csidir/lynis";
-    `./lynis -c -Q --no-colors > \$csidir/lynis.output.log 2>&1`;
+    qx(./lynis -c -Q --no-colors > $csidir/lynis.output.log 2>&1);
     rename "/var/log/lynis.log", "$csidir/lynis.report.log";
 
     print_status('Done.');
@@ -333,7 +337,7 @@ sub check_history {
 
     if ( -e '/root/.bash_history' ) {
         if ( -l '/root/.bash_history' ) {
-            my $result = `ls -la /root/.bash_history`;
+            my $result = qx(ls -la /root/.bash_history);
             print $CSISUMMARY "/root/.bash_history is a symlink, $result\n";
         }
         elsif ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
@@ -350,7 +354,7 @@ sub check_history {
 
 sub check_modsecurity {
 
-    my $result = `/usr/local/apache/bin/apachectl -M 2>/dev/null`;
+    my $result = qx(/usr/local/apache/bin/apachectl -M 2>/dev/null);
 
     if ( $result !~ /security2_module|security_module/ ) {
         print $CSISUMMARY "Mod Security is disabled\n";
@@ -372,7 +376,7 @@ sub check_hackfiles {
     open( my $HACKFILES, '<', "$csidir/hackfiles" )
       or die("Cannot open $csidir/hackfiles: $!");
 
-    my @tmplist = `find /tmp -type f`;
+    my @tmplist = qx(find /tmp -type f);
     my @hackfound;
     while (<$HACKFILES>) {
         chomp( my $file_test = $_ );
@@ -447,7 +451,7 @@ sub check_httpd_config {
 
     my $httpd_conf = '/usr/local/apache/conf/httpd.conf';
     if ( -f $httpd_conf ) {
-        my $apache_options = `grep -A1 '<Directory "/">' $httpd_conf`;
+        my $apache_options = qx(grep -A1 '<Directory "/">' $httpd_conf);
         if (    $apache_options =~ 'FollowSymLinks'
             and $apache_options !~ 'SymLinksIfOwnerMatch' ) {
             print $CSISUMMARY "Apache configuration allows symlinks without owner match\n";
@@ -463,7 +467,7 @@ sub check_httpd_config {
 
 sub check_processes {
 
-    chomp( my @ps_output = `ps aux` );
+    chomp( my @ps_output = qx(ps aux) );
     foreach my $line (@ps_output) {
         if ( $line =~ 'sleep 7200' ) {
             print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process:\n";
@@ -479,6 +483,39 @@ sub check_processes {
 
 }
 
+sub check_ssh {
+
+    my @ssh_errors;
+    my $ssh_verify;
+
+    foreach my $rpm ( qx(rpm -qa | grep openssh- | grep -v '/etc/' ) ) {
+        chomp($rpm);
+        $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config');
+        if ( $ssh_verify ne "" ) {
+            push(@ssh_errors, " RPM verification on $rpm failed:\n");
+            push(@ssh_errors, " $ssh_verify");
+        }
+    }
+
+    chomp( my $keyutils_verify = qx(rpm -V keyutils-libs) );
+    if ( $keyutils_verify ne "" ) {
+        push(@ssh_errors, " RPM verification on keyutils-libs failed:\n");
+        push(@ssh_errors, " $keyutils_verify");
+    }
+    push(@ssh_errors, " Found /lib/libkeyutils.so.9")
+     if ( -e '/lib/libkeyutils.so.9');
+    push(@ssh_errors, " Found /lib64/libkeyutils.so.9")
+     if ( -e '/lib64/libkeyutils.so.9');
+   
+    if (@ssh_errors) {
+        print $CSISUMMARY "System has detected the presence of a possibly compromised SSH:\n";
+        print $CSISUMMARY @ssh_errors;
+    }
+
+    print_status('Done.');
+
+}
+
 sub dump_summary {
 
     if ( -z $CSISUMMARY ) {
@@ -490,6 +527,7 @@ sub dump_summary {
         while (<$CSISUMMARY>) {
             print BOLD GREEN $_;
         }
+        print_normal('');
         print_normal('');
         print_status("[L1/L2] If a rootkit(s) or hack files in /tmp were found then please copy/paste the summary output into the ticket and escalate it to L3.");
         print_status("[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as 'H4x0r3d' and run:");
