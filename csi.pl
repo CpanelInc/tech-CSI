@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '1.9.1';
+my $version = '1.9.2';
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -75,9 +75,9 @@ sub scan {
     print_normal('');
 
     print_header('[ Running 3rdparty rootkit and security checking programs ]');
-#    run_rkhunter();
-#    run_chkrootkit();
-#    run_lynis();
+    run_rkhunter();
+    run_chkrootkit();
+    run_lynis();
     print_normal('');
 
     print_header('[ Checking logfiles ]');
@@ -504,10 +504,15 @@ sub check_ssh {
         push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
         push( @ssh_errors, " $keyutils_verify" );
     }
-    push( @ssh_errors, " Found /lib/libkeyutils.so.9" )
-     if ( -e '/lib/libkeyutils.so.9' );
-    push( @ssh_errors, " Found /lib64/libkeyutils.so.9" )
-     if ( -e '/lib64/libkeyutils.so.9' );
+
+    my @lib_files = glob '/lib*/libkeyutils*';
+    foreach my $file (@lib_files) {
+        if ( qx(rpm -qf $file) =~ /not owned by any package/ ) {
+            my $md5sum = qx(md5sum $file);
+            push( @ssh_errors, " Found $file which is not owned by any RPM.\n" );
+            push( @ssh_errors, " $md5sum" );
+        }
+    }
 
     # Check process list for suspicious SSH processes
     my @process_list = qx(ps aux | grep "sshd: root@" | egrep -v 'pts|priv');
