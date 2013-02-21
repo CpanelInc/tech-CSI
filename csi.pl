@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '1.9.2';
+my $version = '1.9.3';
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -71,7 +71,7 @@ sub scan {
     create_summary();
 
     print_header('[ Checking if kernel update is available ]');
-    check_kernel_updates();
+    check_kernel_updates() if ( $systype eq 'Linux' );
     print_normal('');
 
     print_header('[ Running 3rdparty rootkit and security checking programs ]');
@@ -135,7 +135,7 @@ sub scan {
 
 sub detect_system {
 
-    $systype = `uname -a | cut -f1 -d" "`;
+    $systype = qx(uname -a | cut -f1 -d" ");
     chomp($systype);
 
     if ( $systype eq 'Linux' ) {
@@ -208,7 +208,7 @@ sub create_summary {
 sub check_previous_scans {
 
     if ( -d $csidir ) {
-        chomp( my $date = `date "+%Y%m%d"` );
+        chomp( my $date = qx(date +%Y%m%d) );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
     }
@@ -224,14 +224,9 @@ sub check_previous_scans {
 
 sub check_kernel_updates {
 
-    if ( $systype eq 'Linux' ) {
-        chomp( my $newkernel = qx(yum check-update kernel | grep kernel | awk '{ print \$2 }') );
-        if ( $newkernel ne '' ) {
-            print $CSISUMMARY "Server is not running the latest kernel, kernel update available: $newkernel\n";
-        }
-    }
-    else {
-        print_info('Kernel check not implemented for FreeBSD!');
+    chomp( my $newkernel = qx(yum check-update kernel | grep kernel | awk '{ print \$2 }') );
+    if ( $newkernel ne '' ) {
+        print $CSISUMMARY "Server is not running the latest kernel, kernel update available: $newkernel\n";
     }
 
     print_status('Done.');
