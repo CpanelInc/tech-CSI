@@ -120,6 +120,10 @@ sub scan {
     check_ssh() if ( $systype eq 'Linux' );
     print_normal('');
 
+    print_header('[ Checking for unowned libraries in /lib, /lib64 ]');
+    check_lib() if ( $systype eq 'Linux');
+    print_normal('');
+
     print_header('[ Cleaning up ]');
     cleanup();
     print_normal('');
@@ -500,15 +504,6 @@ sub check_ssh {
         push( @ssh_errors, " $keyutils_verify" );
     }
 
-    my @lib_files = glob '/lib*/libkeyutils*';
-    foreach my $file (@lib_files) {
-        if ( qx(rpm -qf $file) =~ /not owned by any package/ ) {
-            my $md5sum = qx(md5sum $file);
-            push( @ssh_errors, " Found $file which is not owned by any RPM.\n" );
-            push( @ssh_errors, " $md5sum" );
-        }
-    }
-
     # Check process list for suspicious SSH processes
     my @process_list = qx(ps aux | grep "sshd: root@" | egrep -v 'pts|priv');
     if ( @process_list and $process_list[0] =~ 'root' ) {
@@ -522,6 +517,29 @@ sub check_ssh {
         print $CSISUMMARY @ssh_errors;
     }
 
+    print_status('Done.');
+
+}
+
+sub check_lib {
+
+    my @lib_errors;
+    my @lib_files = glob '/lib*/*';
+
+    foreach my $file (@lib_files) {
+        if ( qx(rpm -qf $file) =~ /not owned by any package/ ) {
+            my $md5sum = qx(md5sum $file);
+            push( @lib_errors, " Found $file which is not owned by any RPM.\n" );
+            push( @lib_errors, " $md5sum" );
+        }
+    }
+
+    # If any issues were found, then write those to CSISUMMARY
+    if (@lib_errors) {
+        print $CSISUMMARY "System has detected the presence of a library file not owned by an RPM, this *may* be a sign of root compromise\n";
+        print $CSISUMMARY @lib_errors;
+    }
+    
     print_status('Done.');
 
 }
