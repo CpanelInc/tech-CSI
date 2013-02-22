@@ -32,6 +32,8 @@ my @logfiles  = (
 );
 my $systype;
 my $os;
+my $linux;
+my $freebsd;
 
 # Verify script is being run as root
 if ( $> != 0 ) {
@@ -70,9 +72,11 @@ sub scan {
 
     create_summary();
 
-    print_header('[ Checking if kernel update is available ]');
-    check_kernel_updates() if ( $systype eq 'Linux' );
-    print_normal('');
+    if ($linux) {
+        print_header('[ Checking if kernel update is available ]');
+        check_kernel_updates();
+        print_normal('');
+    }
 
     print_header('[ Running 3rdparty rootkit and security checking programs ]');
     run_rkhunter();
@@ -116,13 +120,17 @@ sub scan {
     check_processes();
     print_normal('');
 
-    print_header('[ Checking for modified/hacked SSH ]');
-    check_ssh() if ( $systype eq 'Linux' );
-    print_normal('');
+    if ($linux) {
+        print_header('[ Checking for modified/hacked SSH ]');
+        check_ssh();
+        print_normal('');
+    }
 
-    print_header('[ Checking for unowned libraries in /lib, /lib64 ]');
-    check_lib() if ( $systype eq 'Linux');
-    print_normal('');
+    if ($linux) {
+        print_header('[ Checking for unowned libraries in /lib, /lib64 ]');
+        check_lib();
+        print_normal('');
+    }
 
     print_header('[ Cleaning up ]');
     cleanup();
@@ -143,10 +151,12 @@ sub detect_system {
     chomp($systype);
 
     if ( $systype eq 'Linux' ) {
+        $linux = 1;
         $os = qx(cat /etc/redhat-release);
         push @logfiles, '/var/log/secure';
     }
     elsif ( $systype eq 'FreeBSD' ) {
+        $freebsd== 1;
         $os = qx(uname -r);
         push @logfiles, '/var/log/auth.log';
     }
@@ -371,12 +381,14 @@ sub check_hackfiles {
       or die("Cannot open $csidir/tmplog: $!");
 
     my @wget_hackfiles = ( "$wget", "-q", "http://csi.cptechs.info/hackfiles" );
+    
     system(@wget_hackfiles);
     open( my $HACKFILES, '<', "$csidir/hackfiles" )
       or die("Cannot open $csidir/hackfiles: $!");
 
     my @tmplist = qx(find /tmp -type f);
     my @hackfound;
+
     while (<$HACKFILES>) {
         chomp( my $file_test = $_ );
         foreach my $name (@tmplist) {
