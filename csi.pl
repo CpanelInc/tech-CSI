@@ -156,7 +156,7 @@ sub detect_system {
         push @logfiles, '/var/log/secure';
     }
     elsif ( $systype eq 'FreeBSD' ) {
-        $freebsd== 1;
+        $freebsd = 1;
         $os = qx(uname -r);
         push @logfiles, '/var/log/auth.log';
     }
