@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '1.9.3';
+my $version = '1.9.4';
 chomp( my $cwd  = `pwd` );
 chomp( my $wget = `which wget` );
 chomp( my $make = `which make` );
@@ -500,9 +500,9 @@ sub check_ssh {
     my $ssh_verify;
 
     # Check RPM verification for SSH packages
-    foreach my $rpm ( qx(rpm -qa | grep openssh- | grep -v '/etc/' ) ) {
+    foreach my $rpm ( qx(rpm -qa openssh*) ) {
         chomp($rpm);
-        $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config');
+        $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d');
         if ( $ssh_verify ne "" ) {
             push( @ssh_errors, " RPM verification on $rpm failed:\n" );
             push( @ssh_errors, " $ssh_verify" );
@@ -525,7 +525,7 @@ sub check_ssh {
 
     # If any issues were found, then write those to CSISUMMARY
     if (@ssh_errors) {
-        print $CSISUMMARY "System has detected the presence of a possibly compromised SSH:\n";
+        print $CSISUMMARY "System has detected the presence of a *POSSIBLY* compromised SSH:\n";
         print $CSISUMMARY @ssh_errors;
     }
 
@@ -548,7 +548,7 @@ sub check_lib {
 
     # If any issues were found, then write those to CSISUMMARY
     if (@lib_errors) {
-        print $CSISUMMARY "System has detected the presence of a library file not owned by an RPM, this *may* be a sign of root compromise\n";
+        print $CSISUMMARY "System has detected the presence of a library file not owned by an RPM, these libraries *MAY& indicate a compromise or could have been custom installed by the administrator.\n";
         print $CSISUMMARY @lib_errors;
     }
     
