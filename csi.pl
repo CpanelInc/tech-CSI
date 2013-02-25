@@ -16,10 +16,36 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '1.9.4';
-chomp( my $cwd  = `pwd` );
-chomp( my $wget = `which wget` );
-chomp( my $make = `which make` );
+my $version = '1.9.5';
+
+###################################################
+# Check to see if the calling user is root or not #
+###################################################
+
+if ( $> != 0 ) {
+    die "This script needs to be ran as the root user\n";
+}
+
+###########################################################
+# Parse positional parameters for flags and set variables #
+###########################################################
+
+# Set defaults for positional parameters
+my $no3rdparty = 0;       # Default to running 3rdparty scanners
+
+foreach my $arg (@ARGV) {
+    if ( $arg =~ '--no3rdparty' ) {
+        $no3rdparty = 1;
+    }
+}
+
+#######################################
+# Set variables needed for later subs #
+#######################################
+
+chomp( my $cwd  = qx(pwd) );
+chomp( my $wget = qx(which wget) );
+chomp( my $make = qx(which make) );
 my $csidir = "$cwd/CSI";
 my $CSISUMMARY;
 my $touchfile = '/var/cpanel/perl/easy/Cpanel/Easy/csi.pm';
@@ -35,17 +61,18 @@ my $os;
 my $linux;
 my $freebsd;
 
-# Verify script is being run as root
-if ( $> != 0 ) {
-    die "This script needs to be ran as the root user\n";
-}
+######################
+# Run code main body #
+######################
 
-# Run code main body
 scan();
 
-# Subs
+########
+# Subs #
+########
 
 sub scan {
+
     detect_system();
     print_normal('');
     print_header('[ Starting cPanel Security Inspection ]');
@@ -53,36 +80,40 @@ sub scan {
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]" );
     print_normal('');
+    print_header("[ Available flags when running $0 (if any): ]");
+    print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]') if (!$no3rdparty);
+    print_normal('');
     print_header('[ Cleaning up from earlier runs, if needed ]');
     check_previous_scans();
     print_normal('');
 
-    if ( !-f "Makefile.csi" ) {
-        print_header('[ Fetching Makefile ]');
-        fetch_makefile();
-    }
-    else {
-        print_header('[ Makefile already present ]');
-    }
-    print_normal('');
-
-    print_header('[ Building Dependencies ]');
-    install_sources();
-    print_normal('');
-
     create_summary();
 
-    if ($linux) {
-        print_header('[ Checking if kernel update is available ]');
-        check_kernel_updates();
+    if ( !$no3rdparty ) {
+        if ( !-f "Makefile.csi" ) {
+            print_header('[ Fetching Makefile ]');
+            fetch_makefile();
+        }
+        else {
+            print_header('[ Makefile already present ]');
+        }
+    
+        print_normal('');
+
+        print_header('[ Building Dependencies ]');
+        install_sources();
+        print_normal('');
+
+        print_header('[ Running 3rdparty rootkit and security checking programs ]');
+        run_rkhunter();
+        run_chkrootkit();
+        run_lynis();
+        print_normal('');
+    
+        print_header('[ Cleaning up ]');
+        cleanup();
         print_normal('');
     }
-
-    print_header('[ Running 3rdparty rootkit and security checking programs ]');
-    run_rkhunter();
-    run_chkrootkit();
-    run_lynis();
-    print_normal('');
 
     print_header('[ Checking logfiles ]');
     check_logfiles();
@@ -124,17 +155,15 @@ sub scan {
         print_header('[ Checking for modified/hacked SSH ]');
         check_ssh();
         print_normal('');
-    }
-
-    if ($linux) {
+        
         print_header('[ Checking for unowned libraries in /lib, /lib64 ]');
         check_lib();
         print_normal('');
+        
+        print_header('[ Checking if kernel update is available ]');
+        check_kernel_updates();
+        print_normal('');
     }
-
-    print_header('[ Cleaning up ]');
-    cleanup();
-    print_normal('');
 
     print_header('[ cPanel Security Inspection Complete! ]');
     print_normal('');
@@ -211,25 +240,20 @@ sub install_sources {
 
 }
 
-sub create_summary {
-
-    chdir "$csidir" or die "Cannot chdir to $csidir, CSI is now aborting\n";
-    open( $CSISUMMARY, '>', "$csidir/summary" )
-      or die("Cannot create CSI summary file $csidir/summary: $!\n");
-
-}
-
 sub check_previous_scans {
+
+    if ( -e $touchfile ) {
+        print $CSISUMMARY "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***\n";
+        print $CSISUMMARY "\n";
+    }
 
     if ( -d $csidir ) {
         chomp( my $date = qx(date +%Y%m%d) );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
     }
-
-    if ( -e $touchfile ) {
-        print $CSISUMMARY "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***\n";
-        print $CSISUMMARY "\n";
+    else {
+        mkdir $csidir;
     }
 
     print_status('Done.');
@@ -503,7 +527,7 @@ sub check_ssh {
     foreach my $rpm ( qx(rpm -qa openssh*) ) {
         chomp($rpm);
         $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d');
-        if ( $ssh_verify ne "" ) {
+        if ( $ssh_verify ne '' ) {
             push( @ssh_errors, " RPM verification on $rpm failed:\n" );
             push( @ssh_errors, " $ssh_verify" );
         }
@@ -548,11 +572,19 @@ sub check_lib {
 
     # If any issues were found, then write those to CSISUMMARY
     if (@lib_errors) {
-        print $CSISUMMARY "System has detected the presence of a library file not owned by an RPM, these libraries *MAY& indicate a compromise or could have been custom installed by the administrator.\n";
+        print $CSISUMMARY "System has detected the presence of a library file not owned by an RPM, these libraries *MAY* indicate a compromise or could have been custom installed by the administrator.\n";
         print $CSISUMMARY @lib_errors;
     }
     
     print_status('Done.');
+
+}
+
+sub create_summary {
+
+    chdir "$csidir" or die "Cannot chdir to $csidir, CSI is now aborting\n";
+    open( $CSISUMMARY, '>', "$csidir/summary" )
+        or die("Cannot create CSI summary file $csidir/summary: $!\n");
 
 }
 
