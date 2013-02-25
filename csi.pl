@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '1.9.5';
+my $version = '2.0';
 
 ###################################################
 # Check to see if the calling user is root or not #
