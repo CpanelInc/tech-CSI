@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.0';
+my $version = '2.0.1';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -251,6 +251,7 @@ sub check_previous_scans {
         chomp( my $date = qx(date +%Y%m%d) );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
+        mkdir $csidir;
     }
     else {
         mkdir $csidir;
