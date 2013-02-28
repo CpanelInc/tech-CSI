@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.0.1';
+my $version = '2.0.2';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -564,7 +564,7 @@ sub check_lib {
     my @lib_files = glob '/lib*/*';
 
     foreach my $file (@lib_files) {
-        if ( qx(rpm -qf $file) =~ /not owned by any package/ ) {
+        if ( qx(rpm -qf $file) =~ /not owned by any package/ and -f $file ) {
             my $md5sum = qx(md5sum $file);
             push( @lib_errors, " Found $file which is not owned by any RPM.\n" );
             push( @lib_errors, " $md5sum" );
