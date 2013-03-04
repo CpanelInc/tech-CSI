@@ -16,7 +16,7 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.0.2';
+my $version = '2.0.3';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -535,7 +535,7 @@ sub check_ssh {
     }
 
     # Check RPM verification for keyutils-libs
-    chomp( my $keyutils_verify = qx(rpm -V keyutils-libs) );
+    my $keyutils_verify = qx(rpm -V keyutils-libs);
     if ( $keyutils_verify ne "" ) {
         push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
         push( @ssh_errors, " $keyutils_verify" );
