@@ -457,30 +457,24 @@ sub check_hackfiles {
 
 sub check_uids {
 
-    my @baduids;
+  my @baduids;
 
-    open( my $PASSWD, "<", "/etc/passwd" ) or die "open failed: $!";
-
-    while ( my $line = <$PASSWD> ) {
-        my ( $user, $pass, $uid, $gid, $group, $home, $shell ) =
-          split( ":", $line );
-        if ( $uid == 0 && !$user eq "root" ) {
-            push @baduids, $user;
-        }
+  while ( my ( $user, $pass, $uid, $gid, $group, $home, $shell ) = getpwent() ) {
+    if ( $uid == 0 && ! $user eq "root" ) {
+      push @baduids, $user;
     }
+  }
+  endpwent();
 
-    if (@baduids) {
-        print $CSISUMMARY "Users with UID of 0 detected:\n";
-        foreach my $bad (@baduids) {
-            print_warn("$bad");
-            print $CSISUMMARY "$bad\n";
-        }
-        print $CSISUMMARY "\n";
+  if ( @baduids ) {
+    print $CSISUMMARY "Users with UID of 0 detected:\n";
+    foreach my $bad ( @baduids ) {
+      print_warn( "$bad" );
+      print $CSISUMMARY "$bad\n";
     }
-
-    close($PASSWD);
-    print_status('Done.');
-
+    print $CSISUMMARY "\n";
+  }
+  print_status( 'Done.' );
 }
 
 sub check_httpd_config {
@@ -496,7 +490,6 @@ sub check_httpd_config {
     else {
         print $CSISUMMARY "Apache configuration file is missing\n";
     }
-    
     print_status('Done.');
 
 }
