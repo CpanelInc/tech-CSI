@@ -8,7 +8,7 @@
 
 # Tested on cPanel 11.30 - 11.36
 
-# Maintainers: Charles Boyd, Paul Trost, Dan Stewart
+# Maintainers: Charles Boyd, Marco Ferrufino, Dan Stewart
 
 use strict;
 use warnings;
