@@ -18,7 +18,7 @@ use File::Spec;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.0.4';
+my $version = '2.0.5';
 
 ###################################################
 # Check to see if the calling user is root or not #
