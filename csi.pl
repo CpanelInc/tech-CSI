@@ -56,6 +56,9 @@ my $chkrootkit_bin = File::Spec->catfile( $csidir, 'chkrootkit', 'chkrootkit' );
 my $lynis_bin = File::Spec->catfile( $csidir, 'lynis', 'lynis' );
 
 my $CSISUMMARY;
+
+my @SUMMARY = ();
+
 my $touchfile = '/var/cpanel/perl/easy/Cpanel/Easy/csi.pm';
 my @logfiles  = (
 		 '/usr/local/apache/logs/access_log',
@@ -250,8 +253,7 @@ sub install_sources {
 sub check_previous_scans {
 
   if ( -e $touchfile ) {
-    print $CSISUMMARY "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***\n";
-    print $CSISUMMARY "\n";
+    push @SUMMARY, "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***";
   }
 
   if ( -d $csidir ) {
@@ -271,7 +273,7 @@ sub check_kernel_updates {
 
   chomp( my $newkernel = qx(yum check-update kernel | grep kernel | awk '{ print \$2 }') );
   if ( $newkernel ne '' ) {
-    print $CSISUMMARY "Server is not running the latest kernel, kernel update available: $newkernel\n";
+    push @SUMMARY, "Server is not running the latest kernel, kernel update available: $newkernel";
   }
 
   print_status('Done.');
@@ -289,15 +291,15 @@ sub run_rkhunter {
       or die("Cannot open logfile $csidir/rkhunter.log: $!");
     my @lines = grep /Rootkit/, <$RKHUNTLOG>;
     if (@lines) {
-      print $CSISUMMARY "Rkhunter has found a suspected rootkit infection(s):\n";
-      print $CSISUMMARY "@lines\n";
-      print $CSISUMMARY "More information can be found in the log at $csidir/rkhunter.log\n";
+      push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
+      foreach ( @lines ) {
+	push @SUMMARY, "$_";
+	push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
+      }
+      close $RKHUNTLOG;
     }
-    close $RKHUNTLOG;
   }
-
   print_status('Done.');
-
 }
 
 sub run_chkrootkit {
@@ -309,65 +311,51 @@ sub run_chkrootkit {
   if ( -s "$csidir/chkrootkit.log" ) {
     open( my $LOG, '<', "$csidir/chkrootkit.log" )
       or die("Cannot open logfile $csidir/chkrootkit.log: $!");
-    print $CSISUMMARY
-      "Chkrootkit has found a suspected rootkit infection(s):\n";
+    push @SUMMARY, 'Chkrootkit has found a suspected rootkit infection(s):';
     my @results = <$LOG>;
-    print $CSISUMMARY "@results\n";
-    close $LOG;
+    foreach ( @results ) {
+      push @SUMMARY, "$_";
+      close $LOG;
+    }
   }
-
   print_status('Done.');
-
 }
 
 sub run_lynis {
-
   print_status('Running Lynis. This will take a few minutes.');
-
   qx($lynis_bin -c -Q --no-colors > $csidir/lynis.output.log 2>&1);
   rename "/var/log/lynis.log", "$csidir/lynis.report.log";
-
   print_status('Done.');
-
 }
 
 sub check_logfiles {
-
   if ( !-d '/usr/local/apache/logs' ) {
-    print $CSISUMMARY ("/usr/local/apache/logs directory is not present");
+    push @SUMMARY, "/usr/local/apache/logs directory is not present";
   }
-
   foreach my $log (@logfiles) {
     if ( !-f $log ) {
-      print $CSISUMMARY
-	"Log file $log is missing or not a regular file\n";
+      push @SUMMARY, "Log file $log is missing or not a regular file";
     }
   }
-
   print_status('Done.');
-
 }
 
 sub check_index {
 
   if ( -f '/tmp/index.htm' or -f '/tmp/index.html' ) {
-    print $CSISUMMARY "Index file found in /tmp\n";
+    push @SUMMARY, 'Index file found in /tmp';
   }
-
   print_status('Done.');
-
 }
 
 sub check_suspended {
 
   if ( -f '/var/cpanel/webtemplates/root/english/suspended.tmpl' ) {
-    print $CSISUMMARY "Custom account suspended template found at /var/cpanel/webtemplates/root/english/suspended.tmpl\n";
-    print $CSISUMMARY "     This could mean the admin just created a custom template or that an attacker gained access\n";
-    print $CSISUMMARY "     and created it (hack page)\n";
+    push @SUMMARY, 'Custom account suspended template found at /var/cpanel/webtemplates/root/english/suspended.tmpl';
+    push @SUMMARY, '     This could mean the admin just created a custom template or that an attacker gained access';
+    push @SUMMARY, '     and created it (hack page)';
   }
-    
   print_status('Done.');
-
 }
 
 sub check_history {
@@ -375,12 +363,12 @@ sub check_history {
   if ( -e '/root/.bash_history' ) {
     if ( -l '/root/.bash_history' ) {
       my $result = qx(ls -la /root/.bash_history);
-      print $CSISUMMARY "/root/.bash_history is a symlink, $result\n";
+      push @SUMMARY, "/root/.bash_history is a symlink, $result";
     } elsif ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
-      print $CSISUMMARY "/root/.bash_history is a 0 byte file\n";
+      push @SUMMARY, "/root/.bash_history is a 0 byte file";
     }
   } else {
-    print $CSISUMMARY "/root/.bash_history is not present, this indicates probable tampering\n";
+    push @SUMMARY, "/root/.bash_history is not present, this indicates probable tampering";
   }
 
   print_status('Done.');
@@ -392,7 +380,7 @@ sub check_modsecurity {
   my $result = qx(/usr/local/apache/bin/apachectl -M 2>/dev/null);
 
   if ( $result !~ /security2_module|security_module/ ) {
-    print $CSISUMMARY "Mod Security is disabled\n";
+    push @SUMMARY,  "Mod Security is disabled";
   }
 
   print_status('Done.');
@@ -405,7 +393,7 @@ sub check_hackfiles {
     or die("Cannot open $csidir/tmplog: $!");
 
   my @wget_hackfiles = ( "$wget", '-q', 'http://csi.cptechs.info/hackfiles', '-O', "$csidir/hackfiles" );
-    
+
   system(@wget_hackfiles);
   open( my $HACKFILES, '<', "$csidir/hackfiles" )
     or die("Cannot open $csidir/hackfiles: $!");
@@ -433,7 +421,7 @@ sub check_hackfiles {
       print $TMPLOG "\n";
       print $TMPLOG "File type:\n";
       print $TMPLOG `file $file` if ( -s $file );
-      print $CSISUMMARY "$file found in /tmp, check $csidir/tmplog for more information\n";
+      push @SUMMARY, "$file found in /tmp, check $csidir/tmplog for more information";
 
       if ( $file =~ 'jpg' ) {
 	print $TMPLOG "\n";
@@ -466,12 +454,11 @@ sub check_uids {
   endpwent();
 
   if ( @baduids ) {
-    print $CSISUMMARY "Users with UID of 0 detected:\n";
+    push @SUMMARY, "Users with UID of 0 detected:";
     foreach my $bad ( @baduids ) {
       print_warn( "$bad" );
-      print $CSISUMMARY "$bad\n";
+      push @SUMMARY, "$bad";
     }
-    print $CSISUMMARY "\n";
   }
   print_status( 'Done.' );
 }
@@ -482,14 +469,13 @@ sub check_httpd_config {
   if ( -f $httpd_conf ) {
     my $apache_options = qx(grep -A1 '<Directory "/">' $httpd_conf);
     if (    $apache_options =~ 'FollowSymLinks'
-            and $apache_options !~ 'SymLinksIfOwnerMatch' ) {
-      print $CSISUMMARY "Apache configuration allows symlinks without owner match\n";
+	    and $apache_options !~ 'SymLinksIfOwnerMatch' ) {
+      push @SUMMARY,  "Apache configuration allows symlinks without owner match";
     }
   } else {
-    print $CSISUMMARY "Apache configuration file is missing\n";
+    push @SUMMARY, "Apache configuration file is missing";
   }
   print_status('Done.');
-
 }
 
 sub check_processes {
@@ -497,15 +483,14 @@ sub check_processes {
   chomp( my @ps_output = qx(ps aux) );
   foreach my $line (@ps_output) {
     if ( $line =~ 'sleep 7200' ) {
-      print $CSISUMMARY "Ps output contains 'sleep 7200' which is a known part of a hack process:\n";
-      print $CSISUMMARY "     $line\n";
+      push @SUMMARY, "Ps output contains 'sleep 7200' which is a known part of a hack process:";
+      push @SUMMARY, "     $line";
     }
     if ( $line =~ / perl$/ ) {
-      print $CSISUMMARY "Ps output contains 'perl' without a command following, which probably indicates a hack:\n";
-      print $CSISUMMARY "     $line\n";
+      push @SUMMARY, "Ps output contains 'perl' without a command following, which probably indicates a hack:";
+      push @SUMMARY, "     $line";
     }
   }
-    
   print_status('Done.');
 
 }
@@ -541,12 +526,12 @@ sub check_ssh {
 
   # If any issues were found, then write those to CSISUMMARY
   if (@ssh_errors) {
-    print $CSISUMMARY "System has detected the presence of a *POSSIBLY* compromised SSH:\n";
-    print $CSISUMMARY @ssh_errors;
+    push @SUMMARY, "System has detected the presence of a *POSSIBLY* compromised SSH:\n";
+    foreach ( @ssh_errors ) {
+      push @SUMMARY, "$_";
+    }
   }
-
   print_status('Done.');
-
 }
 
 sub check_lib {
@@ -567,94 +552,85 @@ sub check_lib {
 
   # If any issues were found, then write those to CSISUMMARY
   if (@lib_errors) {
-    print $CSISUMMARY "System has detected the presence of a library file not owned by an RPM, these libraries *MAY* indicate a compromise or could have been custom installed by the administrator.\n";
-    print $CSISUMMARY @lib_errors;
+    push @SUMMARY, "System has detected the presence of a library file not owned by an RPM, these libraries *MAY* indicate a compromise or could have been custom installed by the administrator.\n";
+    foreach ( @lib_errors ) {
+      push @SUMMARY, "$_";
+    }
   }
-    
   print_status('Done.');
-
 }
 
 sub create_summary {
-
-  open( $CSISUMMARY, '>', "$csidir/summary" )
+  open( my $CSISUMMARY, '>', "$csidir/summary" )
     or die("Cannot create CSI summary file $csidir/summary: $!\n");
 
+  foreach ( @SUMMARY ) {
+    print $CSISUMMARY "$_","\n";
+  }
+
+  close( $CSISUMMARY );
 }
 
 sub dump_summary {
-
-  if ( -z $CSISUMMARY ) {
+  if ( $#SUMMARY <= 0 ) {
     print_status("No negative items were found");
   } else {
-    open $CSISUMMARY, '<', "$csidir/summary";
     print_warn("The following negative items were found:");
-    while (<$CSISUMMARY>) {
-      print BOLD GREEN $_;
+    foreach my $item ( @SUMMARY ) {
+      print BOLD GREEN "\t",'* ',"$item","\n";
     }
     print_normal('');
     print_normal('');
-    print_status("[L1/L2] If a rootkit(s) or hack files in /tmp were found then please copy/paste the summary output into the ticket and escalate it to L3.");
-    print_status("[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as 'H4x0r3d' and run:");
+    print_status('[L1/L2] If a rootkit(s) or hack files in /tmp were found then please copy/paste the summary output into the ticket and escalate it to L3.');
+    print_status('[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as \'H4x0r3d\' and run:');
     print_normal("touch $touchfile");
   }
+}
 
-  close $CSISUMMARY;
+sub print_normal {
+  my $text = shift;
+  print "$text","\n";
+}
 
+sub print_separator {
+  my $text = shift;
+  print BLUE "$text\n";
+}
+
+sub print_header {
+  my $text = shift;
+  print CYAN "$text\n";
+}
+
+sub print_status {
+  my $text = shift;
+  print YELLOW "$text\n";
+}
+
+sub print_summary {
+  my $text = shift;
+  print GREEN "$text\n";
+}
+
+sub print_info {
+  my $text = shift;
+  print GREEN "[INFO]: $text\n";
+}
+
+sub print_warn {
+  my $text = shift;
+  print BOLD RED "*[WARN]*: $text\n";
+}
+
+sub print_error {
+  my $text = shift;
+  print BOLD MAGENTA "**[ERROR]**: $text\n";
 }
 
 sub cleanup {
   my $makefile = File::Spec->catfile( $top, 'Makefile.csi' );
   my @make_clean = ( "$make", "-f", "$makefile", "clean" );
   system(@make_clean);
-
 }
 
-sub print_normal {
-  my $text = shift;
-  print "$text\n";
-
-}
-
-  sub print_separator {
-    my $text = shift;
-    print BLUE "$text\n";
-
-  }
-
-  sub print_header {
-    my $text = shift;
-    print CYAN "$text\n";
-
-  }
-
-  sub print_status {
-    my $text = shift;
-    print YELLOW "$text\n";
-
-  }
-
-  sub print_summary {
-    my $text = shift;
-    print GREEN "$text\n";
-
-  }
-
-  sub print_info {
-    my $text = shift;
-    print GREEN "[INFO]: $text\n";
-
-  }
-
-  sub print_warn {
-    my $text = shift;
-    print BOLD RED "*[WARN]*: $text\n";
-
-  }
-
-  sub print_error {
-    my $text = shift;
-    print BOLD MAGENTA "**[ERROR]**: $text\n";
-
-  }
-    # EOF
+# EOF
