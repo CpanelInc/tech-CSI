@@ -6,19 +6,20 @@
 # http://cpanel.net
 # Unauthorized copying is prohibited
 
-# Tested on cPanel 11.30 - 11.36
+# Tested on cPanel 11.30 - 11.38
 
-# Maintainers: Charles Boyd, Marco Ferrufino, Dan Stewart
+# Maintainers: Charles Boyd, Marco Ferrufino, Dan Stewart, Paul Trost
 
 use strict;
 use warnings;
 
 use Cwd 'abs_path';
 use File::Spec;
+use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.0.5';
+my $version = '2.1';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -35,11 +36,9 @@ if ( $> != 0 ) {
 # Set defaults for positional parameters
 my $no3rdparty = 0;		# Default to running 3rdparty scanners
 
-foreach my $arg (@ARGV) {
-  if ( $arg =~ '--no3rdparty' ) {
-    $no3rdparty = 1;
-  }
-}
+GetOptions(
+    'no3rdparty' => \$no3rdparty,
+);
 
 #######################################
 # Set variables needed for later subs #
@@ -48,12 +47,12 @@ foreach my $arg (@ARGV) {
 chomp( my $wget = qx(which wget) );
 chomp( my $make = qx(which make) );
 
-my $top = File::Spec->curdir();
-my $csidir = File::Spec->catdir($top,'CSI');
+my $top    = File::Spec->curdir();
+my $csidir = File::Spec->catdir( $top, 'CSI' );
 
-my $rkhunter_bin = File::Spec->catfile( $csidir, 'rkhunter', 'bin', 'rkhunter' );
+my $rkhunter_bin   = File::Spec->catfile( $csidir, 'rkhunter', 'bin', 'rkhunter' );
 my $chkrootkit_bin = File::Spec->catfile( $csidir, 'chkrootkit', 'chkrootkit' );
-my $lynis_bin = File::Spec->catfile( $csidir, 'lynis', 'lynis' );
+my $lynis_bin      = File::Spec->catfile( $csidir, 'lynis', 'lynis' );
 
 my $CSISUMMARY;
 
@@ -61,12 +60,12 @@ my @SUMMARY = ();
 
 my $touchfile = '/var/cpanel/perl/easy/Cpanel/Easy/csi.pm';
 my @logfiles  = (
-		 '/usr/local/apache/logs/access_log',
-		 '/usr/local/apache/logs/error_log',
-		 '/var/log/messages',
-		 '/var/log/maillog',
-		 '/var/log/wtmp',
-		);
+    '/usr/local/apache/logs/access_log',
+    '/usr/local/apache/logs/error_log',
+    '/var/log/messages',
+    '/var/log/maillog',
+    '/var/log/wtmp',
+);
 my $systype;
 my $os;
 my $linux;
@@ -100,7 +99,7 @@ sub scan {
 
   create_summary();
 
-  unless ( $no3rdparty ) {
+  if ( !$no3rdparty ) {
 
     if ( -f "Makefile.csi" ) {
       print_header('[ Makefile already present ]');
@@ -123,9 +122,11 @@ sub scan {
     print_header('[ Cleaning up ]');
     cleanup();
     print_normal('');
-  } else {
+  }
+  else {
     print_header('[ Running without 3rdparty rootkit and security checking programs ]');
     print_normal('');
+
   }
 
   print_header('[ Checking logfiles ]');
@@ -196,11 +197,13 @@ sub detect_system {
     $linux = 1;
     $os = qx(cat /etc/redhat-release);
     push @logfiles, '/var/log/secure';
-  } elsif ( $systype eq 'FreeBSD' ) {
+  }
+  elsif ( $systype eq 'FreeBSD' ) {
     $freebsd = 1;
     $os = qx(uname -r);
     push @logfiles, '/var/log/auth.log';
-  } else {
+  }
+  else {
     print_error("Could not detect OS!");
     print_info("System Type: $systype");
     print_status("Please report this if you believe it is an error!");
@@ -217,7 +220,8 @@ sub fetch_makefile {
     my $makefile_url = 'http://cptechs.info/csi/Makefile.csi';
     my @wget_cmd = ( "$wget", "-q", "$makefile_url" );
     system(@wget_cmd);
-  } else {
+  }
+  else {
     print_error('Wget is either not installed or has no execute permissions, please check $wget');
     print_normal('Exiting CSI ');
     exit 1;
@@ -241,7 +245,8 @@ sub install_sources {
     my @make_cmd = ( "$make", "-f", "$makefile" );
     system(@make_cmd);
 
-  } else {
+  }
+  else {
     print_error('Make is either not installed or has no execute permissions, please check $make');
     print_normal('Exiting CSI ');
     exit 1;
@@ -261,7 +266,8 @@ sub check_previous_scans {
     print_info("Existing $csidir is present, moving to $csidir-$date");
     rename "$csidir", "$csidir-$date";
     mkdir $csidir;
-  } else {
+  } 
+  else {
     mkdir $csidir;
   }
 
@@ -273,7 +279,7 @@ sub check_kernel_updates {
 
   chomp( my $newkernel = qx(yum check-update kernel | grep kernel | awk '{ print \$2 }') );
   if ( $newkernel ne '' ) {
-    push @SUMMARY, "Server is not running the latest kernel, kernel update available: $newkernel";
+      push @SUMMARY, "Server is not running the latest kernel, kernel update available: $newkernel";
   }
 
   print_status('Done.');
@@ -291,10 +297,10 @@ sub run_rkhunter {
       or die("Cannot open logfile $csidir/rkhunter.log: $!");
     my @lines = grep /Rootkit/, <$RKHUNTLOG>;
     if (@lines) {
-      push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
-      foreach ( @lines ) {
-	push @SUMMARY, "$_";
-	push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
+        push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
+        foreach ( @lines ) {
+	    push @SUMMARY, "$_";
+	    push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
       }
       close $RKHUNTLOG;
     }
@@ -309,14 +315,14 @@ sub run_chkrootkit {
   qx($chkrootkit_bin 2> /dev/null | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > $csidir/chkrootkit.log 2> /dev/null);
 
   if ( -s "$csidir/chkrootkit.log" ) {
-    open( my $LOG, '<', "$csidir/chkrootkit.log" )
-      or die("Cannot open logfile $csidir/chkrootkit.log: $!");
-    push @SUMMARY, 'Chkrootkit has found a suspected rootkit infection(s):';
-    my @results = <$LOG>;
-    foreach ( @results ) {
-      push @SUMMARY, "$_";
-      close $LOG;
-    }
+      open( my $LOG, '<', "$csidir/chkrootkit.log" )
+        or die("Cannot open logfile $csidir/chkrootkit.log: $!");
+      push @SUMMARY, 'Chkrootkit has found a suspected rootkit infection(s):';
+      my @results = <$LOG>;
+      foreach (@results) {
+          push @SUMMARY, "$_";
+          close $LOG;
+      }
   }
   print_status('Done.');
 }
@@ -364,10 +370,12 @@ sub check_history {
     if ( -l '/root/.bash_history' ) {
       my $result = qx(ls -la /root/.bash_history);
       push @SUMMARY, "/root/.bash_history is a symlink, $result";
-    } elsif ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
+    }
+    elsif ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
       push @SUMMARY, "/root/.bash_history is a 0 byte file";
     }
-  } else {
+  }
+  else {
     push @SUMMARY, "/root/.bash_history is not present, this indicates probable tampering";
   }
 
@@ -472,7 +480,8 @@ sub check_httpd_config {
 	    and $apache_options !~ 'SymLinksIfOwnerMatch' ) {
       push @SUMMARY,  "Apache configuration allows symlinks without owner match";
     }
-  } else {
+  }
+  else {
     push @SUMMARY, "Apache configuration file is missing";
   }
   print_status('Done.');
@@ -574,7 +583,8 @@ sub create_summary {
 sub dump_summary {
   if ( $#SUMMARY <= 0 ) {
     print_status("No negative items were found");
-  } else {
+  }
+  else {
     print_warn("The following negative items were found:");
     foreach my $item ( @SUMMARY ) {
       print BOLD GREEN "\t",'* ',"$item","\n";
