@@ -47,7 +47,7 @@ GetOptions(
 chomp( my $wget = qx(which wget) );
 chomp( my $make = qx(which make) );
 
-my $top = File::Spec->curdir();
+my $top    = File::Spec->curdir();
 my $csidir = File::Spec->catdir( $top, 'CSI' );
 
 my $rkhunter_bin   = File::Spec->catfile( $csidir, 'rkhunter',   'bin', 'rkhunter' );
@@ -249,7 +249,7 @@ sub install_sources {
 
     }
     else {
-        print_error('Make is either not installed or has no execute permissions, please check $make');
+        print_error("Make is either not installed or has no execute permissions, please check $make");
         print_normal('Exiting CSI ');
         exit 1;
     }
