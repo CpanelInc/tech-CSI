@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.1';
+my $version = '2.2';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -92,7 +92,7 @@ sub scan {
     print_header("[ OS: $os ]");
     print_normal('');
     print_header("[ Available flags when running $0 (if any): ]");
-    print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]') unless ($no3rdparty);
+    print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]') if (!$no3rdparty);
     print_normal('');
     print_header('[ Cleaning up from earlier runs, if needed ]');
     check_previous_scans();
@@ -192,8 +192,7 @@ sub scan {
 
 sub detect_system {
 
-    $systype = qx(uname -a | cut -f1 -d" ");
-    chomp($systype);
+    chomp( $systype = qx(uname -a | cut -f1 -d" ") );
 
     if ( $systype eq 'Linux' ) {
         $linux = 1;
@@ -308,6 +307,7 @@ sub run_rkhunter {
         }
     }
     print_status('Done.');
+
 }
 
 sub run_chkrootkit {
@@ -327,16 +327,20 @@ sub run_chkrootkit {
         }
     }
     print_status('Done.');
+
 }
 
 sub run_lynis {
+
     print_status('Running Lynis. This will take a few minutes.');
     qx($lynis_bin -c -Q --no-colors > $csidir/lynis.output.log 2>&1);
     rename "/var/log/lynis.log", "$csidir/lynis.report.log";
     print_status('Done.');
+
 }
 
 sub check_logfiles {
+
     if ( !-d '/usr/local/apache/logs' ) {
         push @SUMMARY, "/usr/local/apache/logs directory is not present";
     }
@@ -346,6 +350,7 @@ sub check_logfiles {
         }
     }
     print_status('Done.');
+
 }
 
 sub check_index {
@@ -354,6 +359,7 @@ sub check_index {
         push @SUMMARY, 'Index file found in /tmp';
     }
     print_status('Done.');
+
 }
 
 sub check_suspended {
@@ -471,6 +477,7 @@ sub check_uids {
         }
     }
     print_status('Done.');
+
 }
 
 sub check_httpd_config {
@@ -487,6 +494,7 @@ sub check_httpd_config {
         push @SUMMARY, "Apache configuration file is missing";
     }
     print_status('Done.');
+
 }
 
 sub check_processes {
@@ -543,6 +551,7 @@ sub check_ssh {
         }
     }
     print_status('Done.');
+    
 }
 
 sub check_lib {
