@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.2';
+my $version = '2.2.1';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -300,7 +300,7 @@ sub run_rkhunter {
         if (@lines) {
             push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
             foreach (@lines) {
-                push @SUMMARY, "$_";
+                push @SUMMARY, $_;
                 push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
             }
             close $RKHUNTLOG;
@@ -322,7 +322,7 @@ sub run_chkrootkit {
         push @SUMMARY, 'Chkrootkit has found a suspected rootkit infection(s):';
         my @results = <$LOG>;
         foreach (@results) {
-            push @SUMMARY, "$_";
+            push @SUMMARY, $_;
             close $LOG;
         }
     }
@@ -370,6 +370,7 @@ sub check_suspended {
         push @SUMMARY, '     and created it (hack page)';
     }
     print_status('Done.');
+
 }
 
 sub check_history {
@@ -436,7 +437,7 @@ sub check_hackfiles {
             print $TMPLOG stat $file if ( -s $file );
             print $TMPLOG "\n";
             print $TMPLOG "File type:\n";
-            print $TMPLOG `file $file` if ( -s $file );
+            print $TMPLOG qx(file $file) if ( -s $file );
             push @SUMMARY, "$file found in /tmp, check $csidir/tmplog for more information";
 
             if ( $file =~ 'jpg' ) {
@@ -444,7 +445,7 @@ sub check_hackfiles {
                 print $TMPLOG "$file has .jpg in the name, let's check out the first few lines to see of it really is a .jpg\n";
                 print $TMPLOG "Here are the first 5 lines:\n";
                 print $TMPLOG "===========================\n";
-                print $TMPLOG `cat -n $file | head -5`;
+                print $TMPLOG qx(cat -n $file | head -5);
                 print $TMPLOG "===========================\n";
             }
         }
@@ -463,17 +464,17 @@ sub check_uids {
     my @baduids;
 
     while ( my ( $user, $pass, $uid, $gid, $group, $home, $shell ) = getpwent() ) {
-        if ( $uid == 0 && !$user eq "root" ) {
+        if ( $uid == 0 && !$user eq 'root' ) {
             push @baduids, $user;
         }
     }
     endpwent();
 
     if (@baduids) {
-        push @SUMMARY, "Users with UID of 0 detected:";
+        push @SUMMARY, 'Users with UID of 0 detected:';
         foreach my $bad (@baduids) {
-            print_warn("$bad");
-            push @SUMMARY, "$bad";
+            print_warn($bad);
+            push @SUMMARY, $bad;
         }
     }
     print_status('Done.');
@@ -487,11 +488,11 @@ sub check_httpd_config {
         my $apache_options = qx(grep -A1 '<Directory "/">' $httpd_conf);
         if (    $apache_options =~ 'FollowSymLinks'
             and $apache_options !~ 'SymLinksIfOwnerMatch' ) {
-            push @SUMMARY, "Apache configuration allows symlinks without owner match";
+            push @SUMMARY, 'Apache configuration allows symlinks without owner match';
         }
     }
     else {
-        push @SUMMARY, "Apache configuration file is missing";
+        push @SUMMARY, 'Apache configuration file is missing';
     }
     print_status('Done.');
 
@@ -585,7 +586,7 @@ sub create_summary {
       or die("Cannot create CSI summary file $csidir/summary: $!\n");
 
     foreach (@SUMMARY) {
-        print $CSISUMMARY "$_", "\n";
+        print $CSISUMMARY $_, "\n";
     }
 
     close($CSISUMMARY);
@@ -593,12 +594,12 @@ sub create_summary {
 
 sub dump_summary {
     if ( $#SUMMARY <= 0 ) {
-        print_status("No negative items were found");
+        print_status('No negative items were found');
     }
     else {
-        print_warn("The following negative items were found:");
+        print_warn('The following negative items were found:');
         foreach my $item (@SUMMARY) {
-            print BOLD GREEN "\t", '* ', "$item", "\n";
+            print BOLD GREEN "\t", '* ', $item, "\n";
         }
         print_normal('');
         print_normal('');
@@ -610,7 +611,7 @@ sub dump_summary {
 
 sub print_normal {
     my $text = shift;
-    print "$text", "\n";
+    print "$text\n";
 }
 
 sub print_separator {
