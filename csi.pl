@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.2.1';
+my $version = '2.2.2';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -301,8 +301,8 @@ sub run_rkhunter {
             push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
             foreach (@lines) {
                 push @SUMMARY, $_;
-                push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
             }
+            push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
             close $RKHUNTLOG;
         }
     }
@@ -464,7 +464,7 @@ sub check_uids {
     my @baduids;
 
     while ( my ( $user, $pass, $uid, $gid, $group, $home, $shell ) = getpwent() ) {
-        if ( $uid == 0 && !$user eq 'root' ) {
+        if ( $uid == 0 && $user ne 'root' ) {
             push @baduids, $user;
         }
     }
