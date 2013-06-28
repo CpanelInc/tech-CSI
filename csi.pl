@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.2.2';
+my $version = '2.3';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -420,9 +420,9 @@ sub check_hackfiles {
 
     while (<$HACKFILES>) {
         chomp( my $file_test = $_ );
-        foreach my $name (@tmplist) {
-            if ( $name =~ /\b$file_test$/ ) {
-                push( @hackfound, $name );
+        foreach (@tmplist) {
+            if ( /\b$file_test$/ ) {
+                push( @hackfound, $_ );
             }
         }
     }
@@ -465,16 +465,15 @@ sub check_uids {
 
     while ( my ( $user, $pass, $uid, $gid, $group, $home, $shell ) = getpwent() ) {
         if ( $uid == 0 && $user ne 'root' ) {
-            push @baduids, $user;
+            push( @baduids, $user );
         }
     }
     endpwent();
 
     if (@baduids) {
         push @SUMMARY, 'Users with UID of 0 detected:';
-        foreach my $bad (@baduids) {
-            print_warn($bad);
-            push @SUMMARY, $bad;
+        foreach (@baduids) {
+            push( @SUMMARY, $_ );
         }
     }
     print_status('Done.');
@@ -548,7 +547,7 @@ sub check_ssh {
     if (@ssh_errors) {
         push @SUMMARY, "System has detected the presence of a *POSSIBLY* compromised SSH:\n";
         foreach (@ssh_errors) {
-            push @SUMMARY, "$_";
+            push( @SUMMARY, $_ );
         }
     }
     print_status('Done.');
@@ -575,7 +574,7 @@ sub check_lib {
     if (@lib_errors) {
         push @SUMMARY, "System has detected the presence of a library file not owned by an RPM, these libraries *MAY* indicate a compromise or could have been custom installed by the administrator.\n";
         foreach (@lib_errors) {
-            push @SUMMARY, "$_";
+            push( @SUMMARY, $_ );
         }
     }
     print_status('Done.');
@@ -598,12 +597,15 @@ sub dump_summary {
     }
     else {
         print_warn('The following negative items were found:');
-        foreach my $item (@SUMMARY) {
-            print BOLD GREEN "\t", '* ', $item, "\n";
+        foreach (@SUMMARY) {
+            print BOLD GREEN "\t", '* ', $_, "\n";
         }
         print_normal('');
         print_normal('');
-        print_status('[L1/L2] If a rootkit(s) or hack files in /tmp were found then please copy/paste the summary output into the ticket and escalate it to L3.');
+        print_warn('[L1/L2] If you believe there are negative items warrant escalating this ticket as a security issue then please read over https://staffwiki.cpanel.net/LinuxSupport/CSIEscalations.');
+        print_normal('');
+        print_warn('You need to understand exactly what the output is that you are seeing before escalating the ticket to L3.');
+        print_normal('');
         print_status('[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as \'H4x0r3d\' and run:');
         print_normal("touch $touchfile");
     }
