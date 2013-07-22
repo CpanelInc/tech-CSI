@@ -294,16 +294,16 @@ sub run_rkhunter {
     qx($rkhunter_bin --cronjob --rwo > $csidir/rkhunter.log 2>&1);
 
     if ( -s "$csidir/rkhunter.log" ) {
-        open( my $RKHUNTLOG, '<', "$csidir/rkhunter.log" )
+        open( my $LOG, '<', "$csidir/rkhunter.log" )
           or die("Cannot open logfile $csidir/rkhunter.log: $!");
-        my @lines = grep /Rootkit/, <$RKHUNTLOG>;
-        if (@lines) {
+        my @results = grep /Rootkit/, <$LOG>;
+        close $LOG;
+        if (@results) {
             push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
-            foreach (@lines) {
+            foreach (@results) {
                 push @SUMMARY, $_;
             }
             push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
-            close $RKHUNTLOG;
         }
     }
     print_status('Done.');
@@ -319,11 +319,13 @@ sub run_chkrootkit {
     if ( -s "$csidir/chkrootkit.log" ) {
         open( my $LOG, '<', "$csidir/chkrootkit.log" )
           or die("Cannot open logfile $csidir/chkrootkit.log: $!");
-        push @SUMMARY, 'Chkrootkit has found a suspected rootkit infection(s):';
         my @results = <$LOG>;
-        foreach (@results) {
-            push @SUMMARY, $_;
-            close $LOG;
+        close $LOG;
+        if (@results) {
+            push @SUMMARY, 'Chkrootkit has found a suspected rootkit infection(s):';
+            foreach (@results) {
+                push @SUMMARY, $_;
+            }
         }
     }
     print_status('Done.');
