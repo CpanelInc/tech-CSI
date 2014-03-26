@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.4';
+my $version = '2.5';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -52,7 +52,6 @@ my $csidir = File::Spec->catdir( $top, 'CSI' );
 
 my $rkhunter_bin   = File::Spec->catfile( $csidir, 'rkhunter',   'bin', 'rkhunter' );
 my $chkrootkit_bin = File::Spec->catfile( $csidir, 'chkrootkit', 'chkrootkit' );
-my $lynis_bin      = File::Spec->catfile( $csidir, 'lynis',      'lynis' );
 
 my $CSISUMMARY;
 
@@ -118,7 +117,6 @@ sub scan {
         print_header('[ Running 3rdparty rootkit and security checking programs ]');
         run_rkhunter();
         run_chkrootkit();
-        run_lynis();
         print_normal('');
 
         print_header('[ Cleaning up ]');
@@ -328,15 +326,6 @@ sub run_chkrootkit {
             }
         }
     }
-    print_status('Done.');
-
-}
-
-sub run_lynis {
-
-    print_status('Running Lynis. This will take a few minutes.');
-    qx($lynis_bin -c -Q --no-colors > $csidir/lynis.output.log 2>&1);
-    rename "/var/log/lynis.log", "$csidir/lynis.report.log";
     print_status('Done.');
 
 }

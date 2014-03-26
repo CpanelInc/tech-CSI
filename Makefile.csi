@@ -22,7 +22,7 @@ TARGET := $(CWD)/CSI
 
 all: fetch install
 
-fetch: $(RKHUNTER) $(CHKROOTKIT) $(LYNIS)
+fetch: $(RKHUNTER) $(CHKROOTKIT)
 
 %.tar.gz:
 	$(MKDIR) $(TARGET)
@@ -37,13 +37,6 @@ rkhunter: $(TARGET)/rkhunter
 chkrootkit: $(TARGET)/chkrootkit
 	make -C $(TARGET)/$@ &> /dev/null
 
-lynis: $(TARGET)/lynis
-	cd $<
-	$(shell ./lynis --check-update &> /dev/null)
-	$(WGET) $(CPTECHS)/lynispatch &> /dev/null
-	$(MV) lynispatch $</include/lynispatch
-	patch $</include/functions $</include/lynispatch
-
 $(TARGET)/rkhunter: $(TARGET)/rkhunterinstall
 	$(shell cd $< ; ./installer.sh --layout custom $@ --install &> /dev/null)
 
@@ -54,16 +47,11 @@ $(TARGET)/rkhunterinstall: $(RKHUNTER)
 $(TARGET)/chkrootkit: $(CHKROOTKIT)
 	$(MV) $(TARGET)/chkrootkit-* $(TARGET)/chkrootkit
 
-$(TARGET)/lynis: $(LYNIS)
-	$(MV) $(TARGET)/lynis-* $@
-
 clean:
 	$(RM) $(CHKROOTKIT)
 	$(RM) $(RKHUNTER)
-	$(RM) $(LYNIS)
 
 uberclean: clean
 	$(RM) chkrootkit-*.tar.gz
 	$(RM) rkhunter-*.tar.gz
-	$(RM) lynis-*.tar.gz
 	$(RM) -r $(TARGET)
