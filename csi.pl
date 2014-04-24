@@ -8,7 +8,7 @@
 
 # Tested on cPanel 11.30 - 11.38
 
-# Maintainers: Charles Boyd, Marco Ferrufino, Dan Stewart, Paul Trost
+# Maintainers: Charles Boyd, Marco Ferrufino, Paul Trost
 
 use strict;
 use warnings;
@@ -579,7 +579,7 @@ sub check_lib {
 sub check_rootkits {
 
     if ( -d '/usr/local/__UMBREON__' ) {
-	push @SUMMARY 'Evidence of UMBREON rootkit detected';
+	push @SUMMARY, 'Evidence of UMBREON rootkit detected';
         print_status('Done.');
     }
 
