@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.5';
+my $version = '2.6';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -135,6 +135,10 @@ sub scan {
 
     print_header('[ Checking for bad UIDs ]');
     check_uids();
+    print_normal('');
+
+    print_header('[ Checking for rootkits ]');
+    check_rootkits();
     print_normal('');
 
     print_header('[ Checking Apache configuration ]');
@@ -569,9 +573,20 @@ sub check_lib {
         }
     }
     print_status('Done.');
+
+}
+
+sub check_rootkits {
+
+    if ( -d '/usr/local/__UMBREON__' ) {
+	push @SUMMARY 'Evidence of UMBREON rootkit detected';
+        print_status('Done.');
+    }
+
 }
 
 sub create_summary {
+
     open( my $CSISUMMARY, '>', "$csidir/summary" )
       or die("Cannot create CSI summary file $csidir/summary: $!\n");
 
@@ -580,6 +595,7 @@ sub create_summary {
     }
 
     close($CSISUMMARY);
+
 }
 
 sub dump_summary {
