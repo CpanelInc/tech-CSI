@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.6';
+my $version = '2.6.1';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -609,7 +609,7 @@ sub dump_summary {
         }
         print_normal('');
         print_normal('');
-        print_warn('[L1/L2] If you believe there are negative items warrant escalating this ticket as a security issue then please read over https://staffwiki.cpanel.net/LinuxSupport/CSIEscalations.');
+        print_warn('[L1/L2] If you believe there are negative items warrant escalating this ticket as a security issue then please read over https://staffwiki.cpanel.net/LinuxSupport/CSIEscalations');
         print_normal('');
         print_warn('You need to understand exactly what the output is that you are seeing before escalating the ticket to L3.');
         print_normal('');
