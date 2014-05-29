@@ -6,9 +6,9 @@
 # http://cpanel.net
 # Unauthorized copying is prohibited
 
-# Tested on cPanel 11.30 - 11.38
+# Tested on cPanel 11.30 - 11.44
 
-# Maintainers: Charles Boyd, Marco Ferrufino, Paul Trost
+# Maintainers: Marco Ferrufino, Paul Trost
 
 use strict;
 use warnings;
@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.6.1';
+my $version = '2.6.2';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -578,7 +578,7 @@ sub check_lib {
 
 sub check_rootkits {
 
-    if ( -d '/usr/local/__UMBREON__' ) {
+    if ( chdir('/usr/local/__UMBREON') ) {
 	push @SUMMARY, 'Evidence of UMBREON rootkit detected';
         print_status('Done.');
     }
