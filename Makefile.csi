@@ -1,10 +1,8 @@
 #-*-Makefile-*-
 
-.PHONY: all fetch install chkrootkit rkhunter lynis clean
+.PHONY: all fetch install chkrootkit rkhunter clean
 
 CWD := $(shell pwd)
-
-CPTECHS := http://csi.cptechs.info
 
 WGET := $(shell which wget)
 TAR := $(shell which tar)
@@ -14,9 +12,10 @@ MV := $(shell which mv) -f
 RM := $(shell which rm) -f
 CP := $(shell which cp) -f
 
+CHKROOTKITURL:= ftp://ftp.pangeia.com.br/pub/seg/pac/chkrootkit.tar.gz
+RKHUNTERURL:= http://sourceforge.net/projects/rkhunter/files/latest/download
 CHKROOTKIT:= chkrootkit.tar.gz
 RKHUNTER := rkhunter.tar.gz
-LYNIS := lynis.tar.gz
 
 TARGET := $(CWD)/CSI
 
@@ -24,12 +23,17 @@ all: fetch install
 
 fetch: $(RKHUNTER) $(CHKROOTKIT)
 
-%.tar.gz:
+$(CHKROOTKIT):
 	$(MKDIR) $(TARGET)
-	$(WGET) $(CPTECHS)/$@ &> /dev/null
-	$(TAR) -C $(TARGET) -xzvf $@ &> /dev/null
+	$(WGET) -O $(CHKROOTKIT) $(CHKROOTKITURL) &> /dev/null
+	$(TAR) -C $(TARGET) -xzvf $(CHKROOTKIT) &> /dev/null
 
-install: rkhunter chkrootkit lynis
+$(RKHUNTER):
+	$(MKDIR) $(TARGET)
+	$(WGET) -O $(RKHUNTER) $(RKHUNTERURL) &> /dev/null
+	$(TAR) -C $(TARGET) -xzvf $(RKHUNTER) &> /dev/null 
+
+install: rkhunter chkrootkit
 
 rkhunter: $(TARGET)/rkhunter	
 	$(shell cd $< ; ./bin/$@ --update &> /dev/null)

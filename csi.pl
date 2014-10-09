@@ -19,7 +19,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.6.2';
+my $version = '2.6.4a';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -161,9 +161,9 @@ sub scan {
     check_history();
     print_normal('');
 
-    print_header('[ Checking /tmp for known hackfiles ]');
-    check_hackfiles();
-    print_normal('');
+#    print_header('[ Checking /tmp for known hackfiles ]');
+#    check_hackfiles();
+#    print_normal('');
 
     print_header('[ Checking process list ]');
     check_processes();
@@ -220,7 +220,7 @@ sub detect_system {
 sub fetch_makefile {
 
     if ( -x $wget ) {
-        my $makefile_url = 'http://cptechs.info/csi/Makefile.csi';
+        my $makefile_url = 'https://raw.githubusercontent.com/cPanelSamir/CSI/master/Makefile.csi';
         my @wget_cmd = ( "$wget", "-q", "$makefile_url" );
         system(@wget_cmd);
     }
