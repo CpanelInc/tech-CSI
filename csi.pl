@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0a';
+my $version = '3.0.1b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -152,7 +152,7 @@ sub logfinder {
     print_header('[     --short (do not print verbose output) ]') if (!$short);
     print_normal('') if (!$short);
     if (!-e $fh) {
-        print "[!] $fh not found. Exiting... \n\n";
+        print_error("$fh not found. Exiting... \n");
         exit ; 
     }
     $filename= basename $fh ;
@@ -197,16 +197,17 @@ sub search_logs {
         $searchmaccess= "$searchmaccess|^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
     }
 
-    print CYAN "Searching for: ".localtime($epoc_mtime)." ($epoc_mtime)" if (!$short);
-    print CYAN "\n----------------------------------------------------\n" if (!$short);
-    print "[+] Checking .bash_history files... " if (!$short);
+    print_header("Searching for: ".localtime($epoc_mtime)." ($epoc_mtime)") if (!$short);
+    print_header("----------------------------------------------------") if (!$short);
+    print_normal_chomped("[+] Checking .bash_history files... ") if (!$short);
     push @mbash, qx(egrep -HA1 "$searchmbash" /root/.bash_history);
     if (-e "/home/$owner/.bash_history") {
         push @mbash, qx(egrep -HA1 "$searchmbash" /home/$owner/.bash_history);
     }
-    print "Done. ".scalar @mbash / "2". " results found.\n" if (!$short);
+    chomp(@mbash); 
+    print_normal("Done. ".scalar @mbash / "2". " results found.") if (!$short);
 
-    print "[+] Checking /var/log/messages... " if (!$short);
+    print_normal_chomped("[+] Checking /var/log/messages... ") if (!$short);
     my ($second, $minute, $hour, $dayofmonth, $month, $year, $dayofweek, $dayofyear, $daylightsavings) = localtime();
     opendir(DIR, "/var/log/");
     my @files = grep(/^messages/,readdir(DIR));
@@ -231,18 +232,21 @@ sub search_logs {
                 push @mmessages, qx(zegrep -H "$searchmmessages" /var/log/$file | grep $filename);
         }
     }
-    print "Done. ".scalar @mmessages. " results found.\n" if (!$short);
+    chomp(@mmessages); 
+    print_normal("Done. ".scalar @mmessages. " results found.") if (!$short);
 
-    print "[+] Checking ftpxferlog... " if (!$short);
+    print_normal_chomped("[+] Checking ftpxferlog... ") if (!$short);
     push @mftp, qx(egrep -H "$searchmftp" /usr/local/apache/domlogs/$owner/ftp.* /usr/local/apache/domlogs/ftpxferlog 2> /dev/null | grep $filename);
-    print "Done. ".scalar @mftp. " results found.\n" if (!$short);
+    chomp(@mftp);
+    print_normal("Done. ".scalar @mftp. " results found.") if (!$short);
 
-    print "[+] Checking cPanel access logs... " if (!$short);
+    print_normal_chomped("[+] Checking cPanel access logs... ") if (!$short);
     push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log);
-    print "Done. ".scalar @mcpanel. " results found.\n" if (!$short);
+    chomp(@mcpanel);
+    print_normal("Done. ".scalar @mcpanel. " results found.") if (!$short);
 
     if ($owner ne "root") {
-        print "[+] Checking Apache access logs... " if (!$short); 
+        print_normal_chomped("[+] Checking Apache access logs... ") if (!$short); 
         my $type;
         if ( $a_type == "1" ) {
             $type="POST|GET";
@@ -250,78 +254,79 @@ sub search_logs {
             $type="POST";
         }
         push @maccess, qx(egrep -Hr "$searchmaccess" /home/$owner/logs /home/$owner/access-logs | egrep "$type");
-        print "Done. ".scalar @maccess. " results found.\n" if (!$short);
+        chomp (@maccess);
+        print_normal("Done. ".scalar @maccess. " results found.") if (!$short);
     }
-    print "\n" if (!$short);
+    print_normal(" ") if (!$short);
 }
 
 sub print_matches {
-    print GREEN "Matches: ".localtime($epoc_mtime)." ($epoc_mtime)\n" if (!$short); 
-    print GREEN "---------------------------------------------\n" if (!$short);
+    print_header("Matches: ".localtime($epoc_mtime)." ($epoc_mtime)") if (!$short); 
+    print_header("---------------------------------------------") if (!$short);
 
     if (scalar @mbash > 0) {
         print MAGENTA ".bash_history\n" if (!$short);
         foreach (@mbash) {
-                print $_;
+                print_status($_);
         }
-    print "\n" if (!$short);
+    print_normal (" ") if (!$short);
     }
 
     if (scalar @mmessages > 0) {
         print MAGENTA "/var/log/messages\n" if (!$short);
         foreach (@mmessages) {
-                print $_;
+                print_status($_);
         }
-    print "\n" if (!$short);
+    print_normal (" ") if (!$short);
     }
 
     if (scalar @mftp > 0) {
         print MAGENTA "ftpxferlog\n" if (!$short); 
         foreach (@mftp) {
-                print $_;
+                print_status($_);
         }
-    print "\n" if (!$short);
+    print_normal (" ") if (!$short);
     }
 
     if (scalar @mcpanel > 0) {
         print MAGENTA "cPanel Access Logs\n" if (!$short); 
         foreach (@mcpanel) {
-                print $_;
+                print_status($_);
         }
-    print "\n" if (!$short);
+    print_normal (" ") if (!$short);
     }
 
     if (scalar @maccess > 0) {
         print MAGENTA "Apache Access Logs\n" if (!$short); 
         foreach (@maccess) {
-                print $_;
+                print_status($_);
         }
-    print "\n" if (!$short);
+    print_normal (" ") if (!$short);
     }
 }
 
 sub print_filestats {
-    print CYAN "\nFile Statistics: " if (!$short);
-    print CYAN "\n---------------------------------------------------------\n" if (!$short);
-    print "File: " . File::Spec->rel2abs($fh) . "\n" if (!$short);
-    print "Size: " . (stat($fh))[7] . "\n" if (!$short);
-    print "Modify Time: " . localtime($epoc_mtime) . " ($epoc_mtime)" . "\n" if (!$short);
-    print "Change Time: " . localtime($epoc_ctime) . " ($epoc_ctime)" . "\n" if (!$short);
-    print "User: " . $owner . "\n" if (!$short);
-    print "Search Range: $range seconds \n" if (!$short);
+    print_header( "\nFile Statistics: ") if (!$short);
+    print_header( "---------------------------------------------------------") if (!$short);
+    print_status( "File: " . File::Spec->rel2abs($fh) ) if (!$short);
+    print_status( "Size: " . (stat($fh))[7] ) if (!$short);
+    print_status( "Modify Time: " . localtime($epoc_mtime) . " ($epoc_mtime)" ) if (!$short);
+    print_status( "Change Time: " . localtime($epoc_ctime) . " ($epoc_ctime)" ) if (!$short);
+    print_status( "User: " . $owner ) if (!$short);
+    print_status("Search Range: $range seconds ") if (!$short);
     print CYAN "---------------------------------------------------------\n" if (!$short);
 
     if ($epoc_ctime != $epoc_mtime) {
-        print "[!] Change and modify timestamps are different. Will search logs twice.\n" if (!$short);
+        print_warn("Change and modify timestamps are different. Will search logs twice.") if (!$short);
     }
     if ($owner eq "root") {
-        print "[!] User root detected. Skipping some checks.\n" if (!$short);
+        print_warn("User root detected. Skipping some checks.") if (!$short);
     }
     if (! -e "/var/cpanel/users/$owner" && $owner ne "root") {
-        print "[!] User ($owner) not found. Exiting...\n" if (!$short);
+        print_error("User ($owner) not found. Exiting...\n") if (!$short);
         exit;
     }
-    print "\n\n" if (!$short); 
+    print_normal("\n") if (!$short); 
 }
 
 sub scan {
@@ -864,6 +869,11 @@ sub dump_summary {
 sub print_normal {
     my $text = shift;
     print "$text\n";
+}
+
+sub print_normal_chomped {
+my $text = shift;
+print "$text";
 }
 
 sub print_separator {
