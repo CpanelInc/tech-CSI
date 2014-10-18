@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.1b';
+my $version = '3.0.2b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -120,21 +120,23 @@ show_help();
 ########
 
 sub show_help {
-    print "\ncPanel Security Inspection Version $version \n";
-    print "Usage: perl csi.pl [options] [function]\n\n";
-    print "Functions\n";
-    print "=================\n";
-    print "--rootkitscan              Performs a variety of checks to detect root level compromises.\n";
-    print "--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory provided in effort to determine how a file was modified or changed. \n\n";
-    print "Options (rootkitscan)\n";
-    print "=================\n";
-    print "--no3rdparty               Disables running of 3rdparty scanners.\n\n";
-    print "Options (file)\n";
-    print "=================\n";
-    print "--user [user]              Override detected owner of file with custom user to search for.\n";
-    print "--range [seconds]          Specify search range in seconds. Default is 60 seconds.\n";
-    print "--short                    Do not print verbose output.\n";
-    print "--get                      By default, CSI only searches for POST requests. This option enables searching of GET requests as well.\n\n";
+    print_header("\ncPanel Security Inspection Version $version");
+    print_header("Usage: perl csi.pl [options] [function]\n");
+    print_header("Functions");
+    print_header("=================");
+    print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
+    print_status("--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory");
+    print_status("                           provided in effort to determine how a file was modified or changed. \n");
+    print_header("Options (rootkitscan)");
+    print_header("=================");
+    print_status("--no3rdparty               Disables running of 3rdparty scanners.\n");
+    print_header("Options (file)");
+    print_header("=================");
+    print_status("--user [user]              Override detected owner of file with custom user to search for.");
+    print_status("--range [seconds]          Specify search range in seconds. Default is 60 seconds.");
+    print_status("--short                    Do not print verbose output.");
+    print_status("--get                      By default, CSI only searches for POST requests. This option enables searching of GET requests as well.");
+    print_normal(" ");
 }
 
 sub logfinder {
