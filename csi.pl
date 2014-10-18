@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.2b';
+my $version = '3.0.3b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -238,7 +238,7 @@ sub search_logs {
     print_normal("Done. ".scalar @mmessages. " results found.") if (!$short);
 
     print_normal_chomped("[+] Checking ftpxferlog... ") if (!$short);
-    push @mftp, qx(egrep -H "$searchmftp" /usr/local/apache/domlogs/$owner/ftp.* /usr/local/apache/domlogs/ftpxferlog 2> /dev/null | grep $filename);
+    push @mftp, qx(egrep -H "$searchmftp" /usr/local/apache/domlogs/$owner/ftp.* /usr/local/apache/domlogs/ftpxferlog 2> /dev/null | grep $filename | grep $owner);
     chomp(@mftp);
     print_normal("Done. ".scalar @mftp. " results found.") if (!$short);
 
