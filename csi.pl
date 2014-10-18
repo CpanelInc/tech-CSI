@@ -8,18 +8,21 @@
 
 # Tested on cPanel 11.30 - 11.44
 
-# Maintainers: Marco Ferrufino, Paul Trost
+# Maintainer: Samir Jafferali
 
 use strict;
 use warnings;
 
 use Cwd 'abs_path';
+use File::Basename;
 use File::Spec;
+use POSIX;
+use Time::Local;
 use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '2.6.4a';
+my $version = '3.0a';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -35,9 +38,21 @@ if ( $> != 0 ) {
 
 # Set defaults for positional parameters
 my $no3rdparty = 0;    # Default to running 3rdparty scanners
+my $short=0;
+my $fh = ' ';
+my $scan = 0;
+my $a_type = 0;    # Defaults to searching for only POST requests
+my $range = "60";    # Defaults to 60 seconds
+my $owner = "owner";
 
 GetOptions(
     'no3rdparty' => \$no3rdparty,
+    'file=s' => \$fh,
+    'rootkitscan' => \$scan,
+    'get' => \$a_type,
+    'range=i' => \$range,
+    'user=s' => \$owner,
+    'short' => \$short,
 );
 
 #######################################
@@ -71,27 +86,255 @@ my $os;
 my $linux;
 my $freebsd;
 
+my $filename;
+my $epoc_mtime;
+my $epoc_ctime;
+my @mbash;
+my @mmessages;
+my @mftp;
+my @mcpanel;
+my @maccess;
+
+my %mon2num = qw(
+  jan 1  feb 2  mar 3  apr 4  may 5  jun 6
+  jul 7  aug 8  sep 9  oct 10 nov 11 dec 12
+);
+
+
 ######################
 # Run code main body #
 ######################
 
-scan();
+if ($fh ne " ") {
+    logfinder(); 
+    exit;
+}
+if ($scan == "1" ) { 
+    scan();
+    exit;
+}
+show_help();
 
 ########
 # Subs #
 ########
 
+sub show_help {
+    print "\ncPanel Security Inspection Version $version \n";
+    print "Usage: perl csi.pl [options] [function]\n\n";
+    print "Functions\n";
+    print "=================\n";
+    print "--rootkitscan              Performs a variety of checks to detect root level compromises.\n";
+    print "--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory provided in effort to determine how a file was modified or changed. \n\n";
+    print "Options (rootkitscan)\n";
+    print "=================\n";
+    print "--no3rdparty               Disables running of 3rdparty scanners.\n\n";
+    print "Options (file)\n";
+    print "=================\n";
+    print "--user [user]              Override detected owner of file with custom user to search for.\n";
+    print "--range [seconds]          Specify search range in seconds. Default is 60 seconds.\n";
+    print "--short                    Do not print verbose output.\n";
+    print "--get                      By default, CSI only searches for POST requests. This option enables searching of GET requests as well.\n\n";
+}
+
+sub logfinder {
+    detect_system();
+    print_normal('') if (!$short);
+    print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
+    print_header("[ Version $version on Perl $] ]") if (!$short);
+    print_header("[ System Type: $systype ]") if (!$short);
+    print_header("[ OS: $os ]") if (!$short);
+    print_normal('') if (!$short);
+    print_header("[ Available flags when running $0 --file (if any): ]") if (!$short);
+    print_header('[     --range (specify custom search range in seconds) ]') if (!$short);
+    print_header('[     --get (show GET requests as well as POST) ]') if (!$short);
+    print_header('[     --user (force user) ]') if (!$short);
+    print_header('[     --short (do not print verbose output) ]') if (!$short);
+    print_normal('') if (!$short);
+    if (!-e $fh) {
+        print "[!] $fh not found. Exiting... \n\n";
+        exit ; 
+    }
+    $filename= basename $fh ;
+    $epoc_mtime= (stat($fh))[9];
+    $epoc_ctime= (stat($fh))[10];
+    if ($owner eq "owner") {
+        my $file_uid= (stat($fh))[4];
+        $owner= (getpwuid $file_uid)[0];
+    }
+    print_filestats(); 
+    my $differ="1";
+    if ($epoc_ctime != $epoc_mtime) {
+        $differ="2";
+    }
+    while ($differ > 0 ) {
+        search_logs();
+        print_matches();
+        print "\n" if (!$short);
+        $epoc_mtime=$epoc_ctime ;
+        --$differ ;
+    }
+}
+
+sub search_logs {
+    my $tmpepoc= $epoc_mtime - $range;
+    my $searchmbash= "^#$tmpepoc";
+    my $searchmmessages= "^".strftime("%b %d %H:%M:%S",localtime($tmpepoc));
+    my $searchmftp= "^".strftime("%a %b %d %H:%M:%S %Y",localtime($tmpepoc));
+    my $searchmcpanel= "^".strftime("%m/%d/%Y:%H:%M:%S",localtime($tmpepoc));
+    my $searchmaccess= "^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
+    @mbash=();
+    @mmessages=();
+    @mftp=();
+    @mcpanel=();
+    @maccess =();
+    for (my $i=0; $i <= $range * 2 ; $i++) {
+        $tmpepoc++ ;
+        $searchmbash= "$searchmbash|^#$tmpepoc";
+        $searchmmessages= "$searchmmessages|^".strftime("%b %d %H:%M:%S",localtime($tmpepoc));
+        $searchmftp= "$searchmftp|^".strftime("%a %b %d %H:%M:%S %Y",localtime($tmpepoc));
+        $searchmcpanel= "$searchmcpanel|^".strftime("%m/%d/%Y:%H:%M:%S",localtime($tmpepoc));
+        $searchmaccess= "$searchmaccess|^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
+    }
+
+    print CYAN "Searching for: ".localtime($epoc_mtime)." ($epoc_mtime)" if (!$short);
+    print CYAN "\n----------------------------------------------------\n" if (!$short);
+    print "[+] Checking .bash_history files... " if (!$short);
+    push @mbash, qx(egrep -HA1 "$searchmbash" /root/.bash_history);
+    if (-e "/home/$owner/.bash_history") {
+        push @mbash, qx(egrep -HA1 "$searchmbash" /home/$owner/.bash_history);
+    }
+    print "Done. ".scalar @mbash / "2". " results found.\n" if (!$short);
+
+    print "[+] Checking /var/log/messages... " if (!$short);
+    my ($second, $minute, $hour, $dayofmonth, $month, $year, $dayofweek, $dayofyear, $daylightsavings) = localtime();
+    opendir(DIR, "/var/log/");
+    my @files = grep(/^messages/,readdir(DIR));
+    closedir(DIR);
+    foreach my $file (@files) {
+        my $firstline ;
+        my $lastline ;
+        if ($file =~ /\.gz$/) {
+                chomp($firstline=qx(zcat /var/log/$file | head -1 | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
+                chomp($lastline=qx(zcat /var/log/$file | tail -1 | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
+        } else {
+                chomp($firstline=qx(head -1 /var/log/$file | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
+                chomp($lastline=qx(tail -1 /var/log/$file | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
+        }
+        my @first= split(/ /, $firstline);
+        my @last= split(/ /, $lastline);
+
+        $firstline = timelocal($first[4],$first[3],$first[2],$first[1],$mon2num{ lc substr($first[0], 0, 3) }-1,$year);
+        $lastline = timelocal($last[4],$last[3],$last[2],$last[1],$mon2num{ lc substr($last[0], 0, 3) }-1,$year);
+
+        if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+                push @mmessages, qx(zegrep -H "$searchmmessages" /var/log/$file | grep $filename);
+        }
+    }
+    print "Done. ".scalar @mmessages. " results found.\n" if (!$short);
+
+    print "[+] Checking ftpxferlog... " if (!$short);
+    push @mftp, qx(egrep -H "$searchmftp" /usr/local/apache/domlogs/$owner/ftp.* /usr/local/apache/domlogs/ftpxferlog 2> /dev/null | grep $filename);
+    print "Done. ".scalar @mftp. " results found.\n" if (!$short);
+
+    print "[+] Checking cPanel access logs... " if (!$short);
+    push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log);
+    print "Done. ".scalar @mcpanel. " results found.\n" if (!$short);
+
+    if ($owner ne "root") {
+        print "[+] Checking Apache access logs... " if (!$short); 
+        my $type;
+        if ( $a_type == "1" ) {
+            $type="POST|GET";
+        } else {
+            $type="POST";
+        }
+        push @maccess, qx(egrep -Hr "$searchmaccess" /home/$owner/logs /home/$owner/access-logs | egrep "$type");
+        print "Done. ".scalar @maccess. " results found.\n" if (!$short);
+    }
+    print "\n" if (!$short);
+}
+
+sub print_matches {
+    print GREEN "Matches: ".localtime($epoc_mtime)." ($epoc_mtime)\n" if (!$short); 
+    print GREEN "---------------------------------------------\n" if (!$short);
+
+    if (scalar @mbash > 0) {
+        print MAGENTA ".bash_history\n" if (!$short);
+        foreach (@mbash) {
+                print $_;
+        }
+    print "\n" if (!$short);
+    }
+
+    if (scalar @mmessages > 0) {
+        print MAGENTA "/var/log/messages\n" if (!$short);
+        foreach (@mmessages) {
+                print $_;
+        }
+    print "\n" if (!$short);
+    }
+
+    if (scalar @mftp > 0) {
+        print MAGENTA "ftpxferlog\n" if (!$short); 
+        foreach (@mftp) {
+                print $_;
+        }
+    print "\n" if (!$short);
+    }
+
+    if (scalar @mcpanel > 0) {
+        print MAGENTA "cPanel Access Logs\n" if (!$short); 
+        foreach (@mcpanel) {
+                print $_;
+        }
+    print "\n" if (!$short);
+    }
+
+    if (scalar @maccess > 0) {
+        print MAGENTA "Apache Access Logs\n" if (!$short); 
+        foreach (@maccess) {
+                print $_;
+        }
+    print "\n" if (!$short);
+    }
+}
+
+sub print_filestats {
+    print CYAN "\nFile Statistics: " if (!$short);
+    print CYAN "\n---------------------------------------------------------\n" if (!$short);
+    print "File: " . File::Spec->rel2abs($fh) . "\n" if (!$short);
+    print "Size: " . (stat($fh))[7] . "\n" if (!$short);
+    print "Modify Time: " . localtime($epoc_mtime) . " ($epoc_mtime)" . "\n" if (!$short);
+    print "Change Time: " . localtime($epoc_ctime) . " ($epoc_ctime)" . "\n" if (!$short);
+    print "User: " . $owner . "\n" if (!$short);
+    print "Search Range: $range seconds \n" if (!$short);
+    print CYAN "---------------------------------------------------------\n" if (!$short);
+
+    if ($epoc_ctime != $epoc_mtime) {
+        print "[!] Change and modify timestamps are different. Will search logs twice.\n" if (!$short);
+    }
+    if ($owner eq "root") {
+        print "[!] User root detected. Skipping some checks.\n" if (!$short);
+    }
+    if (! -e "/var/cpanel/users/$owner" && $owner ne "root") {
+        print "[!] User ($owner) not found. Exiting...\n" if (!$short);
+        exit;
+    }
+    print "\n\n" if (!$short); 
+}
+
 sub scan {
 
     detect_system();
     print_normal('');
-    print_header('[ Starting cPanel Security Inspection ]');
+    print_header('[ Starting cPanel Security Inspection: Rootkitscan Mode ]');
     print_header("[ Version $version on Perl $] ]");
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]");
     print_normal('');
-    print_header("[ Available flags when running $0 (if any): ]");
-    print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]') if (!$no3rdparty);
+    print_header("[ Available flags when running $0 --rootkitscan (if any): ]");
+    print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]');
     print_normal('');
     print_header('[ Cleaning up from earlier runs, if needed ]');
     check_previous_scans();
@@ -517,7 +760,7 @@ sub check_ssh {
     # Check RPM verification for SSH packages
     foreach my $rpm (qx(rpm -qa openssh*)) {
         chomp($rpm);
-        $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d');
+        $ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
         if ( $ssh_verify ne '' ) {
             push( @ssh_errors, " RPM verification on $rpm failed:\n" );
             push( @ssh_errors, " $ssh_verify" );
