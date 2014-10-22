@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.5b';
+my $version = '3.0.6b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -216,7 +216,7 @@ sub search_logs {
     my $searchmbash= "^#$tmpepoc";
     my $searchmmessages= "^".strftime("%b %d %H:%M:%S",localtime($tmpepoc));
     my $searchmftp= "^".strftime("%a %b %d %H:%M:%S %Y",localtime($tmpepoc));
-    my $searchmcpanel= "^".strftime("%m/%d/%Y:%H:%M:%S",localtime($tmpepoc));
+    my $searchmcpanel= strftime("%m/%d/%Y:%H:%M:%S",gmtime($tmpepoc));
     my $searchmaccess= "^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
     @mbash=();
     @mmessages=();
@@ -228,7 +228,7 @@ sub search_logs {
         $searchmbash= "$searchmbash|^#$tmpepoc";
         $searchmmessages= "$searchmmessages|^".strftime("%b %d %H:%M:%S",localtime($tmpepoc));
         $searchmftp= "$searchmftp|^".strftime("%a %b %d %H:%M:%S %Y",localtime($tmpepoc));
-        $searchmcpanel= "$searchmcpanel|^".strftime("%m/%d/%Y:%H:%M:%S",localtime($tmpepoc));
+        $searchmcpanel= "$searchmcpanel|".strftime("%m/%d/%Y:%H:%M:%S",gmtime($tmpepoc));
         $searchmaccess= "$searchmaccess|^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
     }
 
@@ -251,12 +251,14 @@ sub search_logs {
         my $firstline ;
         my $lastline ;
         if ($file =~ /\.gz$/) {
-                chomp($firstline=qx(zcat /var/log/$file | head -1 | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
-                chomp($lastline=qx(zcat /var/log/$file | tail -1 | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
+            chomp($firstline=qx(zcat /var/log/$file | head -1 | awk '{print\$1" "\$2" "\$3}'));
+            chomp($lastline=qx(zcat /var/log/$file | tail -1 | awk '{print\$1" "\$2" "\$3}'));
         } else {
-                chomp($firstline=qx(head -1 /var/log/$file | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
-                chomp($lastline=qx(tail -1 /var/log/$file | awk '{print\$1" "\$2" "\$3}' | sed 's/:/ /g'));
+            chomp($firstline=qx(head -1 /var/log/$file | awk '{print\$1" "\$2" "\$3}'));
+            chomp($lastline=qx(tail -1 /var/log/$file | awk '{print\$1" "\$2" "\$3}'));
         }
+        $firstline =~ s/:/ /g;
+        $lastline =~ s/:/ /g;
         my @first= split(/ /, $firstline);
         my @last= split(/ /, $lastline);
 
@@ -276,7 +278,46 @@ sub search_logs {
     print_normal("Done. ".scalar @mftp. " results found.") if (!$short);
 
     print_normal_chomped("[+] Checking cPanel access logs... ") if (!$short);
-    push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log);
+    if (-d "/usr/local/cpanel/logs/archive") {
+        @files=(); 
+        opendir(DIR, "/usr/local/cpanel/logs/archive");
+        @files = grep(/^access_log/,readdir(DIR));
+        closedir(DIR);
+        foreach my $file (@files) {
+            my $firstline ;
+            my $lastline ;
+            chomp($firstline=qx(zcat /usr/local/cpanel/logs/archive/$file | head -1 | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+            chomp($lastline=qx(zcat /usr/local/cpanel/logs/archive/$file | tail -1 | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+            $firstline =~ s/:/ /g;
+            $firstline =~ s/\// /g;
+            $lastline =~ s/:/ /g;
+            $lastline =~ s/\// /g;
+            my @first= split(/ /, $firstline);
+            my @last= split(/ /, $lastline);
+
+            $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
+            $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
+
+            if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+                push @mcpanel, qx(zegrep -H "$searchmcpanel" /usr/local/cpanel/logs/archive/$file | grep POST);
+            }
+        }
+    }
+    my $firstline ;
+    my $lastline ;
+    chomp($firstline=qx(head -1 /usr/local/cpanel/logs/access_log | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+    chomp($lastline=qx(tail -1 /usr/local/cpanel/logs/access_log | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+    $firstline =~ s/:/ /g;
+    $firstline =~ s/\// /g;
+    $lastline =~ s/:/ /g;
+    $lastline =~ s/\// /g;
+    my @first= split(/ /, $firstline);
+    my @last= split(/ /, $lastline);
+    $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
+    $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
+    if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+        push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log | grep POST);
+    }
     chomp(@mcpanel);
     print_normal("Done. ".scalar @mcpanel. " results found.") if (!$short);
 
