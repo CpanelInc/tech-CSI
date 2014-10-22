@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.6b';
+my $version = '3.0.7b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -217,7 +217,7 @@ sub search_logs {
     my $searchmmessages= "^".strftime("%b %d %H:%M:%S",localtime($tmpepoc));
     my $searchmftp= "^".strftime("%a %b %d %H:%M:%S %Y",localtime($tmpepoc));
     my $searchmcpanel= strftime("%m/%d/%Y:%H:%M:%S",gmtime($tmpepoc));
-    my $searchmaccess= "^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
+    my $searchmaccess= strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
     @mbash=();
     @mmessages=();
     @mftp=();
@@ -229,7 +229,7 @@ sub search_logs {
         $searchmmessages= "$searchmmessages|^".strftime("%b %d %H:%M:%S",localtime($tmpepoc));
         $searchmftp= "$searchmftp|^".strftime("%a %b %d %H:%M:%S %Y",localtime($tmpepoc));
         $searchmcpanel= "$searchmcpanel|".strftime("%m/%d/%Y:%H:%M:%S",gmtime($tmpepoc));
-        $searchmaccess= "$searchmaccess|^".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
+        $searchmaccess= "$searchmaccess|".strftime("%d/%b/%Y:%H:%M:%S %z",localtime($tmpepoc));
     }
 
     print_header("Searching for: ".localtime($epoc_mtime)." ($epoc_mtime)") if (!$short);
