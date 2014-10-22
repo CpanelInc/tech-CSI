@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.3b';
+my $version = '3.0.4b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -44,6 +44,7 @@ my $scan = 0;
 my $a_type = 0;    # Defaults to searching for only POST requests
 my $range = "60";    # Defaults to 60 seconds
 my $owner = "owner";
+my $epoc_time = '0';
 
 GetOptions(
     'no3rdparty' => \$no3rdparty,
@@ -51,6 +52,7 @@ GetOptions(
     'rootkitscan' => \$scan,
     'get' => \$a_type,
     'range=i' => \$range,
+    'timestamp=i' => \$epoc_time,
     'user=s' => \$owner,
     'short' => \$short,
 );
@@ -109,6 +111,10 @@ if ($fh ne " ") {
     logfinder(); 
     exit;
 }
+if ($epoc_time != "0" ) {
+    time_logfinder();
+    exit;
+}
 if ($scan == "1" ) { 
     scan();
     exit;
@@ -126,7 +132,8 @@ sub show_help {
     print_header("=================");
     print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
     print_status("--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory");
-    print_status("                           provided in effort to determine how a file was modified or changed. \n");
+    print_status("                           provided in effort to determine how a file was modified or changed. ");
+    print_status("--timestamp [timestamp]    Similar to --file, but allows you to specify a timestamp if the file is no longer available.\n");
     print_header("Options (rootkitscan)");
     print_header("=================");
     print_status("--no3rdparty               Disables running of 3rdparty scanners.\n");
@@ -176,6 +183,32 @@ sub logfinder {
         $epoc_mtime=$epoc_ctime ;
         --$differ ;
     }
+}
+
+sub time_logfinder {
+    detect_system();
+    print_normal('') if (!$short);
+    print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
+    print_header("[ Version $version on Perl $] ]") if (!$short);
+    print_header("[ System Type: $systype ]") if (!$short);
+    print_header("[ OS: $os ]") if (!$short);
+    print_normal('') if (!$short);
+    print_header("[ Available flags when running $0 --timestamp (if any): ]") if (!$short);
+    print_header('[     --range (specify custom search range in seconds) ]') if (!$short);
+    print_header('[     --get (show GET requests as well as POST) ]') if (!$short);
+    print_header('[     --user (force user) ]') if (!$short);
+    print_header('[     --short (do not print verbose output) ]') if (!$short);
+    print_normal('') if (!$short);
+    $epoc_mtime=$epoc_time ; 
+    $epoc_ctime=$epoc_time ;    
+    $filename = ".";
+    if ($owner eq "owner") {
+        print_error("Providing the user via --user is required when using --timestamp. Exiting... \n");
+        exit ;
+    }
+    print_filestats ()  ; 
+    search_logs();
+    print_matches();
 }
 
 sub search_logs {
@@ -308,12 +341,13 @@ sub print_matches {
 }
 
 sub print_filestats {
-    print_header( "\nFile Statistics: ") if (!$short);
+    print_header( "\nStatistics: ") if (!$short);
     print_header( "---------------------------------------------------------") if (!$short);
-    print_status( "File: " . File::Spec->rel2abs($fh) ) if (!$short);
-    print_status( "Size: " . (stat($fh))[7] ) if (!$short);
-    print_status( "Modify Time: " . localtime($epoc_mtime) . " ($epoc_mtime)" ) if (!$short);
-    print_status( "Change Time: " . localtime($epoc_ctime) . " ($epoc_ctime)" ) if (!$short);
+    print_status( "File: " . File::Spec->rel2abs($fh) ) if (!$short && !$epoc_time);
+    print_status( "Size: " . (stat($fh))[7] ) if (!$short && !$epoc_time );
+    print_status( "Modify Time: " . localtime($epoc_mtime) . " ($epoc_mtime)" ) if (!$short && !$epoc_time);
+    print_status( "Change Time: " . localtime($epoc_ctime) . " ($epoc_ctime)" ) if (!$short && !$epoc_time);
+    print_status( "Timestamp: " . localtime($epoc_time) . " ($epoc_time)" ) if (!$short && $epoc_time);
     print_status( "User: " . $owner ) if (!$short);
     print_status("Search Range: $range seconds ") if (!$short);
     print CYAN "---------------------------------------------------------\n" if (!$short);
