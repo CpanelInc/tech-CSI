@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.4b';
+my $version = '3.0.5b';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -137,7 +137,7 @@ sub show_help {
     print_header("Options (rootkitscan)");
     print_header("=================");
     print_status("--no3rdparty               Disables running of 3rdparty scanners.\n");
-    print_header("Options (file)");
+    print_header("Options (file/timestamp)");
     print_header("=================");
     print_status("--user [user]              Override detected owner of file with custom user to search for.");
     print_status("--range [seconds]          Specify search range in seconds. Default is 60 seconds.");
