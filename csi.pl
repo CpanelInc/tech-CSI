@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.7b';
+my $version = '3.0.8';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -133,7 +133,8 @@ sub show_help {
     print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
     print_status("--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory");
     print_status("                           provided in effort to determine how a file was modified or changed. ");
-    print_status("--timestamp [timestamp]    Similar to --file, but allows you to specify a timestamp if the file is no longer available.\n");
+    print_status("--timestamp [timestamp]    Similar to --file, but allows you to specify a epoch timestamp if the file is no longer");
+    print_status("                           available. The --user flag is required when using this function.\n");
     print_header("Options (rootkitscan)");
     print_header("=================");
     print_status("--no3rdparty               Disables running of 3rdparty scanners.\n");
@@ -146,7 +147,24 @@ sub show_help {
     print_normal(" ");
 }
 
+sub disclaimer {
+    print_normal('');
+    print_header('########################################################################');
+    print_header('### DISCLAIMER! cPanel’s Technical Support does not provide            #');
+    print_header('### security consultations services. The only support services we      #');
+    print_header('### can provide at this time is to perform a minimal analysis of the   #');
+    print_header('### possible security breach solely for the purpose of determining if  #');
+    print_header('### cPanel\'s software was involved or used in the security breach.     #');
+    print_header('########################################################################');
+    print_header('### If it is suspect to be root compromised, only Level lll Analysts   #');
+    print_header('### should be handling the issue. Account level compromises are        #');
+    print_header('### investigated as a courtesy and cary no guarantees.                 #');
+    print_header('########################################################################');
+    print_normal('');
+}
+
 sub logfinder {
+    disclaimer();
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
@@ -186,6 +204,7 @@ sub logfinder {
 }
 
 sub time_logfinder {
+    disclaimer();
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
@@ -407,7 +426,7 @@ sub print_filestats {
 }
 
 sub scan {
-
+    disclaimer();
     detect_system();
     print_normal('');
     print_header('[ Starting cPanel Security Inspection: Rootkitscan Mode ]');
@@ -546,7 +565,7 @@ sub fetch_makefile {
 
     if ( -x $wget ) {
         my $makefile_url = 'https://raw.githubusercontent.com/cPanelSamir/CSI/master/Makefile.csi';
-        my @wget_cmd = ( "$wget", "-q", "$makefile_url" );
+        my @wget_cmd = ( "$wget", "-q", "--no-check-certificate", "$makefile_url" );
         system(@wget_cmd);
     }
     else {
