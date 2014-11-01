@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.8';
+my $version = '3.0.9';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -307,10 +307,8 @@ sub search_logs {
             my $lastline ;
             chomp($firstline=qx(zcat /usr/local/cpanel/logs/archive/$file | head -1 | awk -F'[' '{print\$2}' | awk '{print\$1}'));
             chomp($lastline=qx(zcat /usr/local/cpanel/logs/archive/$file | tail -1 | awk -F'[' '{print\$2}' | awk '{print\$1}'));
-            $firstline =~ s/:/ /g;
-            $firstline =~ s/\// /g;
-            $lastline =~ s/:/ /g;
-            $lastline =~ s/\// /g;
+            $firstline =~ tr/\/|:/ / ;
+            $lastline =~ tr/\/|:/ / ;
             my @first= split(/ /, $firstline);
             my @last= split(/ /, $lastline);
 
@@ -326,10 +324,8 @@ sub search_logs {
     my $lastline ;
     chomp($firstline=qx(head -1 /usr/local/cpanel/logs/access_log | awk -F'[' '{print\$2}' | awk '{print\$1}'));
     chomp($lastline=qx(tail -1 /usr/local/cpanel/logs/access_log | awk -F'[' '{print\$2}' | awk '{print\$1}'));
-    $firstline =~ s/:/ /g;
-    $firstline =~ s/\// /g;
-    $lastline =~ s/:/ /g;
-    $lastline =~ s/\// /g;
+    $firstline =~ tr/\/|:/ / ;
+    $lastline =~ tr/\/|:/ / ;
     my @first= split(/ /, $firstline);
     my @last= split(/ /, $lastline);
     $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
@@ -348,7 +344,47 @@ sub search_logs {
         } else {
             $type="POST";
         }
-        push @maccess, qx(egrep -Hr "$searchmaccess" /home/$owner/logs /home/$owner/access-logs | egrep "$type");
+
+##### Added block
+        opendir(DIR, "/home/$owner/access-logs");
+        my @files = grep(/^(?!(ftp|\.))/,readdir(DIR));
+        closedir(DIR);
+        foreach my $file (@files) {
+            if (-z "/home/$owner/access-logs/$file") {
+                next ;
+            }
+            my $firstline ;
+            my $lastline ;
+            chomp($firstline=qx(head -1 /home/$owner/access-logs/$file | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+            chomp($lastline=qx(tail -1 /home/$owner/access-logs/$file | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+            $firstline =~ tr/\/|:/ / ;
+            $lastline =~ tr/\/|:/ / ;
+            my @first= split(/ /, $firstline);
+            my @last= split(/ /, $lastline);
+            $firstline = timelocal($first[5],$first[4],$first[3],$first[0],$mon2num{ lc substr($first[1], 0, 3) }-1,$first[2]);
+            $lastline = timelocal($last[5],$last[4],$last[3],$last[0],$mon2num{ lc substr($last[1], 0, 3) }-1,$last[2]);
+            if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+                push @maccess, qx(egrep -H "$searchmaccess" /home/$owner/access-logs/$file | egrep "$type");
+            }
+        }
+        opendir(DIR, "/home/$owner/logs");
+        @files = grep(/^(?!(ftp|\.))/,readdir(DIR));
+        closedir(DIR);
+        foreach my $file (@files) {
+            my $firstline ;
+            my $lastline ;
+            chomp($firstline=qx(zcat /home/$owner/logs/$file | head -1 | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+            chomp($lastline=qx(zcat /home/$owner/logs/$file | tail -1  | awk -F'[' '{print\$2}' | awk '{print\$1}'));
+            $firstline =~ tr/\/|:/ / ;
+            $lastline =~ tr/\/|:/ / ;
+            my @first= split(/ /, $firstline);
+            my @last= split(/ /, $lastline);
+            $firstline = timelocal($first[5],$first[4],$first[3],$first[0],$mon2num{ lc substr($first[1], 0, 3) }-1,$first[2]);
+            $lastline = timelocal($last[5],$last[4],$last[3],$last[0],$mon2num{ lc substr($last[1], 0, 3) }-1,$last[2]);
+            if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+                push @maccess, qx(zegrep -H "$searchmaccess" /home/$owner/logs/$file | egrep "$type");
+            }
+        }
         chomp (@maccess);
         print_normal("Done. ".scalar @maccess. " results found.") if (!$short);
     }
