@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.10';
+my $version = '3.0.11';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -357,7 +357,6 @@ sub search_logs {
             $type="POST";
         }
 
-##### Added block
         opendir(DIR, "/home/$owner/access-logs");
         my @files = grep(/^(?!(ftp|\.))/,readdir(DIR));
         closedir(DIR);
@@ -1066,7 +1065,9 @@ sub print_error {
 sub cleanup {
     my $makefile = File::Spec->catfile( $top, 'Makefile.csi' );
     my @make_clean = ( "$make", "-f", "$makefile", "clean" );
+    my @move_makefile = ( "/bin/mv", "$makefile", "CSI" );
     system(@make_clean);
+    system(@move_makefile);
 }
 
 # EOF
