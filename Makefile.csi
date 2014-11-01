@@ -58,4 +58,3 @@ clean:
 uberclean: clean
 	$(RM) chkrootkit-*.tar.gz
 	$(RM) rkhunter-*.tar.gz
-	$(RM) -r $(TARGET)

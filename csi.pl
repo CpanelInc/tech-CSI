@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.9';
+my $version = '3.0.10';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -145,12 +145,24 @@ sub show_help {
     print_status("--short                    Do not print verbose output.");
     print_status("--get                      By default, CSI only searches for POST requests. This option enables searching of GET requests as well.");
     print_normal(" ");
+    print_header("Examples");
+    print_header("=================");
+    print_status("Timestamp: ");
+    print_status("            csi.pl --timestamp 1407114375 --user cpuser");
+    print_status("            csi.pl --timestamp 1407114375 --user cpuser --range 120");
+    print_status("File: ");
+    print_status("            csi.pl --file /home/zyreperm/ii.php");
+    print_status("            csi.pl --file /home/zyreperm/ii.php --user ipadbest --short");
+    print_status("Rootkitscan: ");
+    print_status("            csi.pl --rootkitscan");
+    print_status("            csi.pl --rootkitscan --no3rdparty");
+    print_normal(" ");
 }
 
 sub disclaimer {
     print_normal('');
     print_header('########################################################################');
-    print_header('### DISCLAIMER! cPanel’s Technical Support does not provide            #');
+    print_header('### DISCLAIMER! cPanel\'s Technical Support does not provide            #');
     print_header('### security consultations services. The only support services we      #');
     print_header('### can provide at this time is to perform a minimal analysis of the   #');
     print_header('### possible security breach solely for the purpose of determining if  #');
@@ -641,7 +653,15 @@ sub install_sources {
 sub check_previous_scans {
 
     if ( -e $touchfile ) {
-        push @SUMMARY, "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. ***";
+        push @SUMMARY, "*** This server was previously flagged as compromised and hasn't been reloaded, or $touchfile has not been removed. (This means this ticket should probably be escalated to a Level 3 Analyst for verification.) ***";
+    }
+
+    opendir(DIR, "/usr/share/doc");
+    my @files = grep(/\.cp/,readdir(DIR));
+    closedir(DIR);
+
+    foreach my $file (@files) {
+         push @SUMMARY, "*** This server was previously flagged as compromised and hasn't been reloaded, or /usr/share/doc/$file has not been removed. (This means this ticket should probably be escalated to a Level 3 Analyst for verification.) ***";
     }
 
     if ( -d $csidir ) {
@@ -979,7 +999,7 @@ sub create_summary {
 }
 
 sub dump_summary {
-    if ( $#SUMMARY <= 0 ) {
+    if ( @SUMMARY == 0 ) {
         print_status('No negative items were found');
     }
     else {
@@ -989,12 +1009,12 @@ sub dump_summary {
         }
         print_normal('');
         print_normal('');
-        print_warn('[L1/L2] If you believe there are negative items warrant escalating this ticket as a security issue then please read over https://staffwiki.cpanel.net/LinuxSupport/CSIEscalations');
+        print_warn('[L1/L2] If you believe there are negative items warrant escalating this ticket as a security issue then please read over https://cpanel.wiki/display/LS/CSIEscalations');
         print_normal('');
         print_warn('You need to understand exactly what the output is that you are seeing before escalating the ticket to L3.');
         print_normal('');
         print_status('[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as \'H4x0r3d\' and run:');
-        print_normal("touch $touchfile");
+        print_normal('YOURNAME=$FIRSTNAME ; TICKET=$TICKETNUM ; touch /usr/share/doc/.cp.$YOURNAME.`date +"%F"`_`hostname -i`_$TICKET');
     }
 }
 
