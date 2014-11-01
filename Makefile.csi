@@ -24,7 +24,6 @@ all: fetch install
 fetch: $(RKHUNTER) $(CHKROOTKIT)
 
 $(CHKROOTKIT):
-	$(MKDIR) $(TARGET)
 	$(WGET) -O $(CHKROOTKIT) $(CHKROOTKITURL) &> /dev/null
 	$(TAR) -C $(TARGET) -xzvf $(CHKROOTKIT) &> /dev/null
 
