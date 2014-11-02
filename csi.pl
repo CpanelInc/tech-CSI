@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.12';
+my $version = '3.0.13';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -81,6 +81,7 @@ my @logfiles  = (
     '/var/log/messages',
     '/var/log/maillog',
     '/var/log/wtmp',
+    '/root/.bash_history',
 );
 
 my $systype;
@@ -741,6 +742,8 @@ sub check_logfiles {
     foreach my $log (@logfiles) {
         if ( !-f $log ) {
             push @SUMMARY, "Log file $log is missing or not a regular file";
+        } elsif ( -z $log ) {
+            push @SUMMARY, "Log file $log exists, but is empty";
         }
     }
     print_status('Done.');
