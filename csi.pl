@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.11';
+my $version = '3.0.12';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -170,7 +170,7 @@ sub disclaimer {
     print_header('########################################################################');
     print_header('### If it is suspect to be root compromised, only Level lll Analysts   #');
     print_header('### should be handling the issue. Account level compromises are        #');
-    print_header('### investigated as a courtesy and cary no guarantees.                 #');
+    print_header('### investigated as a courtesy and carry no guarantees.                #');
     print_header('########################################################################');
     print_normal('');
 }
