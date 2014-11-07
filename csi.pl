@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.13';
+my $version = '3.0.14';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -310,6 +310,12 @@ sub search_logs {
     print_normal("Done. ".scalar @mftp. " results found.") if (!$short);
 
     print_normal_chomped("[+] Checking cPanel access logs... ") if (!$short);
+    my $type;
+    if ( $a_type == "1" ) {
+        $type="POST|GET";
+    } else {
+        $type="POST";
+    }
     if (-d "/usr/local/cpanel/logs/archive") {
         @files=(); 
         opendir(DIR, "/usr/local/cpanel/logs/archive");
@@ -329,7 +335,7 @@ sub search_logs {
             $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
 
             if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
-                push @mcpanel, qx(zegrep -H "$searchmcpanel" /usr/local/cpanel/logs/archive/$file | grep POST);
+                push @mcpanel, qx(zegrep -H "$searchmcpanel" /usr/local/cpanel/logs/archive/$file | egrep "$type");
             }
         }
     }
@@ -344,19 +350,13 @@ sub search_logs {
     $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
     $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
     if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
-        push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log | grep POST);
+        push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log | egrep "$type");
     }
     chomp(@mcpanel);
     print_normal("Done. ".scalar @mcpanel. " results found.") if (!$short);
 
     if ($owner ne "root") {
         print_normal_chomped("[+] Checking Apache access logs... ") if (!$short); 
-        my $type;
-        if ( $a_type == "1" ) {
-            $type="POST|GET";
-        } else {
-            $type="POST";
-        }
 
         opendir(DIR, "/home/$owner/access-logs");
         my @files = grep(/^(?!(ftp|\.))/,readdir(DIR));
