@@ -177,7 +177,7 @@ sub disclaimer {
 }
 
 sub logfinder {
-    disclaimer();
+    disclaimer() if (!$short);
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
@@ -217,7 +217,7 @@ sub logfinder {
 }
 
 sub time_logfinder {
-    disclaimer();
+    disclaimer() if (!$short);
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
