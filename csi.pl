@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.14';
+my $version = '3.0.15';
 
 ###################################################
 # Check to see if the calling user is root or not #
