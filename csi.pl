@@ -305,7 +305,44 @@ sub search_logs {
     print_normal("Done. ".scalar @mmessages. " results found.") if (!$short);
 
     print_normal_chomped("[+] Checking ftpxferlog... ") if (!$short);
-    push @mftp, qx(egrep -H "$searchmftp" /usr/local/apache/domlogs/$owner/ftp.* /usr/local/apache/domlogs/ftpxferlog 2> /dev/null | grep $filename | grep $owner);
+    if (-s '/usr/local/apache/domlogs/ftpxferlog') {
+        my $firstline ;
+        my $lastline ;
+        chomp($firstline=qx(head -1 /usr/local/apache/domlogs/ftpxferlog | awk '{print\$2" "\$3" "\$4" "\$5}'));
+        chomp($lastline=qx(tail -1 /usr/local/apache/domlogs/ftpxferlog | awk '{print\$2" "\$3" "\$4" "\$5}'));
+        $firstline =~ tr/\/|:/ / ;
+        $lastline =~ tr/\/|:/ / ;
+        my @first= split(/ /, $firstline);
+        my @last= split(/ /, $lastline);
+
+        $firstline = timelocal($first[4],$first[3],$first[2],$first[1],$mon2num{ lc substr($first[0], 0, 3) }-1,$first[5]);
+        $lastline = timelocal($last[4],$last[3],$last[2],$last[1],$mon2num{ lc substr($last[0], 0, 3) }-1,$last[5]);
+
+        if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+            push @mftp, qx(egrep -H "$searchmftp" /usr/local/apache/domlogs/ftpxferlog);
+        }
+    }
+
+    @files=();
+    opendir(DIR, "/home/$owner/logs");
+    @files = grep(/^ftp.*/,readdir(DIR));
+    closedir(DIR);
+    foreach my $file (@files) {
+        my $firstline ;
+        my $lastline ;
+        chomp($firstline=qx(zcat /home/$owner/logs/$file | head -1 | awk '{print\$2" "\$3" "\$4" "\$5}'));
+        chomp($lastline=qx(zcat /home/$owner/logs/$file | tail -1 | awk '{print\$2" "\$3" "\$4" "\$5}'));
+        $firstline =~ tr/\/|:/ / ;
+        $lastline =~ tr/\/|:/ / ;
+        my @first= split(/ /, $firstline);
+        my @last= split(/ /, $lastline);
+
+        $firstline = timelocal($first[4],$first[3],$first[2],$first[1],$mon2num{ lc substr($first[0], 0, 3) }-1,$first[5]);
+        $lastline = timelocal($last[4],$last[3],$last[2],$last[1],$mon2num{ lc substr($last[0], 0, 3) }-1,$last[5]);
+        if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+            push @mftp, qx(zegrep -H "$searchmftp" /home/$owner/logs/$file);
+        }
+    }
     chomp(@mftp);
     print_normal("Done. ".scalar @mftp. " results found.") if (!$short);
 
@@ -339,14 +376,16 @@ sub search_logs {
             }
         }
     }
-    my $firstline ;
-    my $lastline ;
+    my $firstline ; 
+    my $lastline ; 
     chomp($firstline=qx(head -1 /usr/local/cpanel/logs/access_log | awk -F'[' '{print\$2}' | awk '{print\$1}'));
     chomp($lastline=qx(tail -1 /usr/local/cpanel/logs/access_log | awk -F'[' '{print\$2}' | awk '{print\$1}'));
     $firstline =~ tr/\/|:/ / ;
     $lastline =~ tr/\/|:/ / ;
-    my @first= split(/ /, $firstline);
-    my @last= split(/ /, $lastline);
+    my @first ; 
+    my @last ; 
+    @first= split(/ /, $firstline);
+    @last= split(/ /, $lastline);
     $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
     $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
     if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
