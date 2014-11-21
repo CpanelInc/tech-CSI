@@ -755,7 +755,7 @@ sub run_chkrootkit {
 
     print_status('Running chkrootkit. This will take a few minutes.');
 
-    qx($chkrootkit_bin 2> /dev/null | egrep 'INFECTED|vulnerable' | grep -v "INFECTED (PORTS:  465)" > $csidir/chkrootkit.log 2> /dev/null);
+    qx($chkrootkit_bin 2> /dev/null | egrep 'INFECTED|vulnerable' | egrep -v "INFECTED (PORTS:  465)|passwd" > $csidir/chkrootkit.log 2> /dev/null);
 
     if ( -s "$csidir/chkrootkit.log" ) {
         open( my $LOG, '<', "$csidir/chkrootkit.log" )
