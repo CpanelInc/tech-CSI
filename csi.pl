@@ -6,7 +6,7 @@
 # http://cpanel.net
 # Unauthorized copying is prohibited
 
-# Tested on cPanel 11.30 - 11.44
+# Tested on cPanel 11.30 - 11.46
 
 # Maintainer: Samir Jafferali
 
@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.16';
+my $version = '3.0.17';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -368,8 +368,8 @@ sub search_logs {
             my @first= split(/ /, $firstline);
             my @last= split(/ /, $lastline);
 
-            $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
-            $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
+            $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0]-1,$first[2]);
+            $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0]-1,$last[2]);
 
             if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
                 push @mcpanel, qx(zegrep -H "$searchmcpanel" /usr/local/cpanel/logs/archive/$file | egrep "$type");
@@ -386,8 +386,8 @@ sub search_logs {
     my @last ; 
     @first= split(/ /, $firstline);
     @last= split(/ /, $lastline);
-    $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0],$first[2]);
-    $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0],$last[2]);
+    $firstline = timelocal($first[5],$first[4],$first[3],$first[1],$first[0]-1,$first[2]);
+    $lastline = timelocal($last[5],$last[4],$last[3],$last[1],$last[0]-1,$last[2]);
     if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
         push @mcpanel, qx(egrep -H "$searchmcpanel" /usr/local/cpanel/logs/access_log | egrep "$type");
     }
