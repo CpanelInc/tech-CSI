@@ -1029,7 +1029,7 @@ sub check_rootkits {
         my @found_jynx2_files = ();
         my @jynx2_files = qw( 3.so 4.so );
         for (@jynx2_files) {
-            my $file = $dir . "/" . $_;
+            my $file = "/usr/bin64/" . $_;
             if ( -e $file ) {
                 push(@found_jynx2_files, $file);
             }
