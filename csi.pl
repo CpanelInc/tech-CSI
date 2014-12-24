@@ -22,7 +22,7 @@ use Getopt::Long;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.18';
+my $version = '3.0.19';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -1024,9 +1024,21 @@ sub check_rootkits {
 
     if ( chdir('/usr/local/__UMBREON') ) {
 	push @SUMMARY, 'Evidence of UMBREON rootkit detected';
-        print_status('Done.');
     }
-
+    if ( chdir '/usr/bin64' ) {
+        my @found_jynx2_files = ();
+        my @jynx2_files = qw( 3.so 4.so );
+        for (@jynx2_files) {
+            my $file = $dir . "/" . $_;
+            if ( -e $file ) {
+                push(@found_jynx2_files, $file);
+            }
+        }
+        if ( (scalar @found_jynx2_files) != 0 ) {
+        push @SUMMARY, 'Evidence of Jynx 2 rootkit detected';
+        }
+    }
+    print_status('Done.');
 }
 
 sub create_summary {
