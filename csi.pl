@@ -1021,10 +1021,12 @@ sub check_lib {
 }
 
 sub check_rootkits {
-
+    ## UNBREON CHECK
     if ( chdir('/usr/local/__UMBREON') ) {
 	push @SUMMARY, 'Evidence of UMBREON rootkit detected';
     }
+    
+    ## JYNX2 CHECK
     if ( chdir '/usr/bin64' ) {
         my @found_jynx2_files = ();
         my @jynx2_files = qw( 3.so 4.so );
@@ -1035,8 +1037,19 @@ sub check_rootkits {
             }
         }
         if ( (scalar @found_jynx2_files) != 0 ) {
-        push @SUMMARY, 'Evidence of Jynx 2 rootkit detected';
+            push @SUMMARY, 'Evidence of JYNX 2 rootkit detected';
         }
+    }
+    
+    ## DRAGNET CHECK
+    if ( open my $fh, '<', '/proc/self/maps' ) {
+        while (<$fh>) {
+            if ( m{ (\s|\/) libc\.so\.0 (\s|$) }x ) {
+            push @SUMMARY, 'Evidence of DRAGNET rootkit detected';
+            last;
+            }
+        }
+        close($fh);
     }
     print_status('Done.');
 }
