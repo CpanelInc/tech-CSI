@@ -1021,8 +1021,8 @@ sub check_lib {
 }
 
 sub check_rootkits {
-    ## UNBREON CHECK
-    if ( chdir('/usr/local/__UMBREON') ) {
+    ## UMBREON CHECK
+    if ( chdir('/usr/local/__UMBREON__') ) {
 	push @SUMMARY, 'Evidence of UMBREON rootkit detected';
     }
     
