@@ -1075,8 +1075,23 @@ sub check_rootkits {
     check_sha1_sigs_sshd();
     check_for_ebury_socket
     check_for_ebury_ssh_G
+    check_for_ebury_ssh_shmem
     
     print_status('Done.');
+}
+
+sub check_for_ebury_ssh_shmem {
+    # As far as we know, sshd sholudn't be using shared memory at all, so any usage is a strong sign of ebury.
+    return if ! defined($ipcs{root}{mp});
+
+    for my $href ( @{$ipcs{root}{mp}} ) {
+        my $shmid = $href->{shmid};
+        my $cpid = $href->{cpid};
+        if ( $process{$cpid}{CMD} && $process{$cpid}{CMD} =~ m{ \A /usr/sbin/sshd \b }x ) {
+            push @SUMMARY, 'EBURY: Shared memory segment created by sshd process exists -  sshd PID:' . $cpid . ' shmid:' . $shmid;
+            last;
+        }
+    }
 }
 
 sub check_for_ebury_ssh_G {
@@ -1150,7 +1165,7 @@ sub check_for_cdorked_B {
     }
 
     if ( $has_cdorked_b == 1 ) {
-        push @SUMMARY, 'The following files were found (note the spaces at the end of the files): ' . $cdorked_files;
+        push @SUMMARY, 'CDORKED: The following files were found (note the spaces at the end of the files): ' . $cdorked_files;
     }
 }
 
