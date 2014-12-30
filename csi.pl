@@ -1064,19 +1064,16 @@ sub check_rootkits {
     	push @SUMMARY, 'Evidence of EBURY rootkit detected. Found file: ' . $eburyfile;
     }
     
-    ## EBURY SSH BANNER CHECK
+    ## CDORKED/EBURY CHECKS
     check_for_ebury_ssh_banner();
-    
-    ## CDORKED CHECKS
     check_for_cdorked_A();
     check_for_cdorked_B();
-    
-    ## CDORKED/EBURY SIG CHECKS
     check_sha1_sigs_httpd();
     check_sha1_sigs_named();
     check_sha1_sigs_ssh();
     check_sha1_sigs_ssh_add();
     check_sha1_sigs_sshd();
+    check_for_ebury_socket
     
     print_status('Done.');
 }
@@ -1249,6 +1246,16 @@ sub check_for_ebury_ssh_banner {
 
     if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
         push @SUMMARY, 'sshd banner matches known signature from ebury infected machines: ' . $ssh_banner;
+    }
+}
+
+sub check_for_ebury_socket {
+    return unless my $netstat_out = timed_run( 0, 'netstat', '-nap' );
+    for my $line ( split( '\n', $netstat_out ) ) {
+        if ( $line =~ m{@/proc/udevd} ) {
+            push @SUMMARY, 'EBURY: "netstat -nap" output contains: ' . $line;
+            last;
+        }
     }
 }
 
