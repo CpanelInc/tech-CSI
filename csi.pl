@@ -19,6 +19,7 @@ use File::Spec;
 use POSIX;
 use Time::Local;
 use Getopt::Long;
+use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
