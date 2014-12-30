@@ -1129,7 +1129,6 @@ sub check_sha1_sigs_httpd {
     my $httpd = '/usr/local/apache/bin/httpd';
     return if !-e $httpd;
     my $infected = 0;
-    return unless my $sha1sum = timed_run( 0, 'sha1sum', $httpd );
     if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
         $sha1sum = $1;
     }
