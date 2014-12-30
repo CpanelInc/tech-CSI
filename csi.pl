@@ -1062,6 +1062,10 @@ sub check_rootkits {
     ## EBURY SSH BANNER CHECK
     check_for_ebury_ssh_banner();
     
+    ## CDORKED CHECKS
+    check_for_cdorked_A();
+    check_for_cdorked_B();
+    
     ## CDORKED/EBURY SIG CHECKS
     check_sha1_sigs_httpd();
     check_sha1_sigs_named();
@@ -1070,6 +1074,68 @@ sub check_rootkits {
     check_sha1_sigs_sshd();
     
     print_status('Done.');
+}
+
+sub check_for_cdorked_A {
+    my $apache_bin = '/usr/local/apache/bin/httpd';
+    my $max_bin_size = 10_485_760; # avoid slurping too much mem
+    return if ( !-f $apache_bin );
+    return if ((stat($apache_bin))[7] > $max_bin_size );
+
+    my $has_cdorked = 0;
+    my $signature;
+    my @apache_bins = ();
+    push @apache_bins, $apache_bin;
+
+
+    for my $process (@process_list) {
+        if ( $process =~ m{ \A root \s+ (\d+) [^\d]+ $apache_bin }xms ) {
+            my $pid = $1;
+            my $proc_pid_exe = "/proc/" . $pid . "/exe";
+            if ( -l $proc_pid_exe && readlink($proc_pid_exe) =~ m{ \(deleted\) }xms ) {
+                next if ((stat($proc_pid_exe))[7] > $max_bin_size );
+                push @apache_bins, $proc_pid_exe;
+            }
+        }
+    }
+
+    for my $check_bin (@apache_bins) {
+        my $httpd;
+        if ( open my $fh, '<', $check_bin ) {
+            local $/;
+            $httpd = <$fh>;
+            close $fh;
+        }
+
+        next if !$httpd;
+
+        if ( $httpd =~ /(open_tty|hangout|ptsname|Qkkbal)/ ) {
+            $signature = $check_bin . ": \"" . $1 . "\"";
+            $has_cdorked = 1;
+            last;
+        }
+    }
+
+    if ( $has_cdorked == 1 ) {
+        push @SUMMARY, 'CDORKED: String found in $signature (see ticket 4482347)';
+        }
+}
+
+sub check_for_cdorked_B {
+    my $has_cdorked_b = 0;
+    my @files = ( '/usr/sbin/arpd ', '/usr/sbin/tunelp ', '/usr/bin/s2p ' );
+    my $cdorked_files;
+
+    for my $file (@files) {
+        if ( -e $file ) {
+            $has_cdorked_b = 1;
+            $cdorked_files .= "[$file] ";
+        }
+    }
+
+    if ( $has_cdorked_b == 1 ) {
+        push @SUMMARY, 'The following files were found (note the spaces at the end of the files):' . $cdorked_files;
+    }
 }
 
 sub check_sha1_sigs_ssh_add {
