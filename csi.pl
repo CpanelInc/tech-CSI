@@ -1058,6 +1058,35 @@ sub check_rootkits {
     	push @SUMMARY, 'Evidence of EBURY rootkit detected. Found file: ' . $eburyfile;
     }
     
+    ## EBURY SSH BANNER CHECK
+    my ( $host, $port, $ssh_banner );
+    my $ssh_connection = $ENV{'SSH_CONNECTION'};
+    if ($ssh_connection ) {
+
+        if ( $ssh_connection =~ m{ \s (\d+\.\d+\.\d+\.\d+) \s (\d+) \z }xms ) {
+            ( $host, $port ) = ( $1, $2 );
+        }
+
+        last if !$host;
+        last if !$port;
+
+        my $sock = IO::Socket::INET->new(
+            PeerAddr    => $host,
+            PeerPort    => $port,
+            Proto       => 'tcp',
+            Timeout     => 5,
+        );
+
+        $ssh_banner = readline $sock;
+        close $sock;
+        last if !$ssh_banner;
+        chomp $ssh_banner;
+
+        if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
+            push @SUMMARY, 'tsshd banner matches known signature from ebury infected machines: ' . $ssh_banner;
+        }
+    }
+    
     print_status('Done.');
 }
 
