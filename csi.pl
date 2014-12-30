@@ -1074,8 +1074,22 @@ sub check_rootkits {
     check_sha1_sigs_ssh_add();
     check_sha1_sigs_sshd();
     check_for_ebury_socket
+    check_for_ebury_ssh_G
     
     print_status('Done.');
+}
+
+sub check_for_ebury_ssh_G {
+    my $ssh = '/usr/bin/ssh';
+    return if !-e $ssh;
+    return if !-f $ssh;
+    return if !-x $ssh;
+    return if -z $ssh;
+
+    my $ssh_G = timed_run_trap_stderr( 0, $ssh, '-G' );
+    if ( $ssh_G !~ /illegal|unknown/ ) {
+        push @SUMMARY, 'EBURY: ' . $ssh . " -G' did not return either 'illegal' or 'unknown'";
+    }
 }
 
 sub check_for_cdorked_A {
