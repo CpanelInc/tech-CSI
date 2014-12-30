@@ -1051,6 +1051,13 @@ sub check_rootkits {
         }
         close($fh);
     }
+    
+    ## EBURY ROOT FILE CHECK
+    my $eburyfile = '/home/ ./root';
+    if ( -e $eburyfile ) {
+    	push @SUMMARY, 'Evidence of EBURY rootkit detected. Found file: ' . $eburyfile;
+    }
+    
     print_status('Done.');
 }
 
