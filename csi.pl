@@ -46,6 +46,7 @@ my $a_type = 0;    # Defaults to searching for only POST requests
 my $range = "60";    # Defaults to 60 seconds
 my $owner = "owner";
 my $epoc_time = '0';
+my @process_list = get_process_list();
 
 GetOptions(
     'no3rdparty' => \$no3rdparty,
@@ -533,7 +534,6 @@ sub scan {
     print_normal('');
 
     create_summary();
-    my @process_list          = get_process_list();
 
     if ( !$no3rdparty ) {
 
