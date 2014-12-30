@@ -47,6 +47,7 @@ my $range = "60";    # Defaults to 60 seconds
 my $owner = "owner";
 my $epoc_time = '0';
 my @process_list = get_process_list();
+my %process; &get_process_pid_hash(\%process);
 my %ipcs; &get_ipcs_hash(\%ipcs);
 
 GetOptions(
