@@ -1062,11 +1062,13 @@ sub check_rootkits {
     ## EBURY SSH BANNER CHECK
     check_for_ebury_ssh_banner();
     
-    ## CDORKED HTTPD SIG CHECK
+    ## CDORKED SIG CHECKS
     check_sha1_sigs_httpd();
+    check_sha1_sigs_named();
     
     print_status('Done.');
 }
+
 
 sub check_for_ebury_ssh_banner {
     my ( $host, $port, $ssh_banner );
@@ -1094,6 +1096,32 @@ sub check_for_ebury_ssh_banner {
 
     if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
         push @SUMMARY, 'sshd banner matches known signature from ebury infected machines: ' . $ssh_banner;
+    }
+}
+
+sub check_sha1_sigs_named {
+    my $named = '/usr/sbin/named';
+    return if !-e $named;
+    my $infected = 0;
+    return unless my $sha1sum = timed_run( 0, 'sha1sum', $named );
+    if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
+        $sha1sum = $1;
+    }
+
+    my @sigs = qw(
+        42123cbf9d51fb3dea312290920b57bd5646cefb
+        ebc45dd1723178f50b6d6f1abfb0b5a728c01968
+    );
+
+    for my $sig (@sigs) {
+        if ( $sha1sum eq $sig ) {
+            $infected = 1;
+            last;
+        }
+    }
+
+    if ( $infected == 1 ) {
+        push @SUMMARY, "CDORKED: " . $named . " has a SHA-1 signature of " . $sha1sum;
     }
 }
 
