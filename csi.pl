@@ -1139,7 +1139,7 @@ sub check_for_cdorked_B {
     }
 
     if ( $has_cdorked_b == 1 ) {
-        push @SUMMARY, 'The following files were found (note the spaces at the end of the files):' . $cdorked_files;
+        push @SUMMARY, 'The following files were found (note the spaces at the end of the files): ' . $cdorked_files;
     }
 }
 
