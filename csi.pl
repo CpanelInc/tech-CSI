@@ -1373,6 +1373,32 @@ sub get_process_pid_hash ($) {
     }
 }
 
+sub get_ipcs_hash ($) {
+    my ($href) = @_;
+    my $header = 0;
+    # For now, all we need is shared memory segment owner and creator-pid, but the data structure is extensible.
+    # ipcs -m -p
+    #
+    #------ Shared Memory Creator/Last-op --------
+    #shmid      owner      cpid       lpid
+    #2228224    root       992        992
+    #2588673    root       1309       1315
+    #2195458    root       985        985
+    #2621443    root       1309       1315
+    for ( split /\n/, timed_run( 0, 'ipcs', '-m', '-p' ) ) {
+        if ( $header == 0 ) {
+            $header = 1 if m/^ shmid \s+ owner \s+ cpid \s+ lpid \s* $/ix;
+            next;
+        }
+        my @ipcs = split(/\s+/, $_, 5);
+        push @{${$href}{$ipcs[1]}{'mp'}}, { # Key by owner, type 'mp' (-m -p output)
+            'shmid' => $ipcs[0],
+            'cpid' => $ipcs[2],
+            'lpid' => $ipcs[3]
+        };
+    }
+}
+
 sub timed_run { # Borrowed from Cpanel::SafeRun::Timed and modified
     my ( $timer, @PROGA ) = @_;
     $timer = $timer ? $timer : 25; # A timer value of 0 means use the default, currently 25.
