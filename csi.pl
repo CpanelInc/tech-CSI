@@ -1060,35 +1060,86 @@ sub check_rootkits {
     }
     
     ## EBURY SSH BANNER CHECK
-    my ( $host, $port, $ssh_banner );
-    my $ssh_connection = $ENV{'SSH_CONNECTION'};
-    if ($ssh_connection ) {
-
-        if ( $ssh_connection =~ m{ \s (\d+\.\d+\.\d+\.\d+) \s (\d+) \z }xms ) {
-            ( $host, $port ) = ( $1, $2 );
-        }
-
-        last if !$host;
-        last if !$port;
-
-        my $sock = IO::Socket::INET->new(
-            PeerAddr    => $host,
-            PeerPort    => $port,
-            Proto       => 'tcp',
-            Timeout     => 5,
-        );
-
-        $ssh_banner = readline $sock;
-        close $sock;
-        last if !$ssh_banner;
-        chomp $ssh_banner;
-
-        if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
-            push @SUMMARY, 'tsshd banner matches known signature from ebury infected machines: ' . $ssh_banner;
-        }
-    }
+    check_for_ebury_ssh_banner();
+    
+    ## CDORKED HTTPD SIG CHECK
+    check_sha1_sigs_httpd();
     
     print_status('Done.');
+}
+
+sub check_for_ebury_ssh_banner {
+    my ( $host, $port, $ssh_banner );
+    my $ssh_connection = $ENV{'SSH_CONNECTION'};
+    return if !$ssh_connection;
+
+    if ( $ssh_connection =~ m{ \s (\d+\.\d+\.\d+\.\d+) \s (\d+) \z }xms ) {
+        ( $host, $port ) = ( $1, $2 );
+    }
+
+    return if !$host;
+    return if !$port;
+
+    my $sock = IO::Socket::INET->new(
+        PeerAddr    => $host,
+        PeerPort    => $port,
+        Proto       => 'tcp',
+        Timeout     => 5,
+    ) or return;
+
+    $ssh_banner = readline $sock;
+    close $sock;
+    return if !$ssh_banner;
+    chomp $ssh_banner;
+
+    if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
+        push @SUMMARY, 'sshd banner matches known signature from ebury infected machines: ' . $ssh_banner;
+    }
+}
+
+sub check_sha1_sigs_httpd {
+    my $httpd = '/usr/local/apache/bin/httpd';
+    return if !-e $httpd;
+    my $infected = 0;
+    return unless my $sha1sum = timed_run( 0, 'sha1sum', $httpd );
+    if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
+        $sha1sum = $1;
+    }
+
+    my @sigs = qw(
+        0004b44d110ad9bc48864da3aea9d80edfceed3f
+        03592b8147e2c84233da47f6e957acd192b3796a
+        0eb1108a9d2c9fe1af4f031c84e30dcb43610302
+        10c6ce8ee3e5a7cb5eccf3dffd8f580e4fb49089
+        149cf77d2c6db226e172390a9b80bc949149e1dc
+        1972616a731c9e8a3dbda8ece1072bd16c44aa35
+        24e3ebc0c5a28ba433dfa69c169a8dd90e05c429
+        4f40bb464526964ba49ed3a3b2b2b74491ea89a4
+        5b87807b4a1796cfb1843df03b3dca7b17995d20
+        62c4b65e0c4f52c744b498b555c20f0e76363147
+        78c63e9111a6701a8308ad7db193c6abb17c65c4
+        858c612fe020fd5089a05a3ec24a6577cbeaf7eb
+        9018377c0190392cc95631170efb7d688c4fd393
+        a51b1835abee79959e1f8e9293a9dcd8d8e18977
+        a53a30f8cdf116de1b41224763c243dae16417e4
+        ac96adbe1b4e73c95c28d87fa46dcf55d4f8eea2
+        dd7846b3ec2e88083cae353c02c559e79124a745
+        ddb9a74cd91217cfcf8d4ecb77ae2ae11b707cd7
+        ee679661829405d4a57dbea7f39efeb526681a7f
+        fc39009542c62a93d472c32891b3811a4900628a
+        fdf91a8c0ff72c9d02467881b7f3c44a8a3c707a
+    );
+
+    for my $sig (@sigs) {
+        if ( $sha1sum eq $sig ) {
+            $infected = 1;
+            last;
+        }
+    }
+
+    if ( $infected == 1 ) {
+        push @SUMMARY, "CDORKED: " . $httpd . " has a SHA-1 signature of " . $sha1sum;
+    }
 }
 
 sub create_summary {
