@@ -1075,9 +1075,9 @@ sub check_rootkits {
     check_sha1_sigs_ssh();
     check_sha1_sigs_ssh_add();
     check_sha1_sigs_sshd();
-    check_for_ebury_socket
-    check_for_ebury_ssh_G
-    check_for_ebury_ssh_shmem
+    check_for_ebury_socket();
+    check_for_ebury_ssh_G();
+    check_for_ebury_ssh_shmem();
     
     print_status('Done.');
 }
