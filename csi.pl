@@ -533,6 +533,7 @@ sub scan {
     print_normal('');
 
     create_summary();
+    my @process_list          = get_process_list();
 
     if ( !$no3rdparty ) {
 
@@ -952,6 +953,10 @@ sub check_processes {
     }
     print_status('Done.');
 
+}
+
+sub get_process_list { # Usage of this needs to be deprecated in favor of the %process hash
+    return split /\n/, timed_run( 0, 'ps', 'axwwwf', '-o', 'user,pid,cmd' );
 }
 
 sub check_ssh {
