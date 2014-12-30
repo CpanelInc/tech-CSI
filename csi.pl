@@ -1062,14 +1062,38 @@ sub check_rootkits {
     ## EBURY SSH BANNER CHECK
     check_for_ebury_ssh_banner();
     
-    ## CDORKED SIG CHECKS
+    ## CDORKED/EBURY SIG CHECKS
     check_sha1_sigs_httpd();
     check_sha1_sigs_named();
-    
-    ## EBURY SIG CHECKS
     check_sha1_sigs_ssh();
+    check_sha1_sigs_ssh_add();
     
     print_status('Done.');
+}
+
+sub check_sha1_sigs_ssh_add {
+    my $ssh_add = '/usr/bin/ssh-add';
+    return if !-e $ssh_add;
+    my $infected = 0;
+    return unless my $sha1sum = timed_run( 0, 'sha1sum', $ssh_add );
+    if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
+        $sha1sum = $1;
+    }
+
+    my @sigs = qw(
+        575bb6e681b5f1e1b774fee0fa5c4fe538308814
+    );
+
+    for my $sig (@sigs) {
+        if ( $sha1sum eq $sig ) {
+            $infected = 1;
+            last;
+        }
+    }
+
+    if ( $infected == 1 ) {
+        push @SUMMARY, "EBURY: " . $ssh_add . " has a SHA-1 signature of " . $sha1sum;
+    }
 }
 
 sub check_sha1_sigs_ssh {
