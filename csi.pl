@@ -1067,6 +1067,7 @@ sub check_rootkits {
     check_sha1_sigs_named();
     check_sha1_sigs_ssh();
     check_sha1_sigs_ssh_add();
+    check_sha1_sigs_sshd();
     
     print_status('Done.');
 }
@@ -1093,6 +1094,35 @@ sub check_sha1_sigs_ssh_add {
 
     if ( $infected == 1 ) {
         push @SUMMARY, "EBURY: " . $ssh_add . " has a SHA-1 signature of " . $sha1sum;
+    }
+}
+
+sub check_sha1_sigs_sshd {
+    my $sshd = '/usr/sbin/sshd';
+    return if !-e $sshd;
+    my $infected = 0;
+    return unless my $sha1sum = timed_run( 0, 'sha1sum', $sshd );
+    if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
+        $sha1sum = $1;
+    }
+
+    my @sigs = qw(
+        0daa51519797cefedd52864be0da7fa1a93ca30b
+        4d12f98fd49e58e0635c6adce292cc56a31da2a2
+        7314eadbdf18da424c4d8510afcc9fe5fcb56b39
+        98cdbf1e0d202f5948552cebaa9f0315b7a3731d
+    );
+
+    for my $sig (@sigs) {
+        if ( $sha1sum eq $sig ) {
+            $infected = 1;
+            last;
+        }
+    }
+
+    if ( $infected == 1 ) {
+        push @SUMMARY, "EBURY: " . $sshd . " has a SHA-1 signature of " . $sha1sum;
+
     }
 }
 
