@@ -1361,6 +1361,18 @@ sub check_sha1_sigs_httpd {
     }
 }
 
+sub get_process_pid_hash ($) {
+    my ($href) = @_;
+    for ( split /\n/, timed_run( 0, 'ps', 'axwww', '-o', 'user,pid,ppid,cmd' ) ) {
+        # nobody    5403  1666 /usr/local/apache/bin/httpd -k start -DSSL
+        if ( m{ ^ ([^\s]+) \s+ (\d+) \s+ (\d+) \s+ (.*?) \s* $ }xms ) {
+            ${$href}{$2}{USER} = $1;
+            ${$href}{$2}{PPID} = $3;
+            ${$href}{$2}{CMD} = $4;
+        }
+    }
+}
+
 sub timed_run { # Borrowed from Cpanel::SafeRun::Timed and modified
     my ( $timer, @PROGA ) = @_;
     $timer = $timer ? $timer : 25; # A timer value of 0 means use the default, currently 25.
