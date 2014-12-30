@@ -1066,9 +1066,37 @@ sub check_rootkits {
     check_sha1_sigs_httpd();
     check_sha1_sigs_named();
     
+    ## EBURY SIG CHECKS
+    check_sha1_sigs_ssh();
+    
     print_status('Done.');
 }
 
+sub check_sha1_sigs_ssh {
+    my $ssh = '/usr/bin/ssh';
+    return if !-e $ssh;
+    my $infected = 0;
+    return unless my $sha1sum = timed_run( 0, 'sha1sum', $ssh );
+    if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
+        $sha1sum = $1;
+    }
+
+    my @sigs = qw(
+        c4c28d0372aee7001c44a1659097c948df91985d
+        fa6707c7ef12ce9b0f7152ca300ebb2bc026ce0b
+    );
+
+    for my $sig (@sigs) {
+        if ( $sha1sum eq $sig ) {
+            $infected = 1;
+            last;
+        }
+    }
+
+    if ( $infected == 1 ) {
+        push @SUMMARY, "EBURY: " . $ssh . " has a SHA-1 signature of " . $sha1sum;
+    }
+}
 
 sub check_for_ebury_ssh_banner {
     my ( $host, $port, $ssh_banner );
