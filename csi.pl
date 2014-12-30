@@ -1129,6 +1129,7 @@ sub check_sha1_sigs_httpd {
     my $httpd = '/usr/local/apache/bin/httpd';
     return if !-e $httpd;
     my $infected = 0;
+    return unless my $sha1sum = timed_run( 0, 'sha1sum', $httpd );
     if ( $sha1sum =~ m{ \A (\S+) \s }xms ) {
         $sha1sum = $1;
     }
@@ -1167,6 +1168,50 @@ sub check_sha1_sigs_httpd {
     if ( $infected == 1 ) {
         push @SUMMARY, "CDORKED: " . $httpd . " has a SHA-1 signature of " . $sha1sum;
     }
+}
+
+sub timed_run { # Borrowed from Cpanel::SafeRun::Timed and modified
+    my ( $timer, @PROGA ) = @_;
+    $timer = $timer ? $timer : 25; # A timer value of 0 means use the default, currently 25.
+    return if ( substr( $PROGA[0], 0, 1 ) eq '/' && !-x $PROGA[0] );
+
+    open( my $save_stderr_fh, '>&STDERR' );
+    open( STDERR, '>', '/dev/null' );
+
+    my $output = ""; # In the event of time-out or failure, return empty string instead of undef.
+    my $complete = 0;
+    my $pid;
+    my $fh;    # Case 63723: must declare $fh before eval block in order to avoid unwanted implicit waitpid on die
+    eval {
+        local $SIG{'__DIE__'} = 'DEFAULT';
+        local $SIG{'ALRM'} = sub { $output = ""; print RED ON_BLACK "Timeout while executing: " . join( ' ', @PROGA ) . "\n"; die; };
+        alarm($timer);
+        if ( $pid = open( $fh, '-|' ) ) {
+            local $/;
+            $output = readline($fh);
+            close($fh);
+        }
+        elsif ( defined $pid ) {
+            open( STDIN, '<', '/dev/null' );
+            exec(@PROGA) or exit 1;
+        }
+        else {
+            warn 'Error while executing: [' . join( ' ', @PROGA ) . ']: ' . $!;
+            alarm(0);
+            open( STDERR, '>&=' . fileno($save_stderr_fh) );
+            return "";
+        }
+        $complete = 1;
+        alarm 0;
+    };
+    alarm 0;
+    if ( !$complete && $pid && $pid > 0 ) {
+        kill( 15, $pid );    #TERM
+        sleep(2);            # Give the process a chance to die 'nicely'
+        kill( 9, $pid );     #KILL
+    }
+    open( STDERR, '>&=' . fileno($save_stderr_fh) );
+    return $output;
 }
 
 sub create_summary {
