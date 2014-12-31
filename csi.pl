@@ -1066,6 +1066,9 @@ sub check_rootkits {
     	push @SUMMARY, 'Evidence of EBURY rootkit detected. Found file: ' . $eburyfile;
     }
     
+    ## BG BOTNET CHECK
+    check_for_bg_botnet();
+    
     ## LIBKEYUTILS CHECKS
     check_for_libkeyutils_filenames();
     check_sha1_sigs_libkeyutils();
@@ -1084,6 +1087,57 @@ sub check_rootkits {
     check_for_ebury_ssh_shmem();
     
     print_status('Done.');
+}
+
+sub check_for_bg_botnet {
+    my @found_bg_files = ();
+    # Not including the following /tmp files in the list because any non-root user can create them and trigger a false-positive just for the lolz.
+    # /tmp/bill.lock
+    # /tmp/gates.lock
+    # /tmp/moni.lock
+    # /tmp/notify.file
+    # /bin/ps, /bin/netstat, and /usr/sbin/lsof have also been found to be modified
+    # This one is causing some rare false-positives:
+    # /root/aa
+    my @bg_files = qw(
+        /boot/pro
+        /boot/proh
+        /etc/sfewfesfsh
+        /usr/bin/pojie
+        /etc/atdd
+        /etc/atddd
+        /etc/cupsdd
+        /etc/cupsddd
+        /etc/dsfrefr
+        /etc/ferwfrre
+        /etc/gfhddsfew
+        /etc/gfhjrtfyhuf
+        /etc/ksapd
+        /etc/ksapdd
+        /etc/kysapd
+        /etc/kysapdd
+        /etc/rewgtf3er4t
+        /etc/sdmfdsfhjfe
+        /etc/sfewfesfs
+        /etc/sksapd
+        /etc/sksapdd
+        /etc/skysapd
+        /etc/skysapdd
+        /etc/xfsdx
+        /etc/xfsdxd
+        /usr/bin/.sshd
+        /usr/bin/bsd-port/getty
+        /usr/lib/libamplify.so
+        /etc/rc.d/init.d/DbSecuritySpt
+        /etc/rc.d/init.d/selinux
+    );
+    for my $file (@bg_files) {
+        if ( -e $file ) {
+            push(@found_bg_files, $file);
+        }
+    }
+    return unless ( scalar @found_bg_files );
+    push @SUMMARY, 'BG BOTNET: The following files were found: ' . join(" ", @found_bg_files);
 }
 
 sub check_for_ebury_ssh_shmem {
