@@ -23,7 +23,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.0.19';
+my $version = '3.1';
 
 ###################################################
 # Check to see if the calling user is root or not #
