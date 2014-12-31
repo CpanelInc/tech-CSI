@@ -1066,6 +1066,10 @@ sub check_rootkits {
     	push @SUMMARY, 'Evidence of EBURY rootkit detected. Found file: ' . $eburyfile;
     }
     
+    ## LIBKEYUTILS CHECKS
+    check_for_libkeyutils_filenames();
+    check_sha1_sigs_libkeyutils();
+    
     ## CDORKED/EBURY CHECKS
     check_for_ebury_ssh_banner();
     check_for_cdorked_A();
@@ -1168,6 +1172,57 @@ sub check_for_cdorked_B {
 
     if ( $has_cdorked_b == 1 ) {
         push @SUMMARY, 'CDORKED: The following files were found (note the spaces at the end of the files): ' . $cdorked_files;
+    }
+}
+
+sub check_sha1_sigs_libkeyutils {
+    my $libs = shift;
+    return if !$libs;
+
+    my $trojaned_lib;
+
+    # p67 http://www.welivesecurity.com/wp-content/uploads/2014/03/operation_windigo.pdf
+    my @checksums = qw(
+        09c8af3be4327c83d4a7124a678bbc81e12a1de4
+        1a9aff1c382a3b139b33eeccae954c2d65b64b90
+        267d010201c9ff53f8dc3fb0a48145dc49f9de1e
+        2e571993e30742ee04500fbe4a40ee1b14fa64d7
+        2fc132440bafdbc72f4d4e8dcb2563cc0a6e096b
+        39ec9e03edb25f1c316822605fe4df7a7b1ad94a
+        3c5ec2ab2c34ab57cba69bb2dee70c980f26b1bf
+        471ee431030332dd636b8af24a428556ee72df37
+        58f185c3fe9ce0fb7cac9e433fb881effad31421
+        5d3ec6c11c6b5e241df1cc19aa16d50652d6fac0
+        74aa801c89d07fa5a9692f8b41cb8dd07e77e407
+        7adb38bf14e6bf0d5b24fa3f3c9abed78c061ad1
+        899b860ef9d23095edb6b941866ea841d64d1b26
+        8daad0a043237c5e3c760133754528b97efad459
+        8f75993437c7983ac35759fe9c5245295d411d35
+        9bb6a2157c6a3df16c8d2ad107f957153cba4236
+        9e2af0910676ec2d92a1cad1ab89029bc036f599
+        a7b8d06e2c0124e6a0f9021c911b36166a8b62c5
+        adfcd3e591330b8d84ab2ab1f7814d36e7b7e89f
+        b8508fc2090ddee19a19659ea794f60f0c2c23ff
+        bbce62fb1fc8bbed9b40cfb998822c266b95d148
+        bf1466936e3bd882b47210c12bf06cb63f7624c0
+        d552cbadee27423772a37c59cb830703b757f35e
+        e14da493d70ea4dd43e772117a61f9dbcff2c41c
+        e2a204636bda486c43d7929880eba6cb8e9de068
+        f1ada064941f77929c49c8d773cbad9c15eba322
+    );
+
+    for my $lib (@$libs) {
+        next unless my $checksum = timed_run( 0, 'sha1sum', "$lib" );
+        chomp $checksum;
+        $checksum =~ s/\s.*//g;
+        if ( grep { /$checksum/ } @checksums ) {
+            $trojaned_lib = "$lib\n\tSHA-1 checksum: $checksum";
+            last;
+        }
+    }
+
+    if ( $trojaned_lib ) {
+    	push @SUMMARY, 'EBURY: The following files were found : ' . $trojaned_lib;
     }
 }
 
@@ -1358,6 +1413,33 @@ sub check_sha1_sigs_httpd {
 
     if ( $infected == 1 ) {
         push @SUMMARY, "CDORKED: " . $httpd . " has a SHA-1 signature of " . $sha1sum;
+    }
+}
+
+sub check_for_libkeyutils_filenames {
+    my $bad_libs;
+    my @dirs  = qw( /lib /lib64 );
+    my @files = qw(
+                    libkeyutils.so.1.9
+                    libkeyutils-1.2.so.0
+                    libkeyutils-1.2.so.2
+                    libkeyutils.so.1.3.0
+                    libkeyutils.so.1.3.2
+                    libns2.so
+                    libns5.so
+                );
+
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            if ( -f "${dir}/${file}" and !-z "${dir}/${file}" ) {
+                $bad_libs .= "\t${dir}/${file}\n";
+            }
+        }
+    }
+
+    if ($bad_libs) {
+    	push @SUMMARY, "EBURY: The following file(s) were found: " . $bad_libs; 
     }
 }
 
