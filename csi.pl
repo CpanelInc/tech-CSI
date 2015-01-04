@@ -490,9 +490,15 @@ sub bincheck {
 
     my @badbins ;
     my @warnbins;
-    print "\n";
+    print "[      Running RPM Checks      ]\n";
+    my $x=0 ; 
     for my $rpm (@rpms) {
+        $x++;
         push @badbins, qx(rpm -V $rpm | egrep "/(s)?bin");
+        if ($x=="10") {
+	    print "X";
+	    $x=0;
+        }
     }
 
     foreach (@badbins) {
