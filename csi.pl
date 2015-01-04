@@ -23,7 +23,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.2';
+my $version = '3.2.1';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -142,7 +142,7 @@ sub show_help {
     print_header("Functions");
     print_header("=================");
     print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
-    print_status("--bincheck                 Performs RPM verification on core system binaries and prints active alaises.");
+    print_status("--bincheck                 Performs RPM verification on core system binaries and prints active aliases.");
     print_status("--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory");
     print_status("                           provided in effort to determine how a file was modified or changed. ");
     print_status("--timestamp [timestamp]    Similar to --file, but allows you to specify a epoch timestamp if the file is no longer");
