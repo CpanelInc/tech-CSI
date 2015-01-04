@@ -390,7 +390,6 @@ sub bincheck {
         pcre-devel
         perl
         perl-Archive-Tar
-        perl-CPAN
         perl-CPANPLUS
         perl-DBI
         perl-devel
