@@ -40,6 +40,7 @@ if ( $> != 0 ) {
 # Set defaults for positional parameters
 my $no3rdparty = 0;    # Default to running 3rdparty scanners
 my $short=0;
+my $binscan=0;
 my $fh = ' ';
 my $scan = 0;
 my $a_type = 0;    # Defaults to searching for only POST requests
@@ -59,6 +60,7 @@ GetOptions(
     'timestamp=i' => \$epoc_time,
     'user=s' => \$owner,
     'short' => \$short,
+    'bincheck' => \$binscan,
 );
 
 #######################################
@@ -122,6 +124,10 @@ if ($epoc_time != "0" ) {
 }
 if ($scan == "1" ) { 
     scan();
+    exit;
+}
+if ($binscan == "1" ) { 
+    bincheck();
     exit;
 }
 show_help();
