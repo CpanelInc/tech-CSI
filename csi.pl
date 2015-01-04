@@ -490,7 +490,7 @@ sub bincheck {
 
     my @badbins ;
     my @warnbins;
-    print "\n[      Running RPM Checks      ]\n";
+    print "\n[      Running RPM Checks      ]\n ";
     my $x=0 ; 
     for my $rpm (@rpms) {
         $x++;
