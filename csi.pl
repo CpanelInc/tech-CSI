@@ -142,6 +142,7 @@ sub show_help {
     print_header("Functions");
     print_header("=================");
     print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
+    print_status("--bincheck                 Performs RPM verification on core system binaries and prints active alaises.");
     print_status("--file [file/directory]    Searches all available log files for the change and modify timestamp of the file/directory");
     print_status("                           provided in effort to determine how a file was modified or changed. ");
     print_status("--timestamp [timestamp]    Similar to --file, but allows you to specify a epoch timestamp if the file is no longer");
@@ -167,6 +168,8 @@ sub show_help {
     print_status("Rootkitscan: ");
     print_status("            csi.pl --rootkitscan");
     print_status("            csi.pl --rootkitscan --no3rdparty");
+    print_status("Binscan: ");
+    print_status("            csi.pl --bincheck");
     print_normal(" ");
 }
 
