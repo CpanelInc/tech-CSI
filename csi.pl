@@ -23,7 +23,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.2.1';
+my $version = '3.2.2';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -168,7 +168,7 @@ sub show_help {
     print_status("Rootkitscan: ");
     print_status("            csi.pl --rootkitscan");
     print_status("            csi.pl --rootkitscan --no3rdparty");
-    print_status("Binscan: ");
+    print_status("Bincheck: ");
     print_status("            csi.pl --bincheck");
     print_normal(" ");
 }
