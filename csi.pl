@@ -520,7 +520,6 @@ sub bincheck {
         print BOLD CYAN ON_BLACK $_;
     }
     print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all'."\n\n";
-    print color 'reset';
 }
 
 sub disclaimer {
