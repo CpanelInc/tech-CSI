@@ -164,6 +164,356 @@ sub show_help {
     print_normal(" ");
 }
 
+sub bincheck {
+    my @rpms = qw(
+        abrt
+        abrt-addon-ccpp
+        abrt-addon-kerneloops
+        abrt-addon-python
+        abrt-tui
+        acl
+        acpid
+        alsa-lib
+        alsa-utils
+        aspell
+        aspell-devel
+        at
+        attr
+        audit
+        augeas
+        authconfig
+        autoconf
+        automake
+        b43-fwcutter
+        bash
+        bc
+        bind
+        bind-devel
+        bind-utils
+        binutils
+        bison
+        blktrace
+        bridge-utils
+        btparser
+        busybox
+        bzip2
+        ca-certificates
+        checkpolicy
+        chkconfig
+        cl-MySQL55-client
+        cl-MySQL55-devel
+        cl-MySQL55-server
+        cloog-ppl
+        compat-db42
+        compat-db43
+        ConsoleKit
+        coreutils
+        cpanel-userperl
+        cpio
+        cpp
+        cpuspeed
+        cracklib
+        cracklib-dicts
+        crda
+        cronie
+        cronie-anacron
+        crontabs
+        cryptsetup-luks
+        curl
+        cvs
+        cyrus-sasl
+        cyrus-sasl-lib
+        dash
+        db4-utils
+        dbus
+        dbus-glib
+        desktop-file-utils
+        device-mapper
+        device-mapper-event
+        device-mapper-persistent-data
+        dhclient
+        diffutils
+        dmidecode
+        dmraid
+        dmraid-events
+        dos2unix
+        dosfstools
+        dovecot
+        dracut
+        e2fsprogs
+        ed
+        efibootmgr
+        eject
+        elfutils
+        elinks
+        ethtool
+        exim
+        expat
+        expect
+        file
+        filesystem
+        findutils
+        fipscheck
+        flex
+        fontconfig
+        fprintd
+        freetype-devel
+        ftp
+        gawk
+        gcc
+        gcc-c++
+        GConf2
+        gdb
+        gd-devel
+        gdk-pixbuf2
+        gd-progs
+        gettext
+        ghostscript
+        ghostscript-devel
+        glib2
+        glibc
+        glibc-common
+        gnupg2
+        governor-mysql
+        grep
+        groff
+        grub
+        grubby
+        gtk2
+        gzip
+        hal
+        hdparm
+        hunspell
+        ImageMagick
+        ImageMagick-c++-devel
+        ImageMagick-devel
+        info
+        initscripts
+        iotop
+        iproute
+        iptables
+        iptables-ipv6
+        iputils
+        irqbalance
+        iw
+        jwhois
+        kbd
+        kernelcare
+        kexec-tools
+        kpartx
+        krb5-devel
+        lcms
+        less
+        libcap
+        libcgroup
+        libcom_err-devel
+        libcroco
+        libgcj
+        libgpg-error
+        libhugetlbfs-utils
+        libidn
+        libjpeg-turbo
+        libpng-devel
+        libproxy-bin
+        libreport
+        libreport-cli
+        libreport-compat
+        libreport-plugin-kerneloops
+        libreport-plugin-logger
+        libreport-plugin-mailx
+        libreport-plugin-reportuploader
+        libreport-plugin-rhtsupport
+        librsvg2
+        libselinux
+        libselinux-utils
+        libtar
+        libtiff
+        libtool
+        libuser
+        libwmf
+        libxml2
+        libxml2-devel
+        libXpm-devel
+        logrotate
+        lsof
+        lua
+        lve
+        lvemanager
+        lve-stats
+        lve-utils
+        lvm2
+        lynx
+        m4
+        mailx
+        make
+        MAKEDEV
+        man
+        mdadm
+        microcode_ctl
+        mingetty
+        mlocate
+        module-init-tools
+        mtr
+        nano
+        nc
+        ncurses
+        ncurses-devel
+        net-tools
+        newt
+        ngrep
+        nss-sysinit
+        nss-tools
+        ntsysv
+        numactl
+        openssh
+        openssh-clients
+        openssh-server
+        openssl
+        p11-kit
+        pam
+        pango
+        parted
+        passwd
+        patch
+        pciutils
+        pcmciautils
+        pcre
+        pcre-devel
+        perl
+        perl-Archive-Tar
+        perl-CPAN
+        perl-CPANPLUS
+        perl-DBI
+        perl-devel
+        perl-Digest-SHA
+        perl-ExtUtils-MakeMaker
+        perl-libwww-perl
+        perl-Module-Build
+        perl-Module-CoreList
+        perl-Test-Harness
+        pinentry
+        pinfo
+        pkgconfig
+        plymouth
+        plymouth-scripts
+        pm-utils
+        policycoreutils
+        polkit
+        portreserve
+        ppl
+        prelink
+        procps
+        psacct
+        psmisc
+        pure-ftpd
+        python
+        python-devel
+        python-ethtool
+        python-tools
+        python-urlgrabber
+        quota
+        rcs
+        rdate
+        readahead
+        rfkill
+        rhn-check
+        rhn-client-tools
+        rhnsd
+        rhn-setup
+        rng-tools
+        rpm
+        rsync
+        rsyslog
+        screen
+        sed
+        setserial
+        setuptool
+        sgml-common
+        sgpio
+        shadow-utils
+        shared-mime-info
+        sharutils
+        smartmontools
+        sos
+        sqlite
+        strace
+        stunnel
+        sudo
+        sysstat
+        system-config-firewall-base
+        system-config-firewall-tui
+        system-config-network-tui
+        systemtap-runtime
+        sysvinit-tools
+        tar
+        tcl
+        tcpdump
+        tcp_wrappers
+        tcsh
+        telnet
+        time
+        tk
+        tmpwatch
+        traceroute
+        udev
+        unixODBC
+        unzip
+        upstart
+        usbutils
+        usermode
+        util-linux-ng
+        vconfig
+        vim-common
+        vim-enhanced
+        vim-minimal
+        wget
+        which
+        wireless-tools
+        xdg-utils
+        xorg-x11-font-utils
+        xz
+        xz-lzma-compat
+        yum
+        yum-utils
+        zip
+    );
+
+
+
+    my @badbins ;
+    my @warnbins;
+    print "\n";
+    for my $rpm (@rpms) {
+        push @badbins, qx(rpm -V $rpm | egrep "/(s)?bin");
+    }
+
+    foreach (@badbins) {
+        if ($_ =~ m/(S.*|.*5.*|.*L.*)    \//) {
+            push @warnbins, substr($_, 13);
+            my $index = 0;
+            $index++ until $badbins[$index] eq "$_";
+            splice(@badbins, $index, 1);
+        }
+    }
+
+    foreach (@badbins) {
+        print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".substr($_, 13);
+    }
+
+    foreach (@warnbins) {
+        print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$_;
+    }
+
+    my @aliases=grep /^alias/, qx{/bin/bash -ic alias};
+    print BOLD GREEN ON_BLACK "[ALIASES] * ".scalar @aliases." Found\n";
+    foreach (@aliases) {
+        print BOLD CYAN ON_BLACK "\t- ";
+        print BOLD CYAN ON_BLACK $_;
+    }
+    print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all'."\n\n";
+    print color 'reset';
+}
+
 sub disclaimer {
     print_normal('');
     print_header('########################################################################');
