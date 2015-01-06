@@ -2016,8 +2016,6 @@ sub dump_summary {
         print_normal('');
         print_warn('You need to understand exactly what the output is that you are seeing before escalating the ticket to L3.');
         print_normal('');
-        print_status('[L3 only] If a rootkit has been detected, please mark the ticket Hacked Status as \'H4x0r3d\' and run:');
-        print_normal('YOURNAME=$FIRSTNAME ; TICKET=$TICKETNUM ; touch /usr/share/doc/.cp.$YOURNAME.`date +"%F"`_`hostname -i`_$TICKET');
     }
 }
 
