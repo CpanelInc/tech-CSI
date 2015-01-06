@@ -115,7 +115,7 @@ my %mon2num = qw(
 ######################
 
 # Checks if the disclaimer has already been shown on this machine
-if (-e '/usr/share/doc/.csidisclaimer') {
+if (! -e '/usr/share/doc/.csidisclaimer') {
     qx('/bin/touch /usr/share/doc/.csidisclaimer');
     disclaimer (); 
 }
