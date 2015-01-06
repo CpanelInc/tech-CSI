@@ -400,7 +400,6 @@ sub bincheck {
         perl-DBI
         perl-devel
         perl-Digest-SHA
-        perl-ExtUtils-MakeMaker
         perl-libwww-perl
         perl-Module-Build
         perl-Module-CoreList
