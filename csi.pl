@@ -114,6 +114,12 @@ my %mon2num = qw(
 # Run code main body #
 ######################
 
+# Checks if the disclaimer has already been shown on this machine
+if (-e '/usr/share/doc/.csidisclaimer') {
+    qx('/bin/touch /usr/share/doc/.csidisclaimer');
+    disclaimer (); 
+}
+
 if ($fh ne " ") {
     logfinder(); 
     exit;
@@ -585,7 +591,6 @@ sub logfinder {
 }
 
 sub time_logfinder {
-    disclaimer() if (!$short);
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
@@ -884,7 +889,6 @@ sub print_filestats {
 }
 
 sub scan {
-    disclaimer();
     detect_system();
     print_normal('');
     print_header('[ Starting cPanel Security Inspection: Rootkitscan Mode ]');
