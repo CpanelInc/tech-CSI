@@ -529,10 +529,14 @@ sub bincheck {
     foreach (@badbins) {
         my $binary=substr($_, 13);
         my $verify_string= substr($_, 0, 9);
-        my $verify_okstring= $okbins{$binary};
-        if ($verify_string ne $verify_okstring) {
-            print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".$binary."\n";
-        }
+        if (exists $okbins{$binary}) {
+            my $verify_okstring= $okbins{$binary};
+            if ($verify_string ne $verify_okstring) {
+                print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".$binary."\n";
+            }
+         } else {
+             print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".$binary."\n";
+         }
     }
 
     foreach (@warnbins) {
