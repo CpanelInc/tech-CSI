@@ -710,27 +710,29 @@ sub search_logs {
         }
     }
 
-    @files=();
-    opendir(DIR, "/home/$owner/logs");
-    @files = grep(/^ftp.*/,readdir(DIR));
-    closedir(DIR);
-    foreach my $file (@files) {
-        my $filesize = -s "/home/$owner/logs/$file";
-        if ( $filesize > 80 ) {
-          my $firstline ;
-          my $lastline ;
-          chomp($firstline=qx(zcat /home/$owner/logs/$file | head -1 | awk '{print\$2" "\$3" "\$4" "\$5}'));
-          chomp($lastline=qx(zcat /home/$owner/logs/$file | tail -1 | awk '{print\$2" "\$3" "\$4" "\$5}'));
-          $firstline =~ tr/\/|:/ / ;
-          $lastline =~ tr/\/|:/ / ;
-          my @first= split(/ /, $firstline);
-          my @last= split(/ /, $lastline);
+    if ($owner ne "root") {
+        @files=();
+        opendir(DIR, "/home/$owner/logs");
+        @files = grep(/^ftp.*/,readdir(DIR));
+        closedir(DIR);
+        foreach my $file (@files) {
+            my $filesize = -s "/home/$owner/logs/$file";
+            if ( $filesize > 80 ) {
+                my $firstline ;
+                my $lastline ;
+                chomp($firstline=qx(zcat /home/$owner/logs/$file | head -1 | awk '{print\$2" "\$3" "\$4" "\$5}'));
+                chomp($lastline=qx(zcat /home/$owner/logs/$file | tail -1 | awk '{print\$2" "\$3" "\$4" "\$5}'));
+                $firstline =~ tr/\/|:/ / ;
+                $lastline =~ tr/\/|:/ / ;
+                my @first= split(/ /, $firstline);
+                my @last= split(/ /, $lastline);
 
-          $firstline = timelocal($first[4],$first[3],$first[2],$first[1],$mon2num{ lc substr($first[0], 0, 3) }-1,$first[5]);
-          $lastline = timelocal($last[4],$last[3],$last[2],$last[1],$mon2num{ lc substr($last[0], 0, 3) }-1,$last[5]);
-          if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
-              push @mftp, qx(zegrep -H "$searchmftp" /home/$owner/logs/$file);
-          }
+                $firstline = timelocal($first[4],$first[3],$first[2],$first[1],$mon2num{ lc substr($first[0], 0, 3) }-1,$first[5]);
+                $lastline = timelocal($last[4],$last[3],$last[2],$last[1],$mon2num{ lc substr($last[0], 0, 3) }-1,$last[5]);
+                if ($firstline < $epoc_mtime && $lastline > $epoc_mtime) {
+                    push @mftp, qx(zegrep -H "$searchmftp" /home/$owner/logs/$file);
+                }
+            }
         }
     }
     chomp(@mftp);
