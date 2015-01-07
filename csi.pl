@@ -515,7 +515,7 @@ sub bincheck {
     my $x=0 ; 
     for my $rpm (@rpms) {
         $x++;
-        push @badbins, qx(rpm -V $rpm | egrep "/(s)?bin");
+        push @badbins, qx(rpm -V $rpm | egrep "/(s)?bin[^\s]+$");
         if ($x=="10") {
 	    print "=";
 	    $x=0;
