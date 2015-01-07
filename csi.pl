@@ -530,6 +530,10 @@ sub bincheck {
             my $index = 0;
             $index++ until $badbins[$index] eq "$_";
             splice(@badbins, $index, 1);
+        } elsif ($_ =~ m/missing    \//) {
+            my $index = 0;
+            $index++ until $badbins[$index] eq "$_";
+            splice(@badbins, $index, 1);
         }
     }
 
