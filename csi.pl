@@ -180,6 +180,13 @@ sub show_help {
 }
 
 sub bincheck {
+    detect_system();
+    print_normal('');
+    print_header('[ Starting cPanel Security Inspection: Bincheck Mode ]');
+    print_header("[ Version $version on Perl $] ]");
+    print_header("[ System Type: $systype ]");
+    print_header("[ OS: $os ]");
+    print_normal('');
     my @rpms = qw(
         abrt
         abrt-addon-ccpp
