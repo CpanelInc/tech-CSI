@@ -526,7 +526,7 @@ sub bincheck {
 
     foreach (@badbins) {
         if ($_ =~ m/(S.*|.*5.*|.*L.*)    \//) {
-            push @warnbins, substr($_, 13);
+            push @warnbins, (split (/    /, $_))[1];
             my $index = 0;
             $index++ until $badbins[$index] eq "$_";
             splice(@badbins, $index, 1);
@@ -538,8 +538,8 @@ sub bincheck {
     }
 
     foreach (@badbins) {
-        my $binary=substr($_, 13);
-        my $verify_string= substr($_, 0, 9);
+        my $binary=(split (/    /, $_))[1];
+        my $verify_string=(split (/    /, $_))[0];
         if (exists $okbins{$binary}) {
             my $verify_okstring= $okbins{$binary};
             if ($verify_string ne $verify_okstring) {
