@@ -490,8 +490,17 @@ sub bincheck {
         yum-utils
         zip
     );
-
-
+    
+    my %okbins = (
+        '/bin/su', '.M....G..',
+        '/bin/ping', '.M.......',
+        '/bin/ping6', '.M.......',
+        '/usr/bin/locate', '.M.......',
+        '/usr/bin/quota', '.M.......',
+        '/usr/bin/screen', '.M.......',
+        '/usr/sbin/userhelper', '.M.......',
+        '/usr/bin/chsh', '.M.......',
+    );
 
     my @badbins ;
     my @warnbins;
@@ -505,6 +514,7 @@ sub bincheck {
 	    $x=0;
         }
     }
+    chomp (@badbins);
     print "\n";
 
     foreach (@badbins) {
@@ -517,11 +527,16 @@ sub bincheck {
     }
 
     foreach (@badbins) {
-        print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".substr($_, 13);
+        my $binary=substr($_, 13);
+        my $verify_string= substr($_, 0, 9);
+        my $verify_okstring= $okbins{$binary};
+        if ($verify_string ne $verify_okstring) {
+            print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".$binary."\n";
+        }
     }
 
     foreach (@warnbins) {
-        print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$_;
+        print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$_."\n";
     }
 
     my @aliases=grep /^alias/, qx{/bin/bash -ic alias};
