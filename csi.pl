@@ -40,6 +40,7 @@ if ( $> != 0 ) {
 # Set defaults for positional parameters
 my $no3rdparty = 0;    # Default to running 3rdparty scanners
 my $short=0;
+my $debug=0
 my $binscan=0;
 my $fh = ' ';
 my $scan = 0;
@@ -61,6 +62,7 @@ GetOptions(
     'user=s' => \$owner,
     'short' => \$short,
     'bincheck' => \$binscan,
+    'bugreport' => \$debug,
 );
 
 #######################################
@@ -520,6 +522,7 @@ sub bincheck {
 	    $x=0;
         }
     }
+    my @debuglist;
     chomp (@badbins);
     print "\n";
 
@@ -543,9 +546,21 @@ sub bincheck {
             my $verify_okstring= $okbins{$binary};
             if ($verify_string ne $verify_okstring) {
                 print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".$binary."\n";
+                if ($debug) {
+                    push @debuglist, "RPM: ".qx(rpm -qf $binary);
+                    push @debuglist, "File: ".$_;
+                    push @debuglist, "Classification: [INFO] * Modified Attribute";
+                    push @debuglist, "=============";
+                }
             }
          } else {
              print BOLD YELLOW ON_BLACK "[INFO] * Modified Attribute: ".$binary."\n";
+             if ($debug) {
+                 push @debuglist, "RPM: ".qx(rpm -qf $binary);
+                 push @debuglist, "File: ".$_;
+                 push @debuglist, "Classification: [INFO] * Modified Attribute";
+                 push @debuglist, "=============";
+             }
          }
     }
 
@@ -556,9 +571,21 @@ sub bincheck {
             my $verify_okstring= $okbins{$binary};
             if ($verify_string ne $verify_okstring) {
                 print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$binary."\n";
-            } 
+                if ($debug) {
+                    push @debuglist, "RPM: ".qx(rpm -qf $binary);
+                    push @debuglist, "File: ".$_;
+                    push @debuglist, "Classification: [WARN] * Modified Binary";
+                    push @debuglist, "=============";
+                }
+            }
         } else {
             print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$binary."\n";
+             if ($debug) {
+                 push @debuglist, "RPM: ".qx(rpm -qf $binary);
+                 push @debuglist, "File: ".$_;
+                 push @debuglist, "Classification: [INFO] * Modified Attribute";
+                 push @debuglist, "=============";
+             }
         }
     }
 
@@ -569,6 +596,45 @@ sub bincheck {
         print BOLD CYAN ON_BLACK $_;
     }
     print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all'."\n\n";
+    
+    if ($debug) {
+        chomp (@debuglist);
+        my $ticket = "";
+        if (exists $ENV{HISTFILE}) {
+            if ( $ENV{HISTFILE} =~ /ticket.(\d+)$/ ) {
+                $ticket = $1;
+            }
+        }
+        my $date=qx(date);
+        my $kernel=qx(uname -r);
+        my $arch=qx(uname -p);
+        my $cp_version=qx(cat /usr/local/cpanel/version);
+        my $os=qx(cat /etc/redhat-release);
+        chomp ($ticket);
+        chomp ($date);
+
+        my $to = 'samir.jafferali@cpanel.net';
+        my $from = 'csibugs@cpanel.net';
+        my $subject = "CSI Bug Report: $ticket";
+        my $message =  " =============================================\n CSI Bug Report: $date\n =============================================\n Kernel: $kernel Arch: $arch OS: $os cPanel: $cp_version Ticket: $ticket\n\n\n";
+
+        open(MAIL, "|/usr/sbin/sendmail -t");
+
+        ## Email Header
+        print MAIL "To: $to\n";
+        print MAIL "From: $from\n";
+        print MAIL "Subject: $subject\n\n";
+        ## Email Body
+        print MAIL $message;
+        print MAIL "--REPORT START--\n";
+        foreach (@debuglist) {
+            print MAIL $_."\n";
+        }
+        print MAIL "--REPORT END--\n";
+        close(MAIL);
+        print "Bug Submitted Successfully\n";
+
+    }
 }
 
 sub disclaimer {
