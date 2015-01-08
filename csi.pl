@@ -524,9 +524,9 @@ sub bincheck {
         '/usr/bin/gcc', '.M....G..',
         '/usr/bin/x86_64-redhat-linux-gcc', '.M....G..',
         '/usr/bin/c++', '.M....G..',
-        '/usr/bin/g++', '.M....G..',
-        '/usr/bin/x86_64-redhat-linux-c++', '.M....G..',
-        '/usr/bin/x86_64-redhat-linux-g++', '.M....G..',
+        '/usr/bin/g++', '......G..',
+        '/usr/bin/x86_64-redhat-linux-c++', '......G..',
+        '/usr/bin/x86_64-redhat-linux-g++', '......G..',
     );
 
     my @badbins ;
