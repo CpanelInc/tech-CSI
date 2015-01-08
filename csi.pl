@@ -174,7 +174,7 @@ sub show_help {
     print_normal(" ");
     print_header("Options (bincheck)");
     print_header("=================");
-    print_status("--bug                      Submits a bug report with the output of the RPM checks.");
+    print_status("--bug                      Generates bug report for RPM verification failed files.");
     print_normal(" ");
     print_header("Examples");
     print_header("=================");
@@ -201,7 +201,7 @@ sub bincheck {
     print_header("[ OS: $os ]");
     print_normal('');
     print_header("[ Available flags when running csi.pl --bincheck: ]");
-    print_header('[     --bug (submits a bug report for invalid output) ]');
+    print_header('[     --bug (generates a bug report for invalid output) ]');
     print_normal('');
     my @rpms = qw(
         abrt
@@ -615,7 +615,7 @@ sub bincheck {
         print BOLD CYAN ON_BLACK $_;
     }
     print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all aliases'."\n";
-    print BOLD MAGENTA '[NOTE] * If any of the above binaries should not be showing up in the above list, run this script with --bug to send a bug report'."\n\n";
+    print BOLD MAGENTA '[NOTE] * If any of the above binaries should not be showing up in the above list, run this script with --bug to generate a bug report'."\n\n";
     
     if ($debug) {
         chomp (@debuglist);
@@ -633,28 +633,9 @@ sub bincheck {
         chomp ($ticket);
         chomp ($date);
 
-        my $to = 'samir.jafferali@cpanel.net';
-        my $from = 'csibugs@cpanel.net';
-        my $subject = "CSI Bug Report: $ticket";
         my $message =  " =============================================\n CSI Bug Report: $date\n =============================================\n Kernel: $kernel Arch: $arch OS: $os cPanel: $cp_version Ticket: $ticket\n\n\n";
 
-        open(MAIL, "|/usr/sbin/sendmail -t");
-
-        ## Email Header
-        print MAIL "To: $to\n";
-        print MAIL "From: $from\n";
-        print MAIL "Subject: $subject\n\n";
-        ## Email Body
-        print MAIL " --REPORT START--\n";
-        print MAIL $message;
-        print MAIL " -DEBUG START-\n";
-        foreach (@debuglist) {
-            print MAIL " ".$_."\n";
-        }
-        print MAIL "  -DEBUG STOP-\n";
-        print MAIL " --REPORT END--\n";
-        close(MAIL);
-        print "Bug report sent. If outbound email is not functional on this server, please send the below output to the script maintainer.\n\n";
+        print "Please send the below report to samir.jafferali@cpanel.net.\n\n";
         print " --REPORT START--\n";
         print $message ; 
         print " -DEBUG START-\n";
