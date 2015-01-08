@@ -165,6 +165,10 @@ sub show_help {
     print_status("--short                    Do not print verbose output.");
     print_status("--get                      By default, CSI only searches for POST requests. This option enables searching of GET requests as well.");
     print_normal(" ");
+    print_header("Options (bincheck)");
+    print_header("=================");
+    print_status("--bug                      Submits a bug report with the output of the RPM checks.");
+    print_normal(" ");
     print_header("Examples");
     print_header("=================");
     print_status("Timestamp: ");
@@ -595,7 +599,8 @@ sub bincheck {
         print BOLD CYAN ON_BLACK "\t- ";
         print BOLD CYAN ON_BLACK $_;
     }
-    print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all'."\n\n";
+    print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all aliases'."\n";
+    print MAGENTA '[NOTE] * If any of the above binaries are modified by cPanel and should not be showing up in the above list, run this script with --bug to send a bug report'."\n\n";
     
     if ($debug) {
         chomp (@debuglist);
