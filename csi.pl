@@ -525,7 +525,7 @@ sub bincheck {
 
     foreach (@badbins) {
         if ($_ =~ m/(S.*|.*5.*|.*L.*)    \//) {
-            push @warnbins, (split (/    /, $_))[1];
+            push @warnbins, $_;
             my $index = 0;
             $index++ until $badbins[$index] eq "$_";
             splice(@badbins, $index, 1);
@@ -550,7 +550,16 @@ sub bincheck {
     }
 
     foreach (@warnbins) {
-        print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$_."\n";
+        my $binary=(split (/    /, $_))[1];
+        my $verify_string=(split (/    /, $_))[0];
+        if (exists $okbins{$binary}) {
+            my $verify_okstring= $okbins{$binary};
+            if ($verify_string ne $verify_okstring) {
+                print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$binary."\n";
+            } 
+        } else {
+            print BOLD RED ON_BLACK "[WARN] * Modified Binary: ".$binary."\n";
+        }
     }
 
     my @aliases=grep /^alias/, qx{/bin/bash -ic alias};
