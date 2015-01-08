@@ -40,7 +40,7 @@ if ( $> != 0 ) {
 # Set defaults for positional parameters
 my $no3rdparty = 0;    # Default to running 3rdparty scanners
 my $short=0;
-my $debug=0
+my $debug=0;
 my $binscan=0;
 my $fh = ' ';
 my $scan = 0;
