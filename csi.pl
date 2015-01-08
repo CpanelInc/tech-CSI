@@ -600,7 +600,7 @@ sub bincheck {
         print BOLD CYAN ON_BLACK $_;
     }
     print BOLD GREEN ON_BLACK '[!] Run "unalias -a" to unset all aliases'."\n";
-    print MAGENTA '[NOTE] * If any of the above binaries are modified by cPanel and should not be showing up in the above list, run this script with --bug to send a bug report'."\n\n";
+    print BOLD MAGENTA '[NOTE] * If any of the above binaries should not be showing up in the above list, run this script with --bug to send a bug report'."\n\n";
     
     if ($debug) {
         chomp (@debuglist);
