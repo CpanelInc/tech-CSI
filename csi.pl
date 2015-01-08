@@ -415,11 +415,9 @@ sub bincheck {
         pcre
         pcre-devel
         perl
-        perl-Archive-Tar
         perl-CPANPLUS
         perl-DBI
         perl-devel
-        perl-Digest-SHA
         perl-libwww-perl
         perl-Module-CoreList
         perl-Test-Harness
