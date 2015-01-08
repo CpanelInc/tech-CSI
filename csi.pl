@@ -523,6 +523,10 @@ sub bincheck {
         '/usr/bin/c99', '.M....G..',
         '/usr/bin/gcc', '.M....G..',
         '/usr/bin/x86_64-redhat-linux-gcc', '.M....G..',
+        '/usr/bin/c++', '.M....G..',
+        '/usr/bin/g++', '.M....G..',
+        '/usr/bin/x86_64-redhat-linux-c++', '.M....G..',
+        '/usr/bin/x86_64-redhat-linux-g++', '.M....G..',
     );
 
     my @badbins ;
