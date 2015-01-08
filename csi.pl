@@ -196,7 +196,7 @@ sub bincheck {
     detect_system();
     print_normal('');
     print_header('[ Starting cPanel Security Inspection: Bincheck Mode ]');
-    print_header("[ Version $version on Perl $] ]");
+    print_header("[ Version $version ]");
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]");
     print_normal('');
@@ -674,7 +674,7 @@ sub logfinder {
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
-    print_header("[ Version $version on Perl $] ]") if (!$short);
+    print_header("[ Version $version ]") if (!$short);
     print_header("[ System Type: $systype ]") if (!$short);
     print_header("[ OS: $os ]") if (!$short);
     print_normal('') if (!$short);
@@ -713,7 +713,7 @@ sub time_logfinder {
     detect_system();
     print_normal('') if (!$short);
     print_header('[ Starting cPanel Security Inspection: Logfinder Mode ]') if (!$short);
-    print_header("[ Version $version on Perl $] ]") if (!$short);
+    print_header("[ Version $version ]") if (!$short);
     print_header("[ System Type: $systype ]") if (!$short);
     print_header("[ OS: $os ]") if (!$short);
     print_normal('') if (!$short);
@@ -1013,7 +1013,7 @@ sub scan {
     detect_system();
     print_normal('');
     print_header('[ Starting cPanel Security Inspection: Rootkitscan Mode ]');
-    print_header("[ Version $version on Perl $] ]");
+    print_header("[ Version $version ]");
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]");
     print_normal('');
