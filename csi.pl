@@ -519,6 +519,10 @@ sub bincheck {
         '/usr/bin/screen', '.M.......',
         '/usr/sbin/userhelper', '.M.......',
         '/usr/bin/chsh', '.M.......',
+        '/usr/bin/ld', '.M....G..',
+        '/usr/bin/c99', '.M....G..',
+        '/usr/bin/gcc', '.M....G..',
+        '/usr/bin/x86_64-redhat-linux-gcc', '.M....G..',
     );
 
     my @badbins ;
