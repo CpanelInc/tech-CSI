@@ -420,7 +420,6 @@ sub bincheck {
         perl-devel
         perl-libwww-perl
         perl-Module-CoreList
-        perl-Test-Harness
         pinentry
         pinfo
         pkgconfig
