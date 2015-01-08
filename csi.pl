@@ -120,6 +120,13 @@ my %mon2num = qw(
 if (!-e '/usr/share/doc/.csidisclaimer') {
     qx(/bin/touch /usr/share/doc/.csidisclaimer);
     disclaimer (); 
+} else {
+    my $disclaimertime = (stat('/usr/share/doc/.csidisclaimer'))[9];
+    my $currenttime = qx(date +%s);
+    if (($currenttime - $disclaimertime) > 86400) {
+         qx(/bin/touch /usr/share/doc/.csidisclaimer);
+         disclaimer ();
+    }
 }
 
 if ($fh ne " ") {
