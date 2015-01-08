@@ -652,8 +652,13 @@ sub bincheck {
         }
         print MAIL "--REPORT END--\n";
         close(MAIL);
-        print "Bug Submitted Successfully\n";
-
+        print "Bug report sent. If for some reason, outbound email is not functional on this server, please copy and paste the below output to samir.jafferali@cpanel.net\n\n";
+        print $message ; 
+        print "--REPORT START--\n";
+        foreach (@debuglist) {
+            print $_."\n";
+        }
+        print "--REPORT END--\n";
     }
 }
 
