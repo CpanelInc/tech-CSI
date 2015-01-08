@@ -199,9 +199,9 @@ sub bincheck {
     print_header("[ Version $version ]");
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]");
-    print_normal('')
-    print_header("[ Available flags when running csi.pl --bincheck: ]")
-    print_header('[     --bug (submits a bug report for invalid output) ]')
+    print_normal('');
+    print_header("[ Available flags when running csi.pl --bincheck: ]");
+    print_header('[     --bug (submits a bug report for invalid output) ]');
     print_normal('');
     my @rpms = qw(
         abrt
