@@ -199,6 +199,9 @@ sub bincheck {
     print_header("[ Version $version ]");
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]");
+    print_normal('')
+    print_header("[ Available flags when running csi.pl --bincheck: ]")
+    print_header('[     --bug (submits a bug report for invalid output) ]')
     print_normal('');
     my @rpms = qw(
         abrt
@@ -678,7 +681,7 @@ sub logfinder {
     print_header("[ System Type: $systype ]") if (!$short);
     print_header("[ OS: $os ]") if (!$short);
     print_normal('') if (!$short);
-    print_header("[ Available flags when running $0 --file (if any): ]") if (!$short);
+    print_header("[ Available flags when running csi.pl --file: ]") if (!$short);
     print_header('[     --range (specify custom search range in seconds) ]') if (!$short);
     print_header('[     --get (show GET requests as well as POST) ]') if (!$short);
     print_header('[     --user (force user) ]') if (!$short);
@@ -717,7 +720,7 @@ sub time_logfinder {
     print_header("[ System Type: $systype ]") if (!$short);
     print_header("[ OS: $os ]") if (!$short);
     print_normal('') if (!$short);
-    print_header("[ Available flags when running $0 --timestamp (if any): ]") if (!$short);
+    print_header("[ Available flags when running csi.pl --timestamp: ]") if (!$short);
     print_header('[     --range (specify custom search range in seconds) ]') if (!$short);
     print_header('[     --get (show GET requests as well as POST) ]') if (!$short);
     print_header('[     --user (force user) ]') if (!$short);
@@ -1017,7 +1020,7 @@ sub scan {
     print_header("[ System Type: $systype ]");
     print_header("[ OS: $os ]");
     print_normal('');
-    print_header("[ Available flags when running $0 --rootkitscan (if any): ]");
+    print_header("[ Available flags when running csi.pl --rootkitscan: ]");
     print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]');
     print_normal('');
     print_header('[ Cleaning up from earlier runs, if needed ]');
