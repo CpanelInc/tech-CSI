@@ -408,7 +408,6 @@ sub bincheck {
         perl-devel
         perl-Digest-SHA
         perl-libwww-perl
-        perl-Module-Build
         perl-Module-CoreList
         perl-Test-Harness
         pinentry
