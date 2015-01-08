@@ -645,20 +645,24 @@ sub bincheck {
         print MAIL "From: $from\n";
         print MAIL "Subject: $subject\n\n";
         ## Email Body
+        print MAIL " --REPORT START--\n";
         print MAIL $message;
-        print MAIL "--REPORT START--\n";
+        print MAIL " -DEBUG START-\n";
         foreach (@debuglist) {
-            print MAIL $_."\n";
+            print MAIL " ".$_."\n";
         }
-        print MAIL "--REPORT END--\n";
+        print MAIL " -DEBUG STOP-\n";
+        print MAIL " --REPORT END--\n";
         close(MAIL);
         print "Bug report sent. If for some reason, outbound email is not functional on this server, please copy and paste the below output to the script maintainer.\n\n";
+        print " --REPORT START--\n";
         print $message ; 
-        print "--REPORT START--\n";
+        print " -DEBUG START-\n";
         foreach (@debuglist) {
-            print $_."\n";
+            print " ".$_."\n";
         }
-        print "--REPORT END--\n";
+        print " -DEBUG STOP-\n";
+        print " --REPORT END--\n";
     }
 }
 
