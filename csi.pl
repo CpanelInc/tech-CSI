@@ -635,7 +635,7 @@ sub bincheck {
 
         my $message =  " =============================================\n CSI Bug Report: $date\n =============================================\n Kernel: $kernel Arch: $arch OS: $os cPanel: $cp_version Ticket: $ticket\n\n\n";
 
-        print "Please send the below report to samir.jafferali@cpanel.net.\n\n";
+        print "Please send the below report to samir.jafferali\@cpanel.net.\n\n";
         print " --REPORT START--\n";
         print $message ; 
         print " -DEBUG START-\n";
