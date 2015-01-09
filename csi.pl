@@ -656,7 +656,7 @@ sub disclaimer {
     print_header('### possible security breach solely for the purpose of determining if  #');
     print_header('### cPanel\'s software was involved or used in the security breach.     #');
     print_header('########################################################################');
-    print_header('### If it is suspected to be root compromised, only Level III Analysts  #');
+    print_header('### If it is suspected to be root compromised, only Level III Analysts #');
     print_header('### should be handling the issue. Account level compromises are        #');
     print_header('### investigated as a courtesy and carry no guarantees.                #');
     print_header('########################################################################');
