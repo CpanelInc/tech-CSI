@@ -6,7 +6,7 @@
 # http://cpanel.net
 # Unauthorized copying is prohibited
 
-# Tested on cPanel 11.30 - 11.46
+# Tested on cPanel 11.30 - 11.48
 
 # Maintainer: Samir Jafferali
 
