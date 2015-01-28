@@ -1141,7 +1141,7 @@ sub fetch_makefile {
 
     if ( -x $wget ) {
         my $makefile_url = 'https://raw.githubusercontent.com/cPanelSamir/CSI/master/Makefile.csi';
-        my @wget_cmd = ( "$wget", "-q", "--no-check-certificate", "$makefile_url" );
+        my @wget_cmd = ( "$wget", "-q", "--no-check-certificate", "$makefile_url", "-O", "/root/Makefile.csi" );
         system(@wget_cmd);
     }
     else {
