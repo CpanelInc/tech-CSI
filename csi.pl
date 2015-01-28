@@ -6,7 +6,7 @@
 # http://cpanel.net
 # Unauthorized copying is prohibited
 
-# Tested on cPanel 11.30 - 11.46
+# Tested on cPanel 11.30 - 11.48
 
 # Maintainer: Samir Jafferali
 
@@ -23,7 +23,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = '3.3.3';
+my $version = '3.3.4';
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -1141,7 +1141,7 @@ sub fetch_makefile {
 
     if ( -x $wget ) {
         my $makefile_url = 'https://raw.githubusercontent.com/cPanelSamir/CSI/master/Makefile.csi';
-        my @wget_cmd = ( "$wget", "-q", "--no-check-certificate", "$makefile_url" );
+        my @wget_cmd = ( "$wget", "-q", "--no-check-certificate", "$makefile_url", "-O", "/root/Makefile.csi" );
         system(@wget_cmd);
     }
     else {
