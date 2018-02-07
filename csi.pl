@@ -19,8 +19,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.0";
-my $rpms2ignore = "pkexec|chage|chfn|ssh-agent|netreport";
+my $version = "3.4.1";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -579,7 +578,6 @@ sub check_ssh {
         push( @ssh_errors, " Suspicious SSH process(es) found:\n" );
         push( @ssh_errors, " $process_list[0]" );
     }
-    # If any issues were found, then write those to CSISUMMARY
     if (@ssh_errors) {
         push @SUMMARY, "System has detected the presence of a *POSSIBLY* compromised SSH:\n";
         foreach (@ssh_errors) {
@@ -590,21 +588,15 @@ sub check_ssh {
 }
 sub check_lib {
     my @lib_errors;
-#    my @lib_files = glob '/lib*/*';
 	my @lib_files = qx[ find {,/usr,/usr/local}/{include,lib}{,64} -path /lib/firmware -prune -o -path /lib/modules -prune -o -path /usr/lib/vmware-tools -prune -o -path /lib64/xtables\* -prune -o -path /usr/lib/ruby -prune -o -path /usr/lib/python\* -prune -o -type f -exec rpm -qf {} + 2>/dev/null ];
     foreach my $file (@lib_files) {
 		chomp($file);
         if ( -f $file && -l $file ) {
             $file = abs_path($file);
 			next unless($file =~ m/not owned/);
-#        }
-#        if ( qx(rpm -qf $file) =~ /not owned by any package/ and -f $file ) {
-#            my $md5sum = qx(md5sum $file);
             push( @lib_errors, " Found $file which is not owned by any RPM.\n" );
-#            push( @lib_errors, " $md5sum" );
         }
     }
-    # If any issues were found, then write those to CSISUMMARY
     if (@lib_errors) {
         push @SUMMARY, "System has detected the presence of library files not owned by an RPM, these libraries *MAY* indicate a compromise or could have been custom installed by the administrator.\n";
         foreach (@lib_errors) {
@@ -797,13 +789,17 @@ sub print_error {
 }
 sub cleanup {
 	chdir("/root");
+    logit("Removing RKHunter");
 	rmtree("$csidir/rkhunter");
 	rmtree("$csidir/rkhunterinstall");
+    logit("Removing CHKRootkit");
 	rmtree("$csidir/chkrootkit");
+    logit("Removing Lynis");
 	rmtree("$csidir/lynis");
 	if ($LMD_ALREADY_INSTALLED == 0) { 
 		my $maldetsrcfiles;
 		my $maldetsrcdir;
+        logit("Removing Linux Malware Detect");
 		unlink("/usr/local/src/maldetect-current.tar.gz");
 		opendir(MALDETSRCDIR,"/usr/local/src");
 		my @MALDETSRCFILES=readdir(MALDETSRCDIR);
@@ -1230,7 +1226,6 @@ sub check_for_dirtycow_kernel {
 	my $kernel=qx[ uname -r ];
 	chomp($kernel);
 	if ($kernel =~ m/stab/) { 
-		# Virtuozzo VM detected - Check kernel to make sure it's at least 2.6.32-042stab120.3
 		if ($kernel lt "2.6.32-042stab120.3") { 
 			print_warn("Virtuozzo Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
 			push(@SUMMARY, "Virtuozzo Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
@@ -1240,7 +1235,6 @@ sub check_for_dirtycow_kernel {
 		}
 	}
 	else { 
-		# Not a Virtuozzo Kernel
 		my $RPMPATCH=qx[ rpm -q --changelog kernel | grep 'CVE-2016-5195' ];
 		if ($RPMPATCH) { 
 			print_info("Kernel [$kernel] is patched against DirtyCow");
@@ -1525,15 +1519,6 @@ sub install_LMD {
 	}
 	else { 
 		print_status("Linux Malware Detect not installed - Installing Now");
-#		print "Linux Malware Detect not installed - Install Now (Y/n): ";
-#		my $instMalDet=<STDIN>;
-#		chomp($instMalDet);
-#		if ($instMalDet eq "") {  
-#			$instMalDet = "Y";
-#		}
-#		$instMalDet=substr($instMalDet,0,1);
-#		$instMalDet=uc($instMalDet);
-#		if ($instMalDet eq "Y") { 
 			print_status("Installing Linux Malware Detect...");
 			logit("Installing maldet");
 			chdir("/usr/local/src/") or die ($!);
@@ -1568,12 +1553,6 @@ sub install_LMD {
 				logit('Installation of Linux Malware Detect may have failed!');
 				return 0;
 			}
-#		}
-#		else { 
-#			print_header('[ Skipped installation of Linux Malware Detect ]');
-#			logit("Linux Malware Detect not installed");
-#			return 0;
-#		}
 	}
 }
 sub run_maldetect {
