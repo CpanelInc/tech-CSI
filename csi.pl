@@ -19,7 +19,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.1";
+my $version = "3.4.2";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -1587,7 +1587,7 @@ sub check_session_log {
 	my $tz;
 	my $loginip;
 	my $thedate;
-	my @linesTOreturn = @rootlogins[-$returnlines..-1];
+	my @linesTOreturn = ($returnlines >= @rootlogins) ? @rootlogins : @rootlogins[-$returnlines..-1];
 	@rootlogins=@linesTOreturn;
 	foreach $myline(@rootlogins) { 
 		chomp($myline);
