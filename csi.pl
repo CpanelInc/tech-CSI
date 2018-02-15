@@ -19,7 +19,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.2";
+my $version = "3.4.4";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -43,6 +43,7 @@ if ( $> != 0 ) {
 my $no3rdparty = 0;    # Default to running 3rdparty scanners
 my $help;
 my $userscan;
+my $scanmail;
 my $binscan=0;
 my $scan = 0;
 our @process_list = get_process_list();
@@ -61,6 +62,7 @@ GetOptions(
     'rootkitscan' => \$scan,
     'bincheck' => \$binscan,
     'userscan=s' => \$userscan,
+    'scanmail' => \$scanmail,
 	'help' => \$help,
 );
 #######################################
@@ -96,26 +98,7 @@ logit("=== STARTING CSI ===");
 logit("Showing disclaimer");
 disclaimer (); 
 if ($scan) { 
-	my $isClamAVInstalled=qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
-	if ($isClamAVInstalled) { 
-		print "ClamAV already installed!\n";
-		logit("ClamAV already installed!");
-	}
-	else { 
-		print "Installing ClamAV plugin...\n";
-		logit("Installing ClamAV plugin");
-		qx[ /usr/local/cpanel/scripts/update_local_rpm_versions --edit target_settings.clamav installed ];
-		qx[ /usr/local/cpanel/scripts/check_cpanel_rpms --fix --targets=clamav ];
-		my $ClamInstallChk=qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
-		if ($ClamInstallChk) { 
-			print "Done!\n";
-			logit("Install completed");
-		}
-		else { 
-			print "Failed!\n";
-			logit("Install failed");
-		}
-	}
+	installClamAV();
 	logit("Running with --rootkitscan");
     scan();
 	logit("=== COMPLETED CSI ===");
@@ -134,7 +117,7 @@ if ($binscan) {
 if ($userscan) { 
 	my $usertoscan=$userscan;
 	chomp($usertoscan);
-	logit("Running a user scan for $usertoscan");
+	installClamAV();
 	userscan($usertoscan);
 	logit("=== COMPLETED CSI ===");
 	exit;
@@ -155,6 +138,10 @@ sub show_help {
     print_header("=================");
     print_status("--no3rdparty               Disables running of 3rdparty scanners.\n");
     print_normal(" ");
+    print_header("Options (userscan)");
+    print_header("=================");
+    print_status("--scanmail                 Scans mail directory as well (can take longer).\n");
+    print_normal(" ");
     print_header("Examples");
     print_header("=================");
     print_status("Rootkitscan: ");
@@ -164,6 +151,7 @@ sub show_help {
     print_status("            csi.pl --bincheck");
     print_status("Userscan ");
     print_status("            csi.pl --userscan myuser");
+    print_status("            csi.pl --scanmail --userscan myuser");
     print_normal(" ");
 }
 sub bincheck {
@@ -393,7 +381,7 @@ sub detect_system {
     return ( $release, $os, $version, $is_es, $is_amazon, $is_cloudlinux );
 }
 sub check_previous_scans {
-	print_status('Checking for a previous run of CSI');
+	print_status('Checking for a previous run of CSI - $version');
     if ( -d $csidir ) {
         chomp( my $date = qx[ date "+%Y-%m-%d-%H:%M:%S" ] );
         print_info("Existing $csidir is present, moving to $csidir-$date");
@@ -592,6 +580,7 @@ sub check_lib {
     foreach my $file (@lib_files) {
 		chomp($file);
         if ( -f $file && -l $file ) {
+            spin();
             $file = abs_path($file);
 			next unless($file =~ m/not owned/);
             push( @lib_errors, " Found $file which is not owned by any RPM.\n" );
@@ -1665,6 +1654,14 @@ sub install_chkrootkit {
 }
 sub userscan { 
 	my $lcUserToScan=$_[0];
+	my $skipmail="--exclude-dir=mail";
+	if ($scanmail) { 
+		$skipmail="";
+		logit("Running a user scan for $lcUserToScan with mail directory scan");
+	}
+	else { 
+		logit("Running a user scan for $lcUserToScan skipping mail directory");
+	}
 	my $RealHome;
 	my $etcpasswd=qx[ grep -w $lcUserToScan /etc/passwd ];
 	if ($etcpasswd) { 
@@ -1683,7 +1680,7 @@ sub userscan {
     my @DEFINITIONS=qx[ curl -s $URL ];
     my $StringCnt=@DEFINITIONS;
     print_status("Scanning $RealHome using clamscan [results will be in $csidir/clamscan.log]");
-	qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i --quiet -o --log="$csidir/clamscan.log" -r -z --phishing-sigs=yes --phishing-scan-urls=yes --algorithmic-detection=yes $RealHome ];
+	qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i --quiet -o --log="$csidir/clamscan.log" -r -z --phishing-sigs=yes --phishing-scan-urls=yes --algorithmic-detection=yes --exclude-dir=tmp --exclude-dir=www $skipmail $RealHome ];
     print_status("Scanning $RealHome for ($StringCnt) known strings");
     my @SEARCHSTRING    = sort(@DEFINITIONS);
     my @FOUND           = undef;
@@ -1733,6 +1730,28 @@ sub check_for_accesshash {
 	}
 	if (-e("/root/.accesshash")) { 
 		push(@SUMMARY,"Found /root/.accesshash file! - Consider using API Tokens instead");
+	}
+}
+sub installClamAV { 
+	my $isClamAVInstalled=qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
+	if ($isClamAVInstalled) { 
+		print "ClamAV already installed!\n";
+		logit("ClamAV already installed!");
+	}
+	else { 
+		print "Installing ClamAV plugin...\n";
+		logit("Installing ClamAV plugin");
+		qx[ /usr/local/cpanel/scripts/update_local_rpm_versions --edit target_settings.clamav installed ];
+		qx[ /usr/local/cpanel/scripts/check_cpanel_rpms --fix --targets=clamav ];
+		my $ClamInstallChk=qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
+		if ($ClamInstallChk) { 
+			print "Done!\n";
+			logit("Install completed");
+		}
+		else { 
+			print "Failed!\n";
+			logit("Install failed");
+		}
 	}
 }
 # EOF
