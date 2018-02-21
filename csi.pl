@@ -19,7 +19,7 @@ use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.4";
+my $version = "3.4.5";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -529,11 +529,15 @@ sub check_processes {
             push @SUMMARY, "     $line";
         }
 		if ( $line =~ /mine/ ) { 
-            push @SUMMARY, "Ps output contains 'mine' indicates a bitcoin mining hack:";
+            push @SUMMARY, "ps output contains 'mine' could indicate a bitcoin mining hack:";
             push @SUMMARY, "     $line";
 		}
 		if ( $line =~ /cryptonight/ ) { 
-            push @SUMMARY, "Ps output contains 'cryptonight' indicates a bitcoin mining hack:";
+            push @SUMMARY, "ps output contains 'cryptonight' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "     $line";
+		}
+		if ( $line =~ /xmr-stak/ ) { 
+            push @SUMMARY, "ps output contains 'xmr-stak' could indicate a bitcoin mining hack:";
             push @SUMMARY, "     $line";
 		}
     }
