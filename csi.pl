@@ -17,9 +17,11 @@ use POSIX;
 use Getopt::Long;
 use IO::Socket::INET;
 use Term::ANSIColor qw(:constants);
+use Time::Piece;
+use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.5";
+my $version = "3.4.6";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -33,7 +35,6 @@ our $HOMEDIR   = $conf->{'HOMEDIR'};
 ###################################################
 if ( $> != 0 ) {
 	logit("Must be run as root");
-	logit("=== COMPLETED CSI ===");
     die "This script must be run as root\n";
 }
 ###########################################################
@@ -46,6 +47,7 @@ my $userscan;
 my $scanmail;
 my $binscan=0;
 my $scan = 0;
+my $quick = 0;
 our @process_list = get_process_list();
 my %process; &get_process_pid_hash(\%process);
 my %ipcs; &get_ipcs_hash(\%ipcs);
@@ -63,6 +65,7 @@ GetOptions(
     'bincheck' => \$binscan,
     'userscan=s' => \$userscan,
     'scanmail' => \$scanmail,
+    'quick' => \$quick,
 	'help' => \$help,
 );
 #######################################
@@ -95,33 +98,43 @@ if ($help) {
 }
 check_previous_scans();
 logit("=== STARTING CSI ===");
+my $scanstarttime = Time::Piece->new;
+print_header("Scan started on $scanstarttime");
+logit("Scan started on $scanstarttime");
 logit("Showing disclaimer");
+my $ClamAVInst;
 disclaimer (); 
 if ($scan) { 
-	installClamAV();
+	$ClamAVInst=installClamAV();
+	if ($quick) { 
+		$quick = 1;
+		$no3rdparty = 1;
+	}
 	logit("Running with --rootkitscan");
     scan();
-	logit("=== COMPLETED CSI ===");
 	my $LMD_Running=qx[ ps auxfwww | grep maldet | grep -v grep ];
 	if ($LMD_Running) { 
 		print_info("Linux Malwware Detect still running in the background.");
 	}
-    exit;
 }
 if ($binscan) { 
 	logit("Running with --bincheck");
     bincheck();
-	logit("=== COMPLETED CSI ===");
-    exit;
 }
 if ($userscan) { 
 	my $usertoscan=$userscan;
 	chomp($usertoscan);
-	installClamAV();
+	$ClamAVInst=installClamAV();
 	userscan($usertoscan);
-	logit("=== COMPLETED CSI ===");
-	exit;
 }
+my $scanendtime = Time::Piece->new;
+print_header("Scan completed on $scanendtime");
+logit("Scan completed on $scanendtime");
+my $scantimediff = ( $scanendtime - $scanstarttime );
+my $scanTotTime = $scantimediff->pretty, "\n";
+print_header("Elapsed Time: $scanTotTime");
+logit("Elapsed Time: $scanTotTime");
+logit("=== COMPLETED CSI ===");
 exit;
 ########
 # Subs #
@@ -134,24 +147,28 @@ sub show_help {
     print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
     print_status("--bincheck                 Performs RPM verification on core system binaries and prints active aliases.");
     print_status("--userscan cPanelUser      Performs a clamscan and string match search for a single cPanel User..");
-    print_header("Options (rootkitscan)");
-    print_header("=================");
-    print_status("--no3rdparty               Disables running of 3rdparty scanners.\n");
     print_normal(" ");
-    print_header("Options (userscan)");
+    print_header("Available options for --rootkitscan");
     print_header("=================");
-    print_status("--scanmail                 Scans mail directory as well (can take longer).\n");
+    print_status("--no3rdparty               Disables running of 3rdparty scanners.");
+    print_status("--quick                    Skip check for libraries/files not owned by an RPM.");
+	print_status("                           (adding --quick assumes no3rdparty)");
+    print_normal(" ");
+    print_header("Available options for --userscan");
+    print_header("=================");
+    print_status("--scanmail                 Scans mail directory as well (can take longer).");
     print_normal(" ");
     print_header("Examples");
     print_header("=================");
     print_status("Rootkitscan: ");
-    print_status("            csi.pl --rootkitscan");
-    print_status("            csi.pl --rootkitscan --no3rdparty");
+    print_status("            /root/csi.pl --rootkitscan");
+    print_status("            /root/csi.pl --rootkitscan --no3rdparty");
+    print_status("            /root/csi.pl --rootkitscan --quick");
     print_status("Bincheck: ");
-    print_status("            csi.pl --bincheck");
+    print_status("            /root/csi.pl --bincheck");
     print_status("Userscan ");
-    print_status("            csi.pl --userscan myuser");
-    print_status("            csi.pl --scanmail --userscan myuser");
+    print_status("            /root/csi.pl --userscan myuser");
+    print_status("            /root/csi.pl --scanmail --userscan myuser");
     print_normal(" ");
 }
 sub bincheck {
@@ -324,9 +341,15 @@ sub scan {
     print_header('[ Checking for modified/hacked SSH ]');
 	logit("Checking for modified/hacked ssh");
     check_ssh();
-    print_header('[ Checking for files/libraries not owned by an RPM ]');
-	logit("Checking for non-owned files/libraries");
-    check_lib();
+	if ($quick) { 
+		print_info("quick option passed, skipping non-owned files/libraries check");
+		logit("quick passed - skipping lib check");
+	}
+	else { 
+    	print_header('[ Checking for files/libraries not owned by an RPM ]');
+		logit("Checking for non-owned files/libraries");
+    	check_lib();
+	}
     print_header('[ Checking if kernel update is available ]');
 	logit("Checking kernel version");
     check_kernel_updates();
@@ -339,7 +362,7 @@ sub scan {
 	print_header('[ Last 10 IP addresses that logged on to WHM successfully as root ]');
 	logit("Obtaining last 10 IP address logged on as root");
 	check_session_log(10);
-	print "\nDo you recognize the above IP addresses?\nIf not, then further investigation should be performed.";
+	print "\nDo you recognize any of the above IP addresses?\nIf not, then further investigation should be performed.";
     print_header('[ cPanel Security Inspection Complete! ]');
     print_header('[ CSI Summary ]');
     dump_summary();
@@ -1683,8 +1706,10 @@ sub userscan {
 	my $URL="https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
     my @DEFINITIONS=qx[ curl -s $URL ];
     my $StringCnt=@DEFINITIONS;
-    print_status("Scanning $RealHome using clamscan [results will be in $csidir/clamscan.log]");
-	qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i --quiet -o --log="$csidir/clamscan.log" -r -z --phishing-sigs=yes --phishing-scan-urls=yes --algorithmic-detection=yes --exclude-dir=tmp --exclude-dir=www $skipmail $RealHome ];
+    if ($ClamAVInst) { 
+        print_status("Scanning $RealHome using clamscan [results will be in $csidir/clamscan.log]");
+	    qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i --quiet -o --log="$csidir/clamscan.log" -r -z --phishing-sigs=yes --phishing-scan-urls=yes --algorithmic-detection=yes --exclude-dir=tmp --exclude-dir=www $skipmail $RealHome ];
+    }
     print_status("Scanning $RealHome for ($StringCnt) known strings");
     my @SEARCHSTRING    = sort(@DEFINITIONS);
     my @FOUND           = undef;
@@ -1741,6 +1766,11 @@ sub installClamAV {
 	if ($isClamAVInstalled) { 
 		print "ClamAV already installed!\n";
 		logit("ClamAV already installed!");
+		# update databases
+		print "Updating ClamAV definitions/databases\n";
+		logit("Updating ClamAV definitions/databases");
+		qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
+		return 1;
 	}
 	else { 
 		print "Installing ClamAV plugin...\n";
@@ -1751,10 +1781,15 @@ sub installClamAV {
 		if ($ClamInstallChk) { 
 			print "Done!\n";
 			logit("Install completed");
+			print "Updating ClamAV definitions/databases\n";
+			logit("Updating ClamAV definitions/databases");
+			qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
+            return 1;
 		}
 		else { 
 			print "Failed!\n";
 			logit("Install failed");
+            return 0;
 		}
 	}
 }
