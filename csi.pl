@@ -21,7 +21,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.8";
+my $version = "3.4.9";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -30,6 +30,7 @@ my $cpconf    = Cpanel::Config::LoadCpConf::loadcpconf();
 my $allow_accesshash = $cpconf->{'allow_deprecated_accesshash'};
 our $HOMEDIR   = $conf->{'HOMEDIR'};
 our @FILESTOSCAN=undef;
+our $rootkitsfound=0;
 ###################################################
 # Check to see if the calling user is root or not #
 ###################################################
@@ -212,7 +213,7 @@ sub bincheck {
 	my @RPMS=qx[ /usr/bin/rpm -qa --qf "%{NAME}\n" | egrep -v "^(ea-|cpanel|kernel)" | sort -n | uniq ];
 	my $RPMcnt=@RPMS;
     print_status('Done - Found: $RPMcnt RPMs to verify');
-	print_header('[ Verifying ' . $RPMcnt . ' RPM binaries - This may take some time... ]');
+	print_header('[ Verifying RPM binaries - This may take some time... ]');
 	logit("Verifying RPM binaries");
 	foreach $rpmline(@RPMS) { 
 		chomp($rpmline);
@@ -319,7 +320,7 @@ sub scan {
     print_header('[ Checking for mod_security ]');
 	logit("Checking if ModSecurity is enabled");
     check_modsecurity();
-    print_header('[ "Checking for index.html in /tmp and " . $HOMEDIR ]');
+    print_header('[ Checking for index.html in /tmp and /home ]');
 	logit("Checking for index file in /tmp and $HOMEDIR");
     check_index();
     print_header('[ Checking for modified suspended page ]');
@@ -404,7 +405,7 @@ sub detect_system {
 }
 
 sub check_previous_scans {
-	print_status('Checking for a previous run of CSI - $version');
+	print_status('Checking for a previous run of CSI - ' . $version);
     if ( -d $csidir ) {
         chomp( my $date = qx[ date "+%Y-%m-%d-%H:%M:%S" ] );
         print_info("Existing $csidir is present, moving to $csidir-$date");
@@ -439,8 +440,10 @@ sub run_rkhunter {
             push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
         }
 		else { 
-			print_status( "rkhunter found no evidence of rootkits.");
 			logit("rkhunter found no evidence of rootkits.");
+		    open( my $LOG, '>', "$csidir/rkhunter.log" ) or die("Cannot open logfile $csidir/rkhunter.log ($!)");
+		    print $LOG "rkhunter found no evidence of rootkits.";
+		    close $LOG;
 		}
     }
     print_status('Done');
@@ -463,7 +466,6 @@ sub run_chkrootkit {
         }
     }
 	else { 
-		print_status( "chkrootkit found no evidence of rootkits");
 		logit("chkrootkit found no evidence of rootkits");
 		open( my $LOG, '>', "$csidir/chkrootkit.log" ) or die("Cannot open logfile $csidir/chkrootkit.log ($!)");
 		print $LOG "chkrootkit found no evidence of rootkits.";
@@ -777,6 +779,7 @@ sub check_preload {
 	if ($libcrypt_so) { 
         print_warn ('Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Root Compromised!');
 	}
+    print_status('Done');
 }
 
 sub create_summary {
@@ -786,22 +789,25 @@ sub create_summary {
         print $CSISUMMARY $_, "\n";
     }
     close($CSISUMMARY);
+	my $clamlog=qx[ find $csidir -name '*_clamscan.log' ];
+	if ($clamlog) { 
+		print_info("Don't forget to review $clamlog");
+	}
 }
 
 sub dump_summary {
     if ( @SUMMARY == 0 ) {
-        print_info('No evidence of rootkits or compromises were found!');
 		unlink("$csidir/summary");
     }
     else {
 		create_summary();
         print_warn('The following negative items were found:');
         foreach (@SUMMARY) {
-            print BOLD YELLOW "\t $_", "\n";
+            print BOLD MAGENTA "> " . YELLOW $_ . "\n";
         }
         print_normal('');
-        print_warn('cPanel Analysts: If you believe there are negative items that warrant escalating this ticket as a security issue then please read over https://cpanel.wiki/display/LS/CSIEscalations');
-        print_warn('You need to understand exactly what the output is that you are seeing before escalating this ticket to L3.');
+        print_separator('cPanel Analysts: If you believe there are negative items that warrant escalating this ticket as a security issue then please read over https://cpanel.wiki/display/LS/CSIEscalations');
+        print_separator('You need to understand exactly what the output is that you are seeing before escalating this ticket to L3.');
         print_normal('');
     }
 	if (-e("$csidir/warnings_from_lynis.txt")) { 
@@ -846,7 +852,7 @@ sub print_info {
 
 sub print_warn {
     my $text = shift;
-    print BOLD RED "*[WARN]*: $text\n";
+    print BOLD RED "[WARN]: $text\n";
 }
 
 sub print_error {
@@ -1263,6 +1269,7 @@ sub check_for_dirtycow_passwd {
 		my $passwdBAK=qx[ stat -c "%n [Owned by %U]" /tmp/*passwd* ];
 		push(@SUMMARY, "Possible backup of /etc/passwd found: $passwdBAK") unless(! $passwdBAK);
 	}
+    print_status('Done');
 }
 
 sub check_for_dirtycow_kernel { 
@@ -1276,10 +1283,11 @@ sub check_for_dirtycow_kernel {
 	if ($kernel =~ m/stab/) {
 	 	print "Virtuozzo Kernel Detected\n";
 		if ($kernel lt "2.6.32-042stab120.3") {
-			print_warn("Virtuozzo Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
+			push(@SUMMARY, "Virtuozzo Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
+            logit("Virtuozzo Kernel [$kernel] is susceptible to DirtyCow");
 		}
 		else {
-			print_info("Kernel version is greater than 2.6.32-042stab120.3 - Not suspecptible to DirtyCow");
+            logit("Virtuozzo Kernel version is greater than 2.6.32-042stab120.3 - Not susceptible to DirtyCow");
 	    }
 	   	return;
 	}
@@ -1289,10 +1297,10 @@ sub check_for_dirtycow_kernel {
 		chomp($KernelDate);
 		my $KernelYear=substr($KernelDate,-4);
 		if ($KernelYear > 2016) {
-			print_info("Kernel [$kernel] is patched against DirtyCow");
+			logit("CloudLinux Kernel [$kernel] is patched against DirtyCow");
 		}
 		else {
-			print_warn("Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
+			push(@SUMMARY, "CloudLinux Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
 		}
 		return;
 	}
@@ -1303,18 +1311,18 @@ sub check_for_dirtycow_kernel {
 		chomp($kernelver);
 		$kernelver =~ s/\.//g;
 		if ($kernelver < 4978) {
-			print_warn("This Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
+			push(@SUMMARY,"This Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
 		}
 		else {
-			print_info("This Kernel version is greater than 4.9.77 - Not susceptible to DirtyCow");
+			logit("This Kernel version is greater than 4.9.77 - Not susceptible to DirtyCow");
 		}
 		return;
 	}
 	if ($RPMPATCH) {
-		print_info("Kernel [$kernel] is patched against DirtyCow");
+		logit("Kernel [$kernel] is patched against DirtyCow");
 	}
 	else {
-		print_warn("Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
+		push(@SUMMARY, "Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
 	}
 }
 
@@ -1553,7 +1561,6 @@ sub run_lynis {
    	}
     print_status('Done');
 	if (@LYNISWARNINGS) { 
-    	print_status("Lynis completed - see $csidir/lynis.log file for full results");
     	logit("Lynis completed - see $csidir/lynis.log file for full results");
 		open ( my $LYNISWARN, ">", "$csidir/warnings_from_lynis.txt" )
 			or die ("Can't create $csidir/warnings_from_lynis.txt file $!\n");
@@ -1709,14 +1716,17 @@ sub userscan {
 	}
 	else { 
 		print_warn("Sorry, $lcUserToScan not found in /etc/passwd file!");
+		logit($lcUserToScan . " not found in /etc/passwd file!");
 		return;
 	}
 	if (!(-e("$RealHome"))) { 
 		print_warn("$lcUserToScan has no /home directory!");
+		logit($lcUserToScan . " has no /home directory!");
 		return;
 	}
 	# Check for symlink hack here
 	print_status("Checking for symlinks to other locations...");
+	logit("Checking for symlink hacks in " . $lcUserToScan);
 	my @FINDSYMLINKHACKS=qx[ find $RealHome/public_html -type l -ls ];
 	my $symlink;
 	foreach $symlink(@FINDSYMLINKHACKS) { 
@@ -1724,28 +1734,36 @@ sub userscan {
 		my ($owner,$group,$path,$linkarrow,$symlinkedto)=(split(/\s+/,$symlink))[4,5,10,11,12];
 		if ($owner eq "root" or $group eq "root") { 
 			push(@SUMMARY,"Found root owned symlink $path $linkarrow $symlinkedto\n");
-			print_warn("POSSIBLE ROOT LEVEL COMPROMISE!: $path $linkarrow $symlinkedto");
+			print_warn("POSSIBLE ROOT LEVEL COMPROMISE!: $path $linkarrow $symlinkedto - ESCALATE TO L3!");
+			logit("POSSIBLE ROOT LEVEL COMPROMISE!: $path $linkarrow $symlinkedto - ESCALATE TO L3!");
 		}
 		else { 
 			push(@SUMMARY,"Found user owned symlink $path $linkarrow $symlinkedto\n");
-			print_info("User level symlink: $path $linkarrow $symlinkedto");
+			logit("Found user owned symlink $path $linkarrow $symlinkedto");
 		}
 	}
 	# Check for .accesshash file
 	print_status("Checking for deprecated .accesshash file in " . $RealHome . "...");
 	if (-e("$RealHome/.accesshash")) { 
 		push(@SUMMARY,"Found $RealHome/.accesshash file! - Consider using API Tokens instead");
+		logit("Found $RealHome/.accesshash file! - Consider using API Tokens instead");
 	}
 	# Check for .my.cnf file
 	print_status("Checking for deprecated .my.cnf file in " . $RealHome . "...");
 	if (-e("$RealHome/.my.cnf")) { 
 		push(@SUMMARY,"Found $RealHome/.my.cnf file! - Deprecated and no longer used or needed. Consider removing!");
+		logit("Found $RealHome/.my.cnf file! - Deprecated and no longer used or needed. Consider removing!");
 	}
+
+	print_status("Scanning $RealHome/public_html using clamscan [results will be in " . $csidir . "/" . ${lcUserToScan} . "_clamscan.log]");
+	logit("Beginning clamscan for $lcUserToScan");
+	qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i --quiet -o --log="$csidir/${lcUserToScan}_clamscan.log" -r -z --phishing-sigs=yes --phishing-scan-urls=yes --algorithmic-detection=yes $RealHome/public_html ];
 	my $URL="https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
     my @DEFINITIONS=qx[ curl -s $URL ];
     my $StringCnt=@DEFINITIONS;
 	traverse("$RealHome/public_html");
     print_status("Scanning $RealHome/public_html for ($StringCnt) known strings");
+	logit("Beginning known phrases scan for $lcUserToScan");
     my @SEARCHSTRING    = sort(@DEFINITIONS);
     my @FOUND           = undef;
     my $SOMETHING_FOUND = 0;
@@ -1773,8 +1791,8 @@ sub userscan {
 			spin();
         	if ($SCAN) {
             	$SOMETHING_FOUND = 1;
-            	push (@SUMMARY, "While scanning $FileToScan, the following known phrases were found:") unless($FileToScan eq $lastfile);
-				push (@SUMMARY, "==================================================================") unless($FileToScan eq $lastfile);
+            	push (@SUMMARY, GREEN "The following phrase(s) was/were found in $FileToScan") unless($FileToScan eq $lastfile);
+				push (@SUMMARY, GREEN "=======================================================================================") unless($FileToScan eq $lastfile);
 				$lastfile=$FileToScan;
             	$SEARCHSTRING =~ s/\\//g;
             	push (@SUMMARY, "$SCAN");
@@ -1802,7 +1820,7 @@ sub check_for_symlinks {
 		}
 		else { 
 			push(@SUMMARY,"Found user owned symlink $path $linkarrow $symlinkedto\n");
-			print_info("User level symlink: $path $linkarrow $symlinkedto");
+#			print_warn("User level symlink: $path $linkarrow $symlinkedto");
 		}
 	}
 }
