@@ -6,7 +6,7 @@
 # http://cpanel.net
 # Unauthorized copying is prohibited
 
-# Tested on cPanel 68 and 70
+# Tested on cPanel 68 and 70, 72 and 74
 
 use strict;
 use warnings;
@@ -21,7 +21,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.9";
+my $version = "3.4.10";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -57,7 +57,7 @@ our $HTTPD_PATH = get_httpd_path();
 our $LIBKEYUTILS_FILES_REF;
 our $IPCS_REF;
 our $PROCESS_REF;
-our $EA4;
+our $EA4 = isEA4();
 our @RPM_LIST;
 our $OPT_TIMEOUT;
 GetOptions(
@@ -222,7 +222,6 @@ sub bincheck {
 		spin();
 		push(@BINARIES,$verify) unless($verify eq "");
 	}
-    print_status('Done');
 	foreach $binaryline(@BINARIES) { 
 		chomp($binaryline);
 		($verify_string,$binary)=(split(/\s+/,$binaryline));
@@ -231,7 +230,7 @@ sub bincheck {
 		if (exists $okbins{$binary}) {
 			my $verify_okstring= $okbins{$binary};
 			if ($verify_string ne $verify_okstring) {
-				push(@SUMMARY,"Modified Attribute: $binary [$verify_string]");
+				push(@SUMMARY,"> Modified Attribute: $binary [$verify_string]");
 				$rpmissues=1;
 			}
 		}
@@ -267,8 +266,6 @@ sub scan {
     print_normal('');
     print_header("[ Available flags when running csi.pl --rootkitscan: ]");
     print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]');
-    print_normal('');
-    print_header('[ Cleaning up from earlier runs, if needed ]');
     print_normal('');
     if ( !$no3rdparty ) {
 		logit("Installing 3rd party tools");
@@ -313,7 +310,6 @@ sub scan {
     print_header('[ Checking for suspicious files/directories of known rootkits ]');
 	logit("Checking for suspicious files/directories of known rootkits");
 	all_malware_checks();
-    print_status('Done');
     print_header('[ Checking Apache configuration ]');
 	logit("Checking Apache configuration");
     check_httpd_config();
@@ -334,22 +330,31 @@ sub scan {
     print_header('[ Checking process list for suspicious processes ]');
 	logit("Checking process list for suspicious processes");
     check_processes();
+    print_header('[ Checking for suspicious bitcoin miners ]');
+	logit("Checking for suspicious bitcoin miners");
+    bitcoin_chk();
+    print_header('[ Checking for deprecated plugins/modules ]');
+	logit("Checking for deprecated plugins");
+    check_for_deprecated();
+    print_header('[ Checking for sshd_config ]');
+	logit("Checking sshd_config");
+    check_sshd_config();
     print_header('[ Checking for modified/hacked SSH ]');
 	logit("Checking for modified/hacked ssh");
     check_ssh();
+    print_header('[ Checking if kernel update is available ]');
+	logit("Checking kernel version");
+    check_kernel_updates();
 	if ($quick) { 
 		print_info("quick option passed, skipping non-owned files/libraries check");
 		logit("quick passed - skipping lib check");
+		print_info("quick option passed, skipping symlink hack check");
+		logit("quick passed - skipping symlink hack check");
 	}
 	else { 
     	print_header('[ Checking for files/libraries not owned by an RPM ]');
 		logit("Checking for non-owned files/libraries");
     	check_lib();
-	}
-    print_header('[ Checking if kernel update is available ]');
-	logit("Checking kernel version");
-    check_kernel_updates();
-	if (! $quick) { 
 		print_header('[ Checking for symlink hacks ]');
 		logit("Checking for symlink hacks");
 		check_for_symlinks();
@@ -357,13 +362,15 @@ sub scan {
 	print_header('[ Checking for accesshash ]');
 	logit("Checking for accesshash");
 	check_for_accesshash();
-	print_header('[ Last 10 IP addresses that logged on to WHM successfully as root ]');
-	logit("Obtaining last 10 IP address logged on as root");
+	print_header('[ Gathering the last 10 IP addresses that logged on to WHM successfully as root ]');
+	logit("Gathering last 10 IP address logged on as root");
 	check_session_log(10);
-	print "\nDo you recognize any of the above IP addresses?\nIf not, then further investigation should be performed.";
-	print_normal('');
+    print_header('[ Running Security Advisor ]');
+	logit("Running Security Advisor");
+    security_advisor();
     print_header('[ cPanel Security Inspection Complete! ]');
     print_header('[ CSI Summary ]');
+	print_normal('');
     dump_summary();
 }
 
@@ -405,22 +412,33 @@ sub detect_system {
 }
 
 sub check_previous_scans {
-	print_status('Checking for a previous run of CSI - ' . $version);
+    print_info("CSI version: $version");
+	print_status('Checking for a previous run of CSI');
     if ( -d $csidir ) {
         chomp( my $date = qx[ date "+%Y-%m-%d-%H:%M:%S" ] );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
     }
 	mkdir("$csidir", 0755);
-    print_status('Done');
 }
 
 sub check_kernel_updates {
+    my $KCarePatched;
+    if (-e("/usr/bin/kcarectl")) { 
+        $KCarePatched = qx[ /usr/bin/kcarectl -i | grep 'No updates are needed for this kernel.' ];
+        chomp($KCarePatched);
+        if ($KCarePatched) {
+            print_info("KernelCare installed - Kernel is patched!");
+            return;
+        }
+        else { 
+            push(@SUMMARY, "> KernelCare installed - Kernel may not be patched - Check with /usr/bin/kcarectl -i");
+        }
+    }
     chomp( my $newkernel = qx(yum check-update kernel | grep kernel | awk '{ print \$2 }') );
     if ( $newkernel ne '' ) {
-        push @SUMMARY, "Server is not running the latest kernel, kernel update available: $newkernel";
+        push @SUMMARY, "> Server is not running the latest kernel, kernel update available: $newkernel";
     }
-    print_status('Done');
 }
 
 sub run_rkhunter {
@@ -433,11 +451,11 @@ sub run_rkhunter {
         my @results = grep /Rootkit/, <$LOG>;
         close $LOG;
         if (@results) {
-            push @SUMMARY, "Rkhunter has found a suspected rootkit infection(s):";
+            push @SUMMARY, "> Rkhunter has found a suspected rootkit infection(s):";
             foreach (@results) {
                 push @SUMMARY, $_;
             }
-            push @SUMMARY, "More information can be found in the log at $csidir/rkhunter.log";
+            push @SUMMARY, "> More information can be found in the log at $csidir/rkhunter.log";
         }
 		else { 
 			logit("rkhunter found no evidence of rootkits.");
@@ -446,7 +464,6 @@ sub run_rkhunter {
 		    close $LOG;
 		}
     }
-    print_status('Done');
 }
 
 sub run_chkrootkit {
@@ -459,7 +476,7 @@ sub run_chkrootkit {
         my @results = <$LOG>;
         close $LOG;
         if (@results) {
-            push @SUMMARY, 'Chkrootkit has found suspected rootkit or infection:';
+            push @SUMMARY, '> Chkrootkit has found suspected rootkit or infection:';
             foreach (@results) {
                 push @SUMMARY, $_;
             }
@@ -471,67 +488,68 @@ sub run_chkrootkit {
 		print $LOG "chkrootkit found no evidence of rootkits.";
 		close $LOG;
 	}
-    print_status('Done');
 }
 
 sub check_logfiles {
-	# THIS NEEDS TO BE FIXED FOR EA4 AS WELL!
-    if ( !-d '/usr/local/apache/logs' ) {
-        push @SUMMARY, "/usr/local/apache/logs directory is not present";
+	my $apachelogpath;
+    if ($EA4) { 
+	    $apachelogpath="/etc/apache2/logs";
+    }
+    else { 
+	    $apachelogpath="/usr/local/apache/logs";
+    }
+    chomp($apachelogpath);
+    if ( !-d $apachelogpath ) {
+        push @SUMMARY, "> $apachelogpath directory is not present";
     }
     foreach my $log (@logfiles) {
         if ( !-f $log ) {
-            push @SUMMARY, "Log file $log is missing or not a regular file";
+            push @SUMMARY, "> Log file $log is missing or not a regular file";
         } elsif ( -z $log ) {
-            push @SUMMARY, "Log file $log exists, but is empty";
+            push @SUMMARY, "> Log file $log exists, but is empty";
         }
     }
-    print_status('Done');
 }
 
 sub check_index {
     if ( -f '/tmp/index.htm' or -f '/tmp/index.html' ) {
-        push @SUMMARY, 'Index file found in /tmp';
+        push @SUMMARY, '> Index file found in /tmp';
     }
-    print_status('Done');
 }
 
 sub check_suspended {
     if ( -f '/var/cpanel/webtemplates/root/english/suspended.tmpl' ) {
-        push @SUMMARY, 'Custom account suspended template found at /var/cpanel/webtemplates/root/english/suspended.tmpl';
+        push @SUMMARY, '> Custom account suspended template found at /var/cpanel/webtemplates/root/english/suspended.tmpl';
         push @SUMMARY, '     This could mean the admin just created a custom template or that an attacker gained access';
         push @SUMMARY, '     and created it (hack page)';
     }
-    print_status('Done');
 }
 
 sub check_history {
     if ( -e '/root/.bash_history' ) {
         if ( -l '/root/.bash_history' ) {
             my $result = qx(ls -la /root/.bash_history);
-            push @SUMMARY, "/root/.bash_history is a symlink, $result";
+            push @SUMMARY, "> /root/.bash_history is a symlink, $result";
         }
         elsif ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
-            push @SUMMARY, "/root/.bash_history is a 0 byte file";
+            push @SUMMARY, "> /root/.bash_history is a 0 byte file";
         }
     }
     else {
-        push @SUMMARY, "/root/.bash_history is not present, this indicates probable tampering";
+        push @SUMMARY, "> /root/.bash_history is not present, this indicates probable tampering";
     }
-    print_status('Done');
 }
 
 sub check_modsecurity {
 	my $result = qx[ /usr/sbin/whmapi1 modsec_is_installed | grep 'installed: 1' ];
 	if (!$result) { 
-        push @SUMMARY, "Mod Security is disabled";
+        push @SUMMARY, "> Mod Security is disabled";
 		return;
 	}
 	$result = qx[ /usr/sbin/whmapi1 modsec_get_configs | grep -c 'active: 1' ];
 	if ($result == 0) { 
-        push @SUMMARY, "Mod Security is installed but there were no active Mod Security vendor rules found.";
+        push @SUMMARY, "> Mod Security is installed but there were no active Mod Security vendor rules found.";
 	}
-    print_status('Done');
 }
 
 sub check_uids {
@@ -543,65 +561,82 @@ sub check_uids {
     }
     endpwent();
     if (@baduids) {
-        push @SUMMARY, 'Users with UID of 0 detected:';
+        push @SUMMARY, '> Users with UID of 0 detected:';
         foreach (@baduids) {
             push( @SUMMARY, $_ );
         }
     }
-    print_status('Done');
 }
 
 sub check_httpd_config {
-	# THIS NEEDS TO BE FIXED FOR EA4
-    my $httpd_conf = '/usr/local/apache/conf/httpd.conf';
+    my $httpd_conf;
+    if ($EA4) { 
+        $httpd_conf = '/etc/apache2/conf/httpd.conf'; 
+    }
+    else { 
+        $httpd_conf = '/usr/local/apache/conf/httpd.conf';
+    }
     if ( -f $httpd_conf ) {
         my $apache_options = qx(grep -A1 '<Directory "/">' $httpd_conf);
         if (    $apache_options =~ 'FollowSymLinks'
             and $apache_options !~ 'SymLinksIfOwnerMatch' ) {
-            push @SUMMARY, 'Apache configuration allows symlinks without owner match';
+            push @SUMMARY, '> Apache configuration allows symlinks without owner match';
         }
     }
     else {
-        push @SUMMARY, 'Apache configuration file is missing';
+        push @SUMMARY, '> Apache configuration file is missing';
     }
-    print_status('Done');
 }
 
 sub check_processes {
     chomp( my @ps_output = qx(ps aux) );
     foreach my $line (@ps_output) {
         if ( $line =~ 'sleep 7200' ) {
-            push @SUMMARY, "ps output contains 'sleep 7200' which is a known part of a hack process:";
+            push @SUMMARY, "> ps output contains 'sleep 7200' which is a known part of a hack process:";
             push @SUMMARY, "     $line";
         }
         if ( $line =~ / perl$/ ) {
-            push @SUMMARY, "ps output contains 'perl' without a command following, which probably indicates a hack:";
+            push @SUMMARY, "> ps output contains 'perl' without a command following, which probably indicates a hack:";
             push @SUMMARY, "     $line";
         }
 		if ( $line =~ /mine/ ) { 
-            push @SUMMARY, "ps output contains 'mine' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "> ps output contains 'mine' could indicate a bitcoin mining hack:";
             push @SUMMARY, "     $line";
 		}
 		if ( $line =~ /cryptonight/ ) { 
-            push @SUMMARY, "ps output contains 'cryptonight' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "> ps output contains 'cryptonight' could indicate a bitcoin mining hack:";
             push @SUMMARY, "     $line";
 		}
 		if ( $line =~ /xmr-stak/ ) { 
-            push @SUMMARY, "ps output contains 'xmr-stak' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "> ps output contains 'xmr-stak' could indicate a bitcoin mining hack:";
             push @SUMMARY, "     $line";
 		}
-		my $xmrig_cron = qx[ grep '.xmr' /var/spool/cron/* ];
-		if ( $line =~ /xmrig/ or $xmrig_cron ) { 
-            push @SUMMARY, "ps output contains 'xmrig' could indicate a bitcoin mining hack:";
-            push @SUMMARY, "     $line $xmrig_cron ";
+		if ( $line =~ /xmrig/ ) { 
+            push @SUMMARY, "> ps output contains 'xmrig' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "     $line";
 		}
-		my $xm2sg_socket = qx[ netstat -plant | grep xm2sg ];
-		if ( $line =~ /xm2sg/ or $xm2sg_socket ) { 
-            push @SUMMARY, "ps output contains 'xm2sg' could indicate a bitcoin mining hack:";
-            push @SUMMARY, "     $line $xm2sg_socket ";
+		if ( $line =~ /xm2sg/ ) { 
+            push @SUMMARY, "> ps output contains 'xm2sg' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "     $line";
 		}
     }
-    print_status('Done');
+}
+
+sub bitcoin_chk { 
+    my $xmrig_cron = qx[ grep '.xmr' /var/spool/cron/* ];
+	if ( $xmrig_cron ) { 
+        push @SUMMARY, "> Found evidence of possilbe bitcoin miner: " . CYAN $xmrig_cron;
+	}
+	my $xm2sg_socket = qx[ netstat -plant | grep xm2sg ];
+	if ( $xm2sg_socket ) { 
+        push @SUMMARY, "> Found evidence of possible bitcoin miner: " . CYAN $xm2sg_socket;
+	}
+    if (-e("/tmp/.FILE/stak /")) { 
+	    my $FILE_stak = qx[ stat -c "%U %n" '/tmp/.FILE/stak /' ];
+	    if ( $FILE_stak ) { 
+            push @SUMMARY, "> Found evidence of a bitcoin miner: " . CYAN $FILE_stak;
+	    }
+    }
 }
 
 sub get_process_list { 
@@ -630,12 +665,11 @@ sub check_ssh {
         push( @ssh_errors, " $process_list[0]" );
     }
     if (@ssh_errors) {
-        push @SUMMARY, "System has detected the presence of a *POSSIBLY* compromised SSH:\n";
+        push @SUMMARY, "> System has detected the presence of a *POSSIBLY* compromised SSH:\n";
         foreach (@ssh_errors) {
             push( @SUMMARY, $_ );
         }
     }
-    print_status('Done');
 }
 
 sub check_lib {
@@ -651,12 +685,11 @@ sub check_lib {
         }
     }
     if (@lib_errors) {
-        push @SUMMARY, "System has detected the presence of library files not owned by an RPM, these libraries *MAY* indicate a compromise or could have been custom installed by the administrator.\n";
+        push @SUMMARY, "> Found library files not owned by an RPM, *MAY* indicate a compromise or could be custom installed by an administrator.\n";
         foreach (@lib_errors) {
             push( @SUMMARY, $_ );
         }
     }
-    print_status('Done');
 }
 
 sub get_process_pid_hash ($) {
@@ -779,7 +812,6 @@ sub check_preload {
 	if ($libcrypt_so) { 
         print_warn ('Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Root Compromised!');
 	}
-    print_status('Done');
 }
 
 sub create_summary {
@@ -803,7 +835,8 @@ sub dump_summary {
 		create_summary();
         print_warn('The following negative items were found:');
         foreach (@SUMMARY) {
-            print BOLD MAGENTA "> " . YELLOW $_ . "\n";
+            #print BOLD MAGENTA "> " . YELLOW $_ . "\n";
+            print BOLD YELLOW $_ . "\n";
         }
         print_normal('');
         print_separator('cPanel Analysts: If you believe there are negative items that warrant escalating this ticket as a security issue then please read over https://cpanel.wiki/display/LS/CSIEscalations');
@@ -896,7 +929,7 @@ sub check_for_cdorked_A {
     }
     if ( $has_cdorked == 1 ) {
         print_warn ('CDORKED A FOUND!');
-		push(@SUMMARY,"[ROOTKIT: CDORKED A] - Evidence of CDORKED A Rootkit found.");
+		push(@SUMMARY,"> [ROOTKIT: CDORKED A] - Evidence of CDORKED A Rootkit found.");
     }
 }
 
@@ -912,7 +945,7 @@ sub check_for_cdorked_B {
     }
     if ( $has_cdorked_b == 1 ) {
         print_warn ("The following files were found (note the spaces at the end of the files):\n" . $cdorked_files);
-		push(@SUMMARY,"[ROOTKIT: CDORKED B] - Evidence of CDORKED B Rootkit found.\n\t Found " . $cdorked_files . " [Note space at end of files]");
+		push(@SUMMARY,"> [ROOTKIT: CDORKED B] - Evidence of CDORKED B Rootkit found.\n\t Found " . $cdorked_files . " [Note space at end of files]");
     }
 }
 
@@ -942,7 +975,7 @@ sub check_for_libkeyutils_filenames {
     }
     if ($bad_libs) {
         print_warn ("The following file(s) were found:\n" . $bad_libs);
-		push(@SUMMARY,"[ROOTKIT: Ebury/Libkeys] - Evidence of Ebury/Libkeys Rootkit found.\n\t Found " . $bad_libs );
+		push(@SUMMARY,"> [ROOTKIT: Ebury/Libkeys] - Evidence of Ebury/Libkeys Rootkit found.\n\t Found " . $bad_libs );
     }
 }
 
@@ -988,7 +1021,7 @@ sub check_sha1_sigs_libkeyutils {
     }
     if ($trojaned_lib) {
         print_warn ("The following file(s) were found:\n" . $trojaned_lib);
-		push(@SUMMARY,"[ROOTKIT: Ebury/Libkeys] - Evidence of Ebury/Libkeys Rootkit found.\n\t Found " . $trojaned_lib );
+		push(@SUMMARY,"> [ROOTKIT: Ebury/Libkeys] - Evidence of Ebury/Libkeys Rootkit found.\n\t Found " . $trojaned_lib );
     }
 }
 
@@ -1003,7 +1036,7 @@ sub check_for_unowned_libkeyutils_files {
     }
     if (@unowned_libs) { 
 		print_warn ("The following file(s) were found:\n" . @unowned_libs);
-		push(@SUMMARY,"[ROOTKIT: Ebury/Libkeys] - Evidence of Ebury/Libkeys Rootkit found.");
+		push(@SUMMARY,"> [ROOTKIT: Ebury/Libkeys] - Evidence of Ebury/Libkeys Rootkit found.");
 		push(@SUMMARY,"Found: " . @unowned_libs);
 	}
 }
@@ -1047,7 +1080,7 @@ sub check_sha1_sigs_httpd {
     }
     if ( $infected == 1 ) {
         print_warn ($HTTPD_PATH . " has SHA-1 signature of " . $sha1sum);
-		push(@SUMMARY,"[ROOTKIT: Apache Binary] - Evidence of hacked Apache binary found.\n\t Found " . $sha1sum );
+		push(@SUMMARY,"> [ROOTKIT: Apache Binary] - Evidence of hacked Apache binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1071,7 +1104,7 @@ sub check_sha1_sigs_named {
     }
     if ( $infected == 1 ) {
         print_warn ($named . " has SHA-1 signature of " . $sha1sum);
-		push(@SUMMARY,"[ROOTKIT: Named Binary] - Evidence of hacked Named binary found.\n\t Found " . $sha1sum );
+		push(@SUMMARY,"> [ROOTKIT: Named Binary] - Evidence of hacked Named binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1095,7 +1128,7 @@ sub check_sha1_sigs_ssh {
     }
     if ( $infected == 1 ) {
         print_warn ($ssh . " has SHA-1 signature of " . $sha1sum);
-		push(@SUMMARY,"[ROOTKIT: SSH Binary] - Evidence of hacked SSH binary found.\n\t Found " . $sha1sum );
+		push(@SUMMARY,"> [ROOTKIT: SSH Binary] - Evidence of hacked SSH binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1118,7 +1151,7 @@ sub check_sha1_sigs_ssh_add {
     }
     if ( $infected == 1 ) {
         print_warn ($ssh_add . " has SHA-1 signature of " . $sha1sum);
-		push(@SUMMARY,"[ROOTKIT: SSH-ADD Binary] - Evidence of hacked SSH-ADD binary found.\n\t Found " . $sha1sum );
+		push(@SUMMARY,"> [ROOTKIT: SSH-ADD Binary] - Evidence of hacked SSH-ADD binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1144,7 +1177,7 @@ sub check_sha1_sigs_sshd {
     }
     if ( $infected == 1 ) {
         print_warn ($sshd . " has SHA-1 signature of " . $sha1sum);
-		push(@SUMMARY,"[ROOTKIT: sshd Binary] - Evidence of hacked sshd binary found.\n\t Found " . $sha1sum );
+		push(@SUMMARY,"> [ROOTKIT: sshd Binary] - Evidence of hacked sshd binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1159,7 +1192,7 @@ sub check_for_ebury_ssh_G {
     my $ssh_G = timed_run_trap_stderr( 0, $ssh, '-G' );
     if ( $ssh_G !~ /illegal|unknown/ ) {
         print_warn ($ssh . "-G did not return either 'illegal' or 'unknown'");
-		push(@SUMMARY,"[ROOTKIT: ssh Binary] - Evidence of hacked ssh binary found.\n\t " . $ssh . " -G did not return either 'illegal' or 'unknown'" );
+		push(@SUMMARY,"> [ROOTKIT: ssh Binary] - Evidence of hacked ssh binary found.\n\t " . $ssh . " -G did not return either 'illegal' or 'unknown'" );
     }
 }
 
@@ -1184,7 +1217,7 @@ sub check_for_ebury_ssh_banner {
     chomp $ssh_banner;
     if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
         print_warn ("sshd banner matches known signature from ebury infected machines: " . $ssh_banner);
-		push(@SUMMARY,"[ROOTKIT: ssh banner] - Evidence of hacked ssh banner found.\n\t " . $ssh_banner . "." );
+		push(@SUMMARY,"> [ROOTKIT: ssh banner] - Evidence of hacked ssh banner found.\n\t " . $ssh_banner . "." );
     }
 }
 
@@ -1195,7 +1228,7 @@ sub check_for_ebury_ssh_shmem {
         my $cpid  = $href->{cpid};
         if ( $PROCESS_REF->{$cpid}{CMD} && $PROCESS_REF->{$cpid}{CMD} =~ m{ \A /usr/sbin/sshd \b }x ) {
 			print_warn ("Shared memory segment created by sshd process exists: $cpid - $shmid");
-		push(@SUMMARY,"[ROOTKIT: SSHd Shared Memory] - Evidence of hacked SSHd Shared Memory found.\n\t cpid: " . $cpid . " - shmid: " . $shmid . "." );
+		push(@SUMMARY,"> [ROOTKIT: SSHd Shared Memory] - Evidence of hacked SSHd Shared Memory found.\n\t cpid: " . $cpid . " - shmid: " . $shmid . "." );
         }
     }
 }
@@ -1205,7 +1238,7 @@ sub check_for_ebury_root_file {
     if ( -e $file ) {
         print_warn ("Found file: " . $file);
         print_warn ("ROOTKIT Ebury] - Found hidden file: " . $file);
-		push(@SUMMARY,"[ROOTKIT: Ebury] - Found hidden file: " . $file );
+		push(@SUMMARY,"> [ROOTKIT: Ebury] - Found hidden file: " . $file );
     }
 }
 
@@ -1218,7 +1251,7 @@ sub check_for_ebury_3_digit_rpms {
     }
     if ($bad_rpms) {
         print_warn ("The following file(s) were found:\n" . $bad_rpms);
-		push(@SUMMARY,"[ROOTKIT: Ebury] - 3-digit RPM's: " . $bad_rpms);
+		push(@SUMMARY,"> [ROOTKIT: Ebury] - 3-digit RPM's: " . $bad_rpms);
     }
 }
 
@@ -1228,7 +1261,7 @@ sub check_for_ebury_socket {
     for my $line ( split( '\n', $netstat_out ) ) {
         if ( $line =~ m{@/proc/udevd} ) {
         	print_warn ("netstat -nap output contains: " . $line . "\n");
-			push(@SUMMARY,"[ROOTKIT: Ebury] - Ebury socket connection found: " . $line);
+			push(@SUMMARY,"> [ROOTKIT: Ebury] - Ebury socket connection found: " . $line);
 			$found=1;
             last;
         }
@@ -1255,25 +1288,24 @@ sub check_for_ncom_filenames {
     }
     if (@bad_libs) {
         print_warn ("Suspicious files related to the NCOM rootkit were found.");
-		push(@SUMMARY,"[ROOTKIT: NCOM] - Evidence of the NCOM Rootkit found: ");
+		push(@SUMMARY,"> [ROOTKIT: NCOM] - Evidence of the NCOM Rootkit found: ");
 		push(@SUMMARY, @bad_libs);
     }
 }
 
 sub check_for_dirtycow_passwd {
-	print_header ("Checking for evidence of DirtyCow within /etc/passwd");
+	print_header ("[ Checking for evidence of DirtyCow within /etc/passwd ]");
     return unless my $gecos = ( getpwuid(0) )[6];
     if ($gecos eq "pwned") { 
     	print_warn ("Check /etc/passwd for pwned");
-		push(@SUMMARY,"[DirtyCow] - Evidence of FireFart/DirtyCow compromise found.");
+		push(@SUMMARY,"> [DirtyCow] - Evidence of FireFart/DirtyCow compromise found.");
 		my $passwdBAK=qx[ stat -c "%n [Owned by %U]" /tmp/*passwd* ];
 		push(@SUMMARY, "Possible backup of /etc/passwd found: $passwdBAK") unless(! $passwdBAK);
 	}
-    print_status('Done');
 }
 
 sub check_for_dirtycow_kernel { 
-	print_header ("Checking if kernel is vulnerable to DirtyCow");
+	print_header ("[ Checking if kernel is vulnerable to DirtyCow ]");
 	if (!("/usr/bin/rpm")) {
 		print "RPM not installed - is this a CentOS server?\n";
 		return;
@@ -1283,7 +1315,7 @@ sub check_for_dirtycow_kernel {
 	if ($kernel =~ m/stab/) {
 	 	print "Virtuozzo Kernel Detected\n";
 		if ($kernel lt "2.6.32-042stab120.3") {
-			push(@SUMMARY, "Virtuozzo Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
+			push(@SUMMARY, "> Virtuozzo Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
             logit("Virtuozzo Kernel [$kernel] is susceptible to DirtyCow");
 		}
 		else {
@@ -1300,7 +1332,7 @@ sub check_for_dirtycow_kernel {
 			logit("CloudLinux Kernel [$kernel] is patched against DirtyCow");
 		}
 		else {
-			push(@SUMMARY, "CloudLinux Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
+			push(@SUMMARY, "> CloudLinux Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
 		}
 		return;
 	}
@@ -1311,7 +1343,7 @@ sub check_for_dirtycow_kernel {
 		chomp($kernelver);
 		$kernelver =~ s/\.//g;
 		if ($kernelver < 4978) {
-			push(@SUMMARY,"This Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
+			push(@SUMMARY,"> This Kernel [$kernel] is susceptible to DirtyCow [CVE-2016-5195]");
 		}
 		else {
 			logit("This Kernel version is greater than 4.9.77 - Not susceptible to DirtyCow");
@@ -1322,7 +1354,7 @@ sub check_for_dirtycow_kernel {
 		logit("Kernel [$kernel] is patched against DirtyCow");
 	}
 	else {
-		push(@SUMMARY, "Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
+		push(@SUMMARY, "> Kernel [$kernel] is not patched against DirtyCow - Consider updating!");
 	}
 }
 
@@ -1332,7 +1364,7 @@ sub check_for_dragnet {
         while (<$fh>) {
             if (m{ (\s|\/) libc\.so\.0 (\s|$) }x) {
                 print_warn ("libc.so.0 found in process maps");
-				push(@SUMMARY,"[ROOTKIT: Dragnet] - Evidence of Dragnet Rootkit found.\n\t libc.so.0 was found in process maps.");
+				push(@SUMMARY,"> [ROOTKIT: Dragnet] - Evidence of Dragnet Rootkit found.\n\t libc.so.0 was found in process maps.");
 				$found=1;
                 last;
             }
@@ -1356,7 +1388,7 @@ sub check_for_xor_ddos {
     }
     if (@matched) {
         print_warn ("The following file(s) were found:\n@matched");
-		push(@SUMMARY,"[ROOTKIT: Linux/XoRDDoS] - Evidence of the Linux/XoRDDoS Rootkit found: ");
+		push(@SUMMARY,"> [ROOTKIT: Linux/XoRDDoS] - Evidence of the Linux/XoRDDoS Rootkit found: ");
 		push(@SUMMARY, @matched);
     }
 }
@@ -1424,7 +1456,7 @@ sub check_for_bg_botnet {
     }
 	if (scalar @found_bg_files) { 
     	print_warn ("Suspicious files related to the BG BotNet were found.");
-		push(@SUMMARY,"[ROOTKIT: BG Botnet] - Evidence of the BG Botnet Rootkit found.");
+		push(@SUMMARY,"> [ROOTKIT: BG Botnet] - Evidence of the BG Botnet Rootkit found.");
 		push(@SUMMARY,@found_bg_files);
 	}
 }
@@ -1433,7 +1465,7 @@ sub check_for_UMBREON_rootkit {
     my $dir = '/usr/local/__UMBREON__';
     if ( chdir $dir ) {
         print_warn ("The following directory was found [ " . $dir . " ]");
-		push(@SUMMARY,"[ROOTKIT: UMBREON] - Found the following: " . $dir . ".");
+		push(@SUMMARY,"> [ROOTKIT: UMBREON] - Found the following: " . $dir . ".");
     }
 }
 
@@ -1441,7 +1473,7 @@ sub check_for_libms_rootkit {
     my $dir = '/lib/udev/x.modules';
     if ( chdir $dir ) {
         print_warn ("The following directory was found\n" . $dir);
-		push(@SUMMARY,"[ROOTKIT: LIBMS] - Evidence of the LIBMS Rootkit found.\nFound the following: " . $dir . ".");
+		push(@SUMMARY,"> [ROOTKIT: LIBMS] - Evidence of the LIBMS Rootkit found.\nFound the following: " . $dir . ".");
     }
 }
 
@@ -1458,7 +1490,7 @@ sub check_for_jynx2_rootkit {
         }
 		if ((scalar @found_jynx2_files)>0) { 
     		print_warn ("Suspicious files related to the Jynx2 Rootkit were found.");
-			push(@SUMMARY,"[ROOTKIT: Jynx2] - Evidence of the Jynx2 Rootkit found.");
+			push(@SUMMARY,"> [ROOTKIT: Jynx2] - Evidence of the Jynx2 Rootkit found.");
 			push(@SUMMARY,@found_jynx2_files);
 		}
     }
@@ -1475,7 +1507,7 @@ sub check_for_shellbot {
     }
     if (@matched) {
         print_warn ("Suspicious files related to the ShellBot Rootkit were found.");
-		push(@SUMMARY,"[ROOTKIT: ShellBot] - Evidence of the ShellBot Rootkit found.");
+		push(@SUMMARY,"> [ROOTKIT: ShellBot] - Evidence of the ShellBot Rootkit found.");
 		push(@SUMMARY,@matched);
     }
 }
@@ -1486,7 +1518,7 @@ sub check_for_libkeyutils_symbols {
     return unless $output;
     if ( $output =~ m{ /lib(keyutils|ns[25]|pw[35]|s[bl]r)\. }xms ) {
         print_warn ("Ebury libs were found in symbol table\n");
-		push(@SUMMARY,"[ROOTKIT: Ebury] - Evidence of the Ebury Rootkit found in symbol table.");
+		push(@SUMMARY,"> [ROOTKIT: Ebury] - Evidence of the Ebury Rootkit found in symbol table.");
     }
 }
 
@@ -1537,7 +1569,7 @@ sub check_for_touchfile {
 		return;
 	}
 	else { 
-		push (@SUMMARY,"*** This server was previously flagged as compromised! Please escalate to L3! ***");
+		push (@SUMMARY,"> *** This server was previously flagged as compromised! Please escalate to L3! ***");
 	}
 }
 
@@ -1559,7 +1591,6 @@ sub run_lynis {
 			print_info('Good news! Lynis found no Warnings');
 		}
    	}
-    print_status('Done');
 	if (@LYNISWARNINGS) { 
     	logit("Lynis completed - see $csidir/lynis.log file for full results");
 		open ( my $LYNISWARN, ">", "$csidir/warnings_from_lynis.txt" )
@@ -1619,12 +1650,14 @@ sub check_session_log {
 	my $thedate;
 	my @linesTOreturn = ($returnlines >= @rootlogins) ? @rootlogins : @rootlogins[-$returnlines..-1];
 	@rootlogins=@linesTOreturn;
+	push(@SUMMARY, "> The following $returnlines IP addresses logged on to WHM successfully as root:\n");
 	foreach $myline(@rootlogins) { 
 		chomp($myline);
 		($thedate,$tstamp,$tz,$loginip)=(split(/\s+/,$myline))[0,1,2,5];
 		next if ($loginip eq "internal");
-		print "IP: $loginip logged on to WHM on $thedate $tstamp $tz\n";
+		push(@SUMMARY, CYAN "IP: $loginip logged on to WHM on $thedate $tstamp $tz");
 	}
+	push(@SUMMARY, CYAN "\nDo you recognize any of the above IP addresses?\nIf not, then further investigation should be performed.");
 }
 
 sub install_lynis { 
@@ -1645,8 +1678,8 @@ sub install_rkhunter {
 	my $RKHURL="http://sourceforge.net/projects/rkhunter/files/latest/download";
 	print_header("[ Installing latest rkhunter ]");
 	chdir("$csidir");
-	qx[ /usr/bin/wget -O rkhunter.tar.gz $RKHURL &> /dev/null ];
-	qx[ /usr/bin/tar -xzf rkhunter.tar.gz &> /dev/null ];
+	qx[ $wget -O rkhunter.tar.gz $RKHURL &> /dev/null ];
+	qx[ $tar -xzf rkhunter.tar.gz &> /dev/null ];
 	unlink("$csidir/rkhunter.tar.gz");
 	opendir(CSIDIR,"$csidir");
 	my @CSIDIRFILES=readdir(CSIDIR);
@@ -1676,8 +1709,8 @@ sub install_chkrootkit {
 	my $CHKRKURL="ftp://ftp.pangeia.com.br/pub/seg/pac/chkrootkit.tar.gz";
 	print_header("[ Installing latest chkrootkit ]");
 	chdir("$csidir");
-	qx[ /usr/bin/wget -O chkrootkit.tar.gz $CHKRKURL &> /dev/null ];
-	qx[ /usr/bin/tar -xzf chkrootkit.tar.gz &> /dev/null ];
+	qx[ $wget -O chkrootkit.tar.gz $CHKRKURL &> /dev/null ];
+	qx[ $tar -xzf chkrootkit.tar.gz &> /dev/null ];
 	unlink("$csidir/chkrootkit.tar.gz");
 	opendir(CSIDIR,"$csidir");
 	my @CSIDIRFILES=readdir(CSIDIR);
@@ -1733,25 +1766,25 @@ sub userscan {
 		chomp($symlink);
 		my ($owner,$group,$path,$linkarrow,$symlinkedto)=(split(/\s+/,$symlink))[4,5,10,11,12];
 		if ($owner eq "root" or $group eq "root") { 
-			push(@SUMMARY,"Found root owned symlink $path $linkarrow $symlinkedto\n");
+			push(@SUMMARY,"> Found root owned symlink $path $linkarrow $symlinkedto\n");
 			print_warn("POSSIBLE ROOT LEVEL COMPROMISE!: $path $linkarrow $symlinkedto - ESCALATE TO L3!");
 			logit("POSSIBLE ROOT LEVEL COMPROMISE!: $path $linkarrow $symlinkedto - ESCALATE TO L3!");
 		}
 		else { 
-			push(@SUMMARY,"Found user owned symlink $path $linkarrow $symlinkedto\n");
+			push(@SUMMARY,"> Found user owned symlink $path $linkarrow $symlinkedto\n");
 			logit("Found user owned symlink $path $linkarrow $symlinkedto");
 		}
 	}
 	# Check for .accesshash file
 	print_status("Checking for deprecated .accesshash file in " . $RealHome . "...");
 	if (-e("$RealHome/.accesshash")) { 
-		push(@SUMMARY,"Found $RealHome/.accesshash file! - Consider using API Tokens instead");
+		push(@SUMMARY,"> Found $RealHome/.accesshash file! - Consider using API Tokens instead");
 		logit("Found $RealHome/.accesshash file! - Consider using API Tokens instead");
 	}
 	# Check for .my.cnf file
 	print_status("Checking for deprecated .my.cnf file in " . $RealHome . "...");
 	if (-e("$RealHome/.my.cnf")) { 
-		push(@SUMMARY,"Found $RealHome/.my.cnf file! - Deprecated and no longer used or needed. Consider removing!");
+		push(@SUMMARY,"> Found $RealHome/.my.cnf file! - Deprecated and no longer used or needed. Consider removing!");
 		logit("Found $RealHome/.my.cnf file! - Deprecated and no longer used or needed. Consider removing!");
 	}
 
@@ -1761,45 +1794,26 @@ sub userscan {
 	my $URL="https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
     my @DEFINITIONS=qx[ curl -s $URL ];
     my $StringCnt=@DEFINITIONS;
-	traverse("$RealHome/public_html");
-    print_status("Scanning $RealHome/public_html for ($StringCnt) known strings");
-	logit("Beginning known phrases scan for $lcUserToScan");
+    print_status("Scanning $RealHome/public_html for ($StringCnt) known phrases/strings");
+	logit("Beginning known phrases/strings scan for $lcUserToScan");
     my @SEARCHSTRING    = sort(@DEFINITIONS);
     my @FOUND           = undef;
     my $SOMETHING_FOUND = 0;
     my $SEARCHSTRING;
-	my $FileToScan;
-	my $lastfile;
-	splice(@FILESTOSCAN,0,1);
-	# I don't know why the code below is necessary, but without it, I get Uninitalized value errors.  Very strange!
-	my $line;
-	foreach $line(@FILESTOSCAN) { 
-		chomp($line);
-	}
-	foreach $FileToScan(@FILESTOSCAN) { 
-		next unless(-f("$FileToScan"));
-		chomp($FileToScan);
-		$lastfile="";
-    	foreach $SEARCHSTRING (@SEARCHSTRING) {
-        	chomp($SEARCHSTRING);
-			next unless(-e($FileToScan));
-			if (-d("$FileToScan")) { 
-				next;
-			}
-       		my $SCAN = qx[ grep -w "$SEARCHSTRING" $FileToScan ] unless -d $FileToScan;
-        	chomp($SCAN);
-			spin();
-        	if ($SCAN) {
-            	$SOMETHING_FOUND = 1;
-            	push (@SUMMARY, GREEN "The following phrase(s) was/were found in $FileToScan") unless($FileToScan eq $lastfile);
-				push (@SUMMARY, GREEN "=======================================================================================") unless($FileToScan eq $lastfile);
-				$lastfile=$FileToScan;
-            	$SEARCHSTRING =~ s/\\//g;
-            	push (@SUMMARY, "$SCAN");
-			}
+   	foreach $SEARCHSTRING (@SEARCHSTRING) {
+       	chomp($SEARCHSTRING);
+   		my $SCAN = qx[ grep -srIl --exclude-dir=www --exclude-dir=mail --exclude-dir=tmp --exclude=*.png --exclude=*.svg --exclude-dir=access-logs -w "$SEARCHSTRING" $RealHome/public_html ];
+		spin();
+       	chomp($SCAN);
+      	if ($SCAN) {
+           	$SOMETHING_FOUND = 1;
+           	$SEARCHSTRING =~ s/\\//g;
+           	push (@SUMMARY, GREEN "The phrase $SEARCHSTRING was found in $SCAN");
         }
     }
-	print_status("Done");
+    if (! $SOMETHING_FOUND) { 
+       	print_info( "No suspicious phrases/strings were found!" );
+    }
     print_header('[ cPanel Security Inspection Complete! ]');
     print_normal('');
     print_header('[ CSI Summary ]');
@@ -1815,67 +1829,104 @@ sub check_for_symlinks {
 		chomp($symlink);
 		my ($owner,$group,$path,$linkarrow,$symlinkedto)=(split(/\s+/,$symlink))[4,5,10,11,12];
 		if ($owner eq "root" or $group eq "root") { 
-			push(@SUMMARY,"Found root owned symlink $path $linkarrow $symlinkedto\n");
+			push(@SUMMARY,"> Found root owned symlink $path $linkarrow $symlinkedto\n");
 			print_warn("POSSIBLE ROOT LEVEL COMPROMISE!: $path $linkarrow $symlinkedto");
 		}
 		else { 
-			push(@SUMMARY,"Found user owned symlink $path $linkarrow $symlinkedto\n");
-#			print_warn("User level symlink: $path $linkarrow $symlinkedto");
+			push(@SUMMARY,"> Found user owned symlink $path $linkarrow $symlinkedto\n");
 		}
 	}
 }
 
 sub check_for_accesshash {
 	if ($allow_accesshash) { 
-		push(@SUMMARY,"allow deprecated accesshash set in Tweak Settings - Consider using API Tokens instead.");
+		push(@SUMMARY,"> allow deprecated accesshash set in Tweak Settings - Consider using API Tokens instead.");
 	}
 	if (-e("/root/.accesshash")) { 
-		push(@SUMMARY,"Found /root/.accesshash file! - Consider using API Tokens instead");
+		push(@SUMMARY,"> Found /root/.accesshash file! - Consider using API Tokens instead");
 	}
 }
 
 sub installClamAV { 
 	my $isClamAVInstalled=qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
 	if ($isClamAVInstalled) { 
-		print "ClamAV already installed!\n";
+		print_info("ClamAV already installed!");
 		logit("ClamAV already installed!");
-		print "Updating ClamAV definitions/databases\n";
+		print_info("Updating ClamAV definitions/databases");
 		logit("Updating ClamAV definitions/databases");
 		qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
 		return 1;
 	}
 	else { 
-		print "Installing ClamAV plugin...\n";
+		print_info("Installing ClamAV plugin...");
 		logit("Installing ClamAV plugin");
 		qx[ /usr/local/cpanel/scripts/update_local_rpm_versions --edit target_settings.clamav installed ];
 		qx[ /usr/local/cpanel/scripts/check_cpanel_rpms --fix --targets=clamav ];
 		my $ClamInstallChk=qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
 		if ($ClamInstallChk) { 
-			print "Done!\n";
 			logit("Install completed");
-			print "Updating ClamAV definitions/databases\n";
+			print_info("Updating ClamAV definitions/databases");
 			logit("Updating ClamAV definitions/databases");
 			qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
             return 1;
 		}
 		else { 
-			print "Failed!\n";
+			print_warn("Failed!");
 			logit("Install failed");
             return 0;
 		}
 	}
 }
 
-sub traverse {
-    my ($thing) = @_;
-    push(@FILESTOSCAN, $thing . "\n");
-    return if not -d $thing;
-    opendir my $dh, $thing or die;
-    while (my $sub = readdir $dh) {
-        next if $sub eq '.' or $sub eq '..';
-        traverse("$thing/$sub");
+sub security_advisor { 
+    unlink("/var/cpanel/security_advisor_history.json") if (-e("/var/cpanel/security_advisor_history.json"));
+    my $SecAdvLine;
+    my @SecAdvisor=qx[ /usr/local/cpanel/scripts/check_security_advice_changes | egrep -v 'High|Info|Advice|Type|Module' ];
+    push(@SUMMARY, YELLOW "> " . MAGENTA "\t============== BEGIN SECURITY ADVISOR RESULTS ===============");
+    foreach $SecAdvLine(@SecAdvisor) { 
+        chomp($SecAdvLine);
+       push(@SUMMARY, BOLD CYAN $SecAdvLine . "\n") unless($SecAdvLine eq "");
     }
-    close $dh;
-    return;
+    push(@SUMMARY, YELLOW "> " . MAGENTA "\t============== END SECURITY ADVISOR RESULTS ===============\n");
 }
+
+sub check_for_deprecated { 
+    my $deprecated;
+    my @DEPRECATED = qw( 
+        /usr/local/cpanel/cgi-sys/formmail.pl 
+        /usr/local/cpanel/cgi-sys/FormMail.cgi 
+        /usr/local/cpanel/cgi-sys/formmail.cgi 
+        /usr/local/cpanel/cgi-sys/FormMail-clone.cgi 
+        /usr/local/cpanel/cgi-sys/FormMail.pl 
+        /usr/local/cpanel/base/cgi-sys/guestbook.cgi 
+        /usr/local/cpanel/base/cgi-sys/Count.cgi 
+        /usr/local/cpanel/cgi-sys/mchat.cgi 
+        /usr/local/cpanel/cgi-sys/cgiecho 
+        /usr/local/cpanel/cgi-sys/cgiemail 
+    );
+    foreach $deprecated(@DEPRECATED) { 
+        if (-e("$deprecated")) { 
+            push(@SUMMARY, "> Found deprecated software " . CYAN $deprecated);
+        }
+    }
+}
+
+sub check_sshd_config { 
+    my $PermitRootLogin=qx[ grep '^PermitRootLogin ' /etc/ssh/sshd_config ];
+    if ($PermitRootLogin =~ m/yes/i) { 
+        push(@SUMMARY, "> PermitRootLogin is set to yes in /etc/ssh/sshd_config - consider setting to no or without-password instead!");
+    }
+    my $PassAuth=qx[ grep '^PasswordAuthentication ' /etc/ssh/sshd_config ];
+    if ($PassAuth =~ m/yes/i) { 
+        push(@SUMMARY, "> PasswordAuthentication is set to yes in /etc/ssh/sshd_config - consider using ssh keys instead!");
+    }
+}
+
+sub isEA4 { 
+    if ( -f "/etc/cpanel/ea4/is_ea4" ) {
+        return 1;
+    }
+    return undef;
+}
+
 # EOF
