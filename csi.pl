@@ -21,7 +21,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.10";
+my $version = "3.4.11";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
