@@ -1242,6 +1242,15 @@ sub check_for_ebury_root_file {
     }
 }
 
+sub check_for_libtsr_ebury {
+    my $file = '/usr/lib64/libtsr.so';
+    if ( -e $file ) {
+        print_warn ("Found file: " . $file);
+        print_warn ("ROOTKIT Ebury] - Found file: " . $file);
+		push(@SUMMARY,"> [ROOTKIT: Ebury] - Found file: " . $file );
+    }
+}
+
 sub check_for_ebury_3_digit_rpms {
     my $bad_rpms;
     for my $rpm (@RPM_LIST) {
@@ -1541,6 +1550,7 @@ sub all_malware_checks {
     check_for_ebury_ssh_shmem();
     check_for_ebury_root_file();
     check_for_ebury_socket();
+    check_for_libtsr_ebury();
     check_for_bg_botnet();
     check_for_dragnet();
     check_for_xor_ddos();
