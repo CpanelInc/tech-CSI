@@ -21,7 +21,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.11";
+my $version = "3.4.12";
 my $rootdir = "/root";
 my $csidir = "$rootdir/CSI";
 our $spincounter;
@@ -42,13 +42,13 @@ if ( $> != 0 ) {
 # Parse positional parameters for flags and set variables #
 ###########################################################
 # Set defaults for positional parameters
-my $no3rdparty = 0;    # Default to running 3rdparty scanners
+my $full;
 my $help;
 my $userscan;
 my $scanmail;
-my $binscan=0;
-my $scan = 0;
-my $quick = 0;
+my $binscan;
+my $scan;
+my $skipClam;
 our @process_list = get_process_list();
 my %process; &get_process_pid_hash(\%process);
 my %ipcs; &get_ipcs_hash(\%ipcs);
@@ -61,12 +61,11 @@ our $EA4 = isEA4();
 our @RPM_LIST;
 our $OPT_TIMEOUT;
 GetOptions(
-    'no3rdparty' => \$no3rdparty,
-    'rootkitscan' => \$scan,
     'bincheck' => \$binscan,
     'userscan=s' => \$userscan,
     'scanmail' => \$scanmail,
-    'quick' => \$quick,
+    'full' => \$full,
+    'skipClamAV' => \$skipClam,
 	'help' => \$help,
 );
 #######################################
@@ -103,27 +102,23 @@ my $scanstarttime = Time::Piece->new;
 print_header("Scan started on $scanstarttime");
 logit("Scan started on $scanstarttime");
 logit("Showing disclaimer");
-my $ClamAVInst;
+print_info("Usage: /root/csi.pl [functions] [options]");
+print_info("See --help for a full list of options");
+print_normal('');
 disclaimer (); 
-if ($scan) { 
-	$ClamAVInst=installClamAV();
-	if ($quick) { 
-		$quick = 1;
-		$no3rdparty = 1;
-	}
-	logit("Running with --rootkitscan");
-    scan();
-}
 if ($binscan) { 
 	logit("Running with --bincheck");
     bincheck();
+    exit;
 }
 if ($userscan) { 
 	my $usertoscan=$userscan;
 	chomp($usertoscan);
-	$ClamAVInst=installClamAV();
 	userscan($usertoscan);
+    exit;
 }
+logit("Running default scan");
+scan();
 my $scanendtime = Time::Piece->new;
 print_header("Scan completed on $scanendtime");
 logit("Scan completed on $scanendtime");
@@ -144,31 +139,30 @@ sub show_help {
     print_header("Usage: perl csi.pl [options] [function]\n");
     print_header("Functions");
     print_header("=================");
-    print_status("--rootkitscan              Performs a variety of checks to detect root level compromises.");
+    print_status("A scan starts by default. It performs a variety of checks to detect root level compromises.");
     print_status("--bincheck                 Performs RPM verification on core system binaries and prints active aliases.");
     print_status("--userscan cPanelUser      Performs a clamscan and string match search for a single cPanel User..");
     print_normal(" ");
-    print_header("Available options for --rootkitscan");
+    print_header("Available default scan options");
     print_header("=================");
-    print_status("--no3rdparty               Disables running of 3rdparty scanners.");
-    print_status("--quick                    Skip check for libraries/files not owned by an RPM.");
-	print_status("                           (adding --quick assumes no3rdparty)");
+    print_header("--full                     Installs chkrootkit, rkhunter, lynis 3rd party tools and does a full scan.");
+    print_header("                           Includes symlink hack check for entire server, and RPM check for non-owned RPM's.");
     print_normal(" ");
     print_header("Available options for --userscan");
     print_header("=================");
     print_status("--scanmail                 Scans mail directory as well (can take longer).");
+    print_status("--skipClam                 Skips ClamAV Scan.");
     print_normal(" ");
     print_header("Examples");
     print_header("=================");
-    print_status("Rootkitscan: ");
-    print_status("            /root/csi.pl --rootkitscan");
-    print_status("            /root/csi.pl --rootkitscan --no3rdparty");
-    print_status("            /root/csi.pl --rootkitscan --quick");
+    print_status("            /root/csi.pl [DEFAULT] quick scan");
+    print_status("            /root/csi.pl --full");
     print_status("Bincheck: ");
     print_status("            /root/csi.pl --bincheck");
     print_status("Userscan ");
-    print_status("            /root/csi.pl --userscan myuser");
-    print_status("            /root/csi.pl --scanmail --userscan myuser");
+    print_status("            /root/csi.pl --userscan myuser [skips mail]");
+    print_status("            /root/csi.pl --scanmail --userscan myuser [includes mail]");
+    print_status("            /root/csi.pl --userscan myuser --skipClam [skips ClamAV Scan]");
     print_normal(" ");
 }
 
@@ -261,13 +255,13 @@ sub disclaimer {
 
 sub scan {
     print_normal('');
-    print_header('[ Starting cPanel Security Inspection: Rootkitscan Mode ]');
+    print_header('[ Starting cPanel Security Inspection: DEFAULT SCAN Mode ]');
     print_header("[ System: $OS_RELEASE ]");
     print_normal('');
-    print_header("[ Available flags when running csi.pl --rootkitscan: ]");
-    print_header('[     --no3rdparty (disables running of 3rdparty scanners) ]');
+    print_header("[ Available flags when running csi.pl scan ]");
+    print_header('[     --full Performs a more compreshensive scan using 3rd party tools (chkrootkit, rkhunter)]');
     print_normal('');
-    if ( !$no3rdparty ) {
+    if ( $full ) {
 		logit("Installing 3rd party tools");
 		my $RKHUNTER = install_rkhunter();
 		my $CHKROOTKIT = install_chkrootkit();
@@ -333,6 +327,9 @@ sub scan {
     print_header('[ Checking for suspicious bitcoin miners ]');
 	logit("Checking for suspicious bitcoin miners");
     bitcoin_chk();
+    print_header('[ Checking for Xbash ransomware ]');
+	logit("Checking for Xbash ransomware");
+    check_for_Xbash();
     print_header('[ Checking for deprecated plugins/modules ]');
 	logit("Checking for deprecated plugins");
     check_for_deprecated();
@@ -345,11 +342,11 @@ sub scan {
     print_header('[ Checking if kernel update is available ]');
 	logit("Checking kernel version");
     check_kernel_updates();
-	if ($quick) { 
-		print_info("quick option passed, skipping non-owned files/libraries check");
-		logit("quick passed - skipping lib check");
-		print_info("quick option passed, skipping symlink hack check");
-		logit("quick passed - skipping symlink hack check");
+	if (!$full) { 
+		print_info("full option not passed, skipping non-owned files/libraries check");
+		logit("full option not passed - skipping lib check");
+		print_info("full option not passed, skipping symlink hack check");
+		logit("full option not passed - skipping symlink hack check");
 	}
 	else { 
     	print_header('[ Checking for files/libraries not owned by an RPM ]');
@@ -596,7 +593,7 @@ sub check_processes {
             push @SUMMARY, "     $line";
         }
         if ( $line =~ / perl$/ ) {
-            push @SUMMARY, "> ps output contains 'perl' without a command following, which probably indicates a hack:";
+            push @SUMMARY, "> ps output contains 'perl' without a command following, which could indicate a hack:";
             push @SUMMARY, "     $line";
         }
 		if ( $line =~ /mine/ ) { 
@@ -617,6 +614,10 @@ sub check_processes {
 		}
 		if ( $line =~ /xm2sg/ ) { 
             push @SUMMARY, "> ps output contains 'xm2sg' could indicate a bitcoin mining hack:";
+            push @SUMMARY, "     $line";
+		}
+		if ( $line =~ /DSST/ ) { 
+            push @SUMMARY, "> ps output contains 'DSST' could indicate a bitcoin mining hack:";
             push @SUMMARY, "     $line";
 		}
     }
@@ -839,8 +840,17 @@ sub dump_summary {
             print BOLD YELLOW $_ . "\n";
         }
         print_normal('');
-        print_separator('cPanel Analysts: If you believe there are negative items that warrant escalating this ticket as a security issue then please read over https://cpanel.wiki/display/LS/CSIEscalations');
-        print_separator('You need to understand exactly what the output is that you are seeing before escalating this ticket to L3.');
+        my $isCpanelSupport = get_login_ip(); 
+        if ($isCpanelSupport) { 
+            print_separator('cPanel Analysts: If you believe there are negative items that warrant escalation, please read over https://cpanel.wiki/display/LS/CSIEscalations');
+            print_separator('You need to understand exactly what the output is that you are seeing before escalating this ticket to L3.');
+            print_normal('');
+        }
+        else { 
+            print_separator('If you believe there are negative items, you should consult with your system administrator or a security professional.');
+            print_separator('If you need a system administrator, one can probably be found by going to https://go.cpanel.net/sysadmin');
+            print_separator('Note: cPanel Support cannot assist you with any negative issues found.');
+        }
         print_normal('');
     }
 	if (-e("$csidir/warnings_from_lynis.txt")) { 
@@ -962,6 +972,9 @@ sub check_for_libkeyutils_filenames {
       libns5.so
       libpw3.so
       libpw5.so
+      libsbr.so
+      libslr.so
+      libtsr.so
       tls/libkeyutils.so.1
       tls/libkeyutils.so.1.5
     );
@@ -1239,15 +1252,6 @@ sub check_for_ebury_root_file {
         print_warn ("Found file: " . $file);
         print_warn ("ROOTKIT Ebury] - Found hidden file: " . $file);
 		push(@SUMMARY,"> [ROOTKIT: Ebury] - Found hidden file: " . $file );
-    }
-}
-
-sub check_for_libtsr_ebury {
-    my $file = '/usr/lib64/libtsr.so';
-    if ( -e $file ) {
-        print_warn ("Found file: " . $file);
-        print_warn ("ROOTKIT Ebury] - Found file: " . $file);
-		push(@SUMMARY,"> [ROOTKIT: Ebury] - Found file: " . $file );
     }
 }
 
@@ -1550,7 +1554,6 @@ sub all_malware_checks {
     check_for_ebury_ssh_shmem();
     check_for_ebury_root_file();
     check_for_ebury_socket();
-    check_for_libtsr_ebury();
     check_for_bg_botnet();
     check_for_dragnet();
     check_for_xor_ddos();
@@ -1575,12 +1578,15 @@ sub check_for_touchfile {
     opendir( my $fh, $docdir ) or return;
     my @touchfiles = grep { /^\.cp\.([^\d]+)\.(\d{4}-\d{2}-\d{2})_([^_]+)_(\d+)$/ } readdir $fh;
     closedir $fh;
-	if (scalar @touchfiles == 0) { 
-		return;
-	}
-	else { 
-		push (@SUMMARY,"> *** This server was previously flagged as compromised! Please escalate to L3! ***");
-	}
+	return if (scalar @touchfiles == 0);
+    for my $touchfile (@touchfiles) {
+        if ( $touchfile =~ /^\.cp\.([^\d]+)\.(\d{4}-\d{2}-\d{2})_([^_]+)_(\d+)$/ ) {
+            my ( $cptech, $date, $ipaddr, $ticket ) = ( $1, $2, $3, $4 );
+            $date =~ s#-#/#g;
+            $cptech = ucfirst $cptech;
+            push (@SUMMARY, "> $cptech reported this server at $ipaddr as compromised on $date local server time in ticket $ticket");
+        }
+    }
 }
 
 sub run_lynis { 
@@ -1767,6 +1773,13 @@ sub userscan {
 		logit($lcUserToScan . " has no /home directory!");
 		return;
 	}
+    my $isClamAVInstalled = qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
+    if ( $isClamAVInstalled and !$skipClam ) {
+        print "ClamAV installed - running clamscan on $RealHome/public_html\n";
+        qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
+        my $ClamScanResults = qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i -r -z --phishing-sigs=yes --phishing-scan-urls=yes $RealHome/public_html ];
+        print $ClamScanResults . "\n";
+    }
 	# Check for symlink hack here
 	print_status("Checking for symlinks to other locations...");
 	logit("Checking for symlink hacks in " . $lcUserToScan);
@@ -1937,6 +1950,43 @@ sub isEA4 {
         return 1;
     }
     return undef;
+}
+
+sub get_login_ip { 
+    my $who = '/usr/bin/who';
+    if (!-x $who) { 
+        return 0;
+    }
+    my @tech_logins = ();
+    my $header      = "";
+    my $num_logins  = 0;
+    for my $line ( split /\n/, timed_run( 0, $who, '-H' ) ) {
+        if ( $line =~ m{ \A NAME\s+ }xms ) {
+            $header = $line;
+            next;
+        }
+        if ( $line =~ m{ \((.+)\)\Z }xms ) {
+            if (   $1 =~ m{ \A (.*\.)?(cptxoffice\.net|cloudlinux\.com|litespeedtech.com)(:|$) }xms
+                || $1 =~ m{ \A (208\.74\.12[0-7]\.\d+|69\.175\.92\.(4[89]|5[0-9]|6[0-4])|69\.10\.42\.69)(:|$) }xms ) {
+                push( @tech_logins, $line );
+                $num_logins++;
+            }
+        }
+    }
+    if ($num_logins <= 1) { 
+        return 0;
+    }
+    else { 
+        return 0;
+    }
+}
+
+sub check_for_Xbash { 
+    my $HasXbash=qx[ mysql -BNe "SHOW DATABASES LIKE 'PLEASE_READ%';" ];
+    chomp($HasXbash);
+    if ($HasXbash) { 
+        push(@SUMMARY, "> Possible Xbash ransomware detected. Database's missing? Database $HasXbash exists!");
+    }
 }
 
 # EOF
