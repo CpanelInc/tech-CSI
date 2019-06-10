@@ -51,7 +51,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.15";
+my $version = "3.4.16";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our $KernelChk;
@@ -355,6 +355,10 @@ sub scan {
 	chkbinforhttp();
     print_header('[ Checking kernel status ]');
     logit("Checking kernel status");
+    print_header('[ Checking for MySQL users with Super privileges ]');
+    logit("Checking for MySQL users with Super privileges");
+	check_for_Super_privs();
+
     check_kernel_updates();
 
     if ( !$full ) {
@@ -515,6 +519,12 @@ sub check_uids {
         if ( $uid == 0 && $user ne 'root' ) {
             push( @baduids, $user );
         }
+		if ($user eq 'firefart') { 
+        	push @SUMMARY, "> firefart user found [Possible DirtyCow root compromise].";
+		}
+		if ($user eq 'sftp') { 
+        	push @SUMMARY, "> sftp user found [Possible HiddenWasp root compromise].";
+		}
     }
     endpwent();
     if (@baduids) {
@@ -654,11 +664,14 @@ sub bitcoin_chk {
             push @SUMMARY, "> Found evidence of a bitcoin miner: " . CYAN $FILE_stak;
         }
     }
-    my $pastebinurl = qx[ grep 'https://pastebin.com/raw/1NtRkBc3%7C%7Cwget' /var/spool/cron/* ];
+    my $pastebinurl = qx[ grep 'https://pastebin.com/raw/' /var/spool/cron/* ];
     if ($pastebinurl) {
         push @SUMMARY, "> Found evidence of possilbe bitcoin miner: " . CYAN $pastebinurl;
     }
-
+	my $HasPastebinURL=qx[ grep -srl 'pastebin' /etc/cron* ];
+	if ($HasPastebinURL) { 
+        push @SUMMARY, "> Found pastebin URL's in cron files: " . CYAN $HasPastebinURL;
+	}
 }
 
 sub get_process_list {
@@ -681,10 +694,10 @@ sub check_ssh {
         push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
         push( @ssh_errors, " $keyutils_verify" );
     }
-    my @process_list = qx(ps aux | grep "sshd: root@" | egrep -v 'pts|priv');
-    if ( @process_list and $process_list[0] =~ 'root' ) {
+    my @sshd_process_found = qx(ps aux | grep "sshd: root@" | egrep -v 'pts|priv');
+    if ( @sshd_process_found and $sshd_process_found[0] =~ 'root' ) {
         push( @ssh_errors, " Suspicious SSH process(es) found:\n" );
-        push( @ssh_errors, " $process_list[0]" );
+        push( @ssh_errors, " $sshd_process_found[0]" );
     }
     if (@ssh_errors) {
         push @SUMMARY, "> System has detected the presence of a *POSSIBLY* compromised SSH:\n";
@@ -945,7 +958,9 @@ sub check_for_korkerds {
             }
         }
     }
-    my $netstatcheck = qx[ netstat -nap | egrep ':56415|:14444|:14443|:9999|:7777|:5555|:3333|:3347|:6666|:4444' ];
+    #my $netstatcheck = qx[ netstat -nap | egrep ':56415|:14444|:14443|:9999|:7777|:5555|:3333|:3347|:6666|:4444' ];
+    # Can also check by doing a lsof -i:56415
+    my $netstatcheck = qx[ netstat -nap | grep ':56415' ];
     if ($netstatcheck) {
         push( @SUMMARY, "> [ROOTKIT: KORKERDS] - " . CYAN "Evidence of the Coinminer.Linux.KORKERDS.AB Rootkit found.\nSuspicious socket listening on one or more of the following ports\n$netstatcheck" );
     }
@@ -953,6 +968,29 @@ sub check_for_korkerds {
         push( @SUMMARY, "> [ROOTKIT: KORKERDS] - " . CYAN "Evidence of the Coinminer.Linux.KORKERDS.AB Rootkit found.\n" );
 #        vtlink($bad_libs);
     }
+}
+
+sub check_for_kthrotlds { 
+	if (-e("/usr/bin/\[kthrotlds\]")) {
+   		my @dirs  = qw( /root /root/.cache /etc/cron.d/ );
+   		my @files = qw( .kswapd .a .favicon.ico .ntp .sysud .editorinfo .rm .cd root );
+		my $fullpath;
+		my $bitcoin_found;
+   		for my $dir (@dirs) {
+   			next if !-e $dir;
+   			for my $file (@files) {
+       			$fullpath = $dir . "/" . $file;
+       			stat $fullpath;
+       			if ( -f _ and not -z _ ) {
+					$bitcoin_found = 1;
+					last;
+       			}
+   			}
+   		}
+		if ($bitcoin_found) { 	
+			push( @SUMMARY, "> [ROOTKIT: Linux/CoinMiner.AP] - " . CYAN "Evidence of Linux/CoinMiner.AP rootkit found.\n" );
+		}
+	}
 }
 
 sub check_for_cdorked_A {
@@ -1026,6 +1064,7 @@ sub check_for_libkeyutils_filenames {
       libsbr.so
       libslr.so
       libtsr.so
+	  libhdx.so
       tls/libkeyutils.so.1
       tls/libkeyutils.so.1.5
     );
@@ -1090,6 +1129,13 @@ sub check_sha1_sigs_libkeyutils {
         push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found.\n\t Found " . $trojaned_lib );
 #        vtlink($trojaned_lib);
     }
+}
+
+sub check_for_evasive_libkey { 
+	my $EvasiveLibKey=qx[ strings /etc/ld.so.cache |grep tls/ ];
+	if ($EvasiveLibKey) { 
+        push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Hidden/Evasive evidence of Ebury/Libkeys Rootkit found.\n\t \\_ TECH-759" );
+	}
 }
 
 sub check_for_unowned_libkeyutils_files {
@@ -1572,6 +1618,7 @@ sub check_for_libkeyutils_symbols {
 
 sub all_malware_checks {
     check_for_korkerds();
+	check_for_kthrotlds();
     check_for_UMBREON_rootkit();
     check_for_libms_rootkit();
     check_for_jynx2_rootkit();
@@ -1579,6 +1626,7 @@ sub all_malware_checks {
     check_for_cdorked_B();
     check_for_libkeyutils_symbols();
     check_for_libkeyutils_filenames();
+	check_for_evasive_libkey();
     check_sha1_sigs_libkeyutils();
     check_sha1_sigs_httpd();
     check_sha1_sigs_named();
@@ -1674,16 +1722,15 @@ sub check_session_log {
     my $thedate;
     my @linesTOreturn = ( $returnlines >= @rootlogins ) ? @rootlogins : @rootlogins[ -$returnlines .. -1 ];
     @rootlogins = @linesTOreturn;
-    #push( @SUMMARY, "> The following $returnlines IP addresses logged on to WHM successfully as root:\n" );
     push( @SUMMARY, "> The following IP address(es) logged on to WHM successfully as root:\n" );
 	my $lastloginip = "";
 	my $logincnt=0;
     foreach $myline (@rootlogins) {
         chomp($myline);
-        #( $thedate, $tstamp, $tz, $loginip ) = ( split( /\s+/, $myline ) )[ 0, 1, 2, 5 ];
         ( $loginip ) = ( split( /\s+/, $myline ) )[ 5 ];
         next if ( $loginip eq "internal" );
-        #push( @SUMMARY, CYAN "IP: $loginip logged on to WHM on $thedate $tstamp $tz" );
+		next if ( $loginip =~ m/208.74.1/ );
+		next if ( $loginip =~ m/184.94.197./ );
 		if ($lastloginip eq $loginip) { $logincnt++ ; }
         push( @SUMMARY, CYAN "IP: $loginip" ) unless ($lastloginip eq $loginip);
 		$lastloginip = $loginip;
@@ -1964,9 +2011,11 @@ sub misc_checks {
 	my @dirs;
 	my @files;
 	my $fullpath;
-	# Xbash
-    my $HasXbash = qx[ mysql -BNe "SHOW DATABASES LIKE 'PLEASE_READ%';" ];
-    chomp($HasXbash);
+	# Xbash ransomware
+	my $mysql_datadir = "/var/lib/mysql";
+	opendir( my $dh, $mysql_datadir );
+    my ($HasXbash) = grep { /PLEASE_READ/i } readdir $dh;
+    closedir $dh;
     if ($HasXbash) {
         push( @SUMMARY, "> Possible Xbash ransomware detected. Database's missing? Database $HasXbash exists!" );
     }
@@ -1992,7 +2041,7 @@ sub misc_checks {
         }
     }
 	if ($bitcoin_found) { 
-        push( @SUMMARY, "> Possible bitcoin miner found in /root/non directory!" );
+        push( @SUMMARY, "> Possible Xbash ransomware detected. Evidence found in /root/non directory!\n\tAre databases missing?" );
 	}
 
 	# check_tmp for suspicious bc.pl file
@@ -2008,7 +2057,7 @@ sub misc_checks {
 
 	# bitcoin
 	$bitcoin_found = 0;
-    @dirs  = qw( /dev/shm/.X12-unix );
+    @dirs  = qw( /dev/shm/.X12-unix /dev/shm );
     @files = qw( 
 		a
 		bash.pid
@@ -2022,6 +2071,11 @@ sub misc_checks {
 		systemd
 		upd
 		x
+		aPOg5A3
+		de33f4f911f20761
+		e6mAfed
+		sem.Mvlg_ada_lock
+		prot
 	);
     for my $dir (@dirs) {
         next if !-e $dir;
@@ -2040,7 +2094,7 @@ sub misc_checks {
 	
 	# bitcoin miner with rootkit
 	$bitcoin_found = 0;
-	my $rootscrontab = qx[ crontab -l | egrep 'yxarsh.shop|pastebin.com\/u\/SYSTEM|\/root\/.ttp\/a\/upd|\/root\/.ttp\/b\/sync|\/tmp\/.mountfs\/.rsync\/c\/aptitude' ];	
+	my $rootscrontab = qx[ crontab -l | egrep 'yxarsh.shop|pastebin.com\/u\/SYSTEM|\/root\/.ttp\/a\/upd|\/root\/.ttp\/b\/sync|\/tmp\/.mountfs\/.rsync\/c\/aptitude|onion.sh|tor2web|fsSLk|command \-v passwd' ];	
 	if ($rootscrontab) { 
         push( @SUMMARY, "> Possible bitcoin miner found. Check roots crontab for yxarsh.shop or SYSTEM!" );
 	}
@@ -2147,9 +2201,11 @@ sub rpm_yum_running_chk {
 }
 
 sub chk_shadow_hack { 
-	my @shadow_roottn_baks=qx[ find $HOMEDIR/*/etc/* -name 'shadow.roottn.bak' -print ];	
-	if (@shadow_roottn_baks) { 
-		push @SUMMARY, "> Found the following directories containing the shadow.roottn.bak hack:\n " . CYAN @shadow_roottn_baks;
+	my $shadow_roottn_baks=qx[ find $HOMEDIR/*/etc/* -name 'shadow\.*' -print ];	
+	if ($shadow_roottn_baks) { 
+		chomp($shadow_roottn_baks);
+		push @SUMMARY, "> Found the following directories containing the shadow.roottn.bak hack:\n " . CYAN $shadow_roottn_baks;
+		push @SUMMARY, MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php";
 	}
 }
 
@@ -2157,7 +2213,7 @@ sub spamscriptchk {
 	#  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
 	my $string = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/* ];
 	if ($string) { 
-		push @SUMMARY, "> Found evidence of user spamming script in /tmp [ $string ]\n\t \_ Check ps output for that user and /tmp/dd.";
+		push @SUMMARY, "> Found evidence of user spamming script in /tmp [ $string ]\n\t \\_ Check ps output for that user and /tmp/dd.";
 	}
 }
 
@@ -2167,5 +2223,12 @@ sub chkbinforhttp {
 	}
 }
 
+sub check_for_Super_privs {
+	return if ! -e "/var/lib/mysql/mysql.sock";
+	my $MySQLSuperPriv=qx[ mysql -BNe "SELECT Host,User FROM mysql.user WHERE Super_priv='Y'" | egrep -v 'root|mysql.session' ];
+	if ($MySQLSuperPriv) { 
+		push @SUMMARY, "> The following MySQL users have the Super Privilege\n\t \\_ $MySQLSuperPriv.";
+	}
+}
 
 # EOF
