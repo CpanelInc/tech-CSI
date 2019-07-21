@@ -120,7 +120,6 @@ my @logfiles = (
 	'/var/log/secure',
 	'/var/log/cron',
     '/var/log/wtmp',
-    '/root/.bash_history',
 );
 ######################
 # Run code main body #
@@ -160,8 +159,6 @@ my $scanendtime = Time::Piece->new;
 print_header("Scan completed on $scanendtime");
 logit("Scan completed on $scanendtime");
 my $scantimediff = ( $scanendtime - $scanstarttime );
-
-#my $scanTotTime = $scantimediff->pretty, "\n";
 my $scanTotTime = $scantimediff->pretty;
 $scanTotTime = $scanTotTime . "\n";
 print_header("Elapsed Time: $scanTotTime");
@@ -297,6 +294,7 @@ sub scan {
     print_header("[ Available flags when running csi.pl scan ]");
     print_header('[     --full Performs a more compreshensive scan ]');
     print_normal('');
+	# Checking for suspicious files, known rootkits and other anomalies
     print_header('[ Checking logfiles ]');
     logit("Checking logfiles");
     check_logfiles();
@@ -309,12 +307,6 @@ sub scan {
     print_header('[ Checking Apache configuration ]');
     logit("Checking Apache configuration");
     check_httpd_config();
-    print_header('[ Checking for mod_security ]');
-    logit("Checking if ModSecurity is enabled");
-    check_modsecurity();
-    print_header('[ Checking for Two-Factor Authentication ]');
-    logit("Checking if Two-Factor Authentication is enabled");
-    check_2FA_enabled();
     print_header('[ Checking for index.html in /tmp and /home ]');
     logit("Checking for index file in /tmp and $HOMEDIR");
     check_index();
@@ -344,21 +336,20 @@ sub scan {
     print_header('[ Checking for modified/hacked SSH ]');
     logit("Checking for modified/hacked ssh");
     check_ssh();
-    # ADD CODE HERE TO GET NUMBER OF FILES IN /tmp AND IF MORE THAN 2K - skip this check...
 	print_header('[ Checking for spam sending script in /tmp ]');
 	logit("Checking for spam sending script in /tmp");
 	spamscriptchk();
 	print_header('[ Checking /usr/bin/ for rogue http binary ]');
 	logit("Checking /usr/bin for rogue http binary");
 	chkbinforhttp();
-    print_header('[ Checking kernel status ]');
-    logit("Checking kernel status");
+	if ( -e "/etc/grub.conf" ) {
+    	print_header('[ Checking kernel status ]');
+    	logit("Checking kernel status");
+    	check_kernel_updates();
+	}
     print_header('[ Checking for MySQL users with Super privileges ]');
     logit("Checking for MySQL users with Super privileges");
 	check_for_Super_privs();
-
-    check_kernel_updates();
-
     if ( !$full ) {
         print_info("full option not passed, skipping non-owned files/libraries check");
         logit("full option not passed - skipping lib check");
@@ -366,6 +357,8 @@ sub scan {
         logit("full option not passed - skipping symlink hack check");
         print_info("full option not passed, skipping shadow.roottn.bak hack check");
         logit("full option not passed - skipping shadow.roottn.bak hack check");
+        print_info("full option not passed, skipping check for ELF binaries masquerading as images");
+        logit("full option not passed - skipping check for ELF binaries masquerading as images");
     }
     else {
         print_header('[ Checking for files/libraries not owned by an RPM ]');
@@ -377,7 +370,17 @@ sub scan {
         print_header('[ Checking for shadow.roottn.bak hacks ]');
         logit("Checking for shadow.roottn.bak hacks");
         chk_shadow_hack();
+        print_header('[ Checking for ELF binaries disguised as image files ]');
+        logit("Checking for ELF binaries disguised as image files");
+        check_for_ELF_images();
     }
+	# Checking for recommendations
+    print_header('[ Checking for mod_security ]');
+    logit("Checking if ModSecurity is enabled");
+    check_modsecurity();
+    print_header('[ Checking for Two-Factor Authentication ]');
+    logit("Checking if Two-Factor Authentication is enabled");
+    check_2FA_enabled();
     print_header('[ Checking for accesshash ]');
     logit("Checking for accesshash");
     check_for_accesshash();
@@ -387,7 +390,7 @@ sub scan {
 	get_last_logins_SSH();
     print_header('[ Running Security Advisor ]');
     logit("Running Security Advisor");
-    #security_advisor();
+    security_advisor();
     print_header('[ cPanel Security Inspection Complete! ]');
     print_header('[ CSI Summary ]');
     print_normal('');
@@ -406,7 +409,6 @@ sub check_previous_scans {
 }
 
 sub check_kernel_updates {
-    logit("Kernel status check started.");
     my $CanModify             = Cpanel::Kernel::can_modify_kernel();
     my $boot_kernelversion    = Cpanel::Kernel::get_default_boot_version();
     my $running_kernelversion = Cpanel::Kernel::get_running_version();
@@ -415,10 +417,11 @@ sub check_kernel_updates {
         $custom_kernel = 1;
     }
     my $has_kernelcare = 0;
-    # THIS SECTION DOES NOT WORK WITH 11.68!!!
-    if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates() ) {
-        $has_kernelcare = 1;
-    }
+	if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '>', '11.68') ) { 
+    	if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates() ) {
+        	$has_kernelcare = 1;
+    	}
+	}
     my $reboot_required = 0;
     if ( $running_kernelversion ne $boot_kernelversion ) {
         $reboot_required = 1;
@@ -430,12 +433,12 @@ sub check_kernel_updates {
     if ($has_kernelcare) {
         if ($reboot_required) {
             if ($CanModify) {
-                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version:";
+                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (run kcarectl --update or reboot):";
 				push @SUMMARY, CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]"; 
 				push @SUMMARY, CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
             }
             else {
-                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version:";
+                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
 				push @SUMMARY, CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]"; 
 				push @SUMMARY, CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
                 push @SUMMARY, CYAN "\t \\_ Please check with your VM provider.";
@@ -445,12 +448,12 @@ sub check_kernel_updates {
     else {
         if ($reboot_required) {
             if ($CanModify) {
-                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version:";
+                push @SUMMARY, "> KernelCare not installed and running kernel version does not match boot version (reboot required):";
 				push @SUMMARY, CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]"; 
 				push @SUMMARY, CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
             }
             else {
-                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version:";
+                push @SUMMARY, "> KernelCare not installed and running kernel version does not match boot version (contact provider):";
 				push @SUMMARY, CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]"; 
 				push @SUMMARY, CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
                 push @SUMMARY, CYAN "\t \\_ Please check with your VM provider.";
@@ -580,8 +583,16 @@ sub check_processes {
             push @SUMMARY, "> ps output contains 'sleep 7200' which is a known part of a hack process:";
             push @SUMMARY, "\t$line";
         }
+        if ( $line =~ 'sleep 30' ) {
+            push @SUMMARY, "> ps output contains 'sleep 30/300' which is a known part of a root infection";
+            push @SUMMARY, "\t$line";
+        }
         if ( $line =~ / perl$/ ) {
             push @SUMMARY, "> ps output contains 'perl' without a command following, which could indicate a hack:";
+            push @SUMMARY, "\t$line";
+        }
+        if ( $line =~ /eggdrop/ ) {
+            push @SUMMARY, "> ps output contains 'eggdrop' which is a known IRC bot";
             push @SUMMARY, "\t$line";
         }
         if ( $line =~ /mine/ ) {
@@ -668,7 +679,7 @@ sub check_processes {
 }
 
 sub bitcoin_chk {
-    my $xmrig_cron = qx[ grep '.xmr' /var/spool/cron/* ];
+    my $xmrig_cron = qx[ grep '\.xmr' /var/spool/cron/* ];
     if ($xmrig_cron) {
         push @SUMMARY, "> Found evidence of possilbe bitcoin miner: " . CYAN $xmrig_cron;
     }
@@ -968,6 +979,22 @@ sub print_error {
 }
 
 # BEGIN MALWARE CHEKCS HERE
+
+sub check_for_eggdrop { 
+    my @dirs  = qw( /tmp );
+    my @files = qw(
+		.user
+		.psy 
+	);
+    for my $dir (@dirs) {
+		for my $file (@files) {
+            if ( -f "${dir}/${file}" and not -z "${dir}/${file}" ) {
+				push(@SUMMARY, "Possible eggdrop IRC Bot found\n\t\\_ ${dir}/${file}");
+				vtlink("${dir}/${file}");
+            }
+        }
+    }
+}
 
 sub check_for_korkerds {
     my @dirs  = qw( /bin /etc /usr/sbin /usr/local/lib /tmp );
@@ -1431,8 +1458,47 @@ sub check_for_ncom_filenames {
     }
 }
 
+sub check_for_ELF_images { 
+	#my @ELFimages = qx[ find / -regex ".*\.\(jpg\|gif\|png\|jpeg\)" -type f -exec file -p '{}' \; | grep ELF | cut -d":" -f1 ];
+	my $ELFimages1 = File::Find::Rule->file()->name( '*.png' )->start( '/' );
+	my $isELF="";
+	my @ELFImages;
+	while ( defined ( my $image = $ELFimages1->match ) ) { 
+		$isELF=qx[ file $image | grep 'ELF' ];
+		push(@ELFImages, $image) unless (!$isELF);
+	}
+	my $ELFimages2 = File::Find::Rule->file()->name( '*.jpg' )->start( '/' );
+	while ( defined ( my $image = $ELFimages2->match ) ) { 
+		$isELF=qx[ file $image | grep 'ELF' ];
+		push(@ELFImages, $image) unless (!$isELF);
+	}
+	my $ELFimages3 = File::Find::Rule->file()->name( '*.gif' )->start( '/' );
+	while ( defined ( my $image = $ELFimages3->match ) ) { 
+		$isELF=qx[ file $image | grep 'ELF' ];
+		push(@ELFImages, $image) unless (!$isELF);
+	}
+	my $ELFimages4 = File::Find::Rule->file()->name( '*.jpeg' )->start( '/' );
+	while ( defined ( my $image = $ELFimages4->match ) ) { 
+		$isELF=qx[ file $image | grep 'ELF' ];
+		push(@ELFImages, $image) unless (!$isELF);
+	}
+	my $ELFImageCnt=@ELFImages;
+	if ($ELFImageCnt > 0 ) { 
+		push(@SUMMARY, "Found ELF binary file(s) masquerading as images: \n");
+		my $ELFImage;
+		foreach $ELFImage(@ELFImages) { 
+			chomp($ELFImage);
+			vtlink($ELFImage);
+		}
+	}
+}
+
+sub check_for_ngioweb { 
+	return unless(  qx[ grep 'ddb0b49d10ec42c38b1093b8ce9ad12a' /etc/machine-id ] );
+	push(@SUMMARY, "Found evidence of Linux.Ngioweb rootkit\n\t\\_ /etc/machine-id contains: ddb0b49d10ec42c38b1093b8ce9ad12a");
+}
+
 sub check_for_hiddenwasp { 
-	# Also known as Azazel Rootkit
 	my @bad_libs;
     my @dirs  = qw( /lib /sbin );
     my @files = qw(
@@ -2069,6 +2135,8 @@ sub all_malware_checks {
     check_for_dragnet();
     check_for_xor_ddos();
     check_for_shellbot();
+	check_for_exim_vuln();
+	check_for_eggdrop();
 	check_for_abafar();
 	check_for_akiva();
 	check_for_alderaan();
@@ -2087,6 +2155,7 @@ sub all_malware_checks {
 	check_for_quarren();
     check_for_ncom_filenames();
 	check_for_hiddenwasp();
+	check_for_ngioweb();
     check_for_dirtycow_passwd();
     check_for_dirtycow_kernel();
 }
@@ -2441,7 +2510,8 @@ sub misc_checks {
             $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> Root Level Compromise: possible bitcoin miner found. Evidence found in /root/non directory!" );
+        		push( @SUMMARY, "> Suspicious file found: possible bitcoin miner\n\t\\_ $fullpath" );
+				vtlink($fullpath);
 				last;
             }
         }
@@ -2454,7 +2524,7 @@ sub misc_checks {
 	# spy_master
 	my $spymaster = qx[ objdump -T /usr/bin/ssh /usr/sbin/sshd | grep spy_master ];
 	if ($spymaster) { 
-        push @SUMMARY, "> Root Level Compromise: found evidence of spy_master running in ssh/sshd [ $spymaster ]";
+        push @SUMMARY, "> Suspicious file found: evidence of spy_master running in ssh/sshd [ $spymaster ]";
 	}
 
 	# bitcoin
@@ -2488,7 +2558,8 @@ sub misc_checks {
             $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> Possible Root Level Compromise: Suspicious files found: $fullpath" );
+        		push( @SUMMARY, "> Suspicous file found: possible root level compromise\n\t\\_ $fullpath" );
+				vtlink($fullpath);
 				last;
             }
         }
@@ -2521,13 +2592,13 @@ sub misc_checks {
 		push( @SUMMARY, @cronContains );
 	}
 	if (-e ("/usr/local/bin/dns")) { 
-        push( @SUMMARY, "> Root Level Compromise: possible bitcoin miner found. /usr/local/bin/dns exists!" );
+        push( @SUMMARY, "> Suspicious file found: /usr/local/bin/dns exists. Possible bitcoin miner!" );
 	}
-    @dirs  = qw( /opt/yilu /usr/bin/bsd-port /tmp/thisxxs /usr/bin/.sshd );
+    @dirs  = qw( /opt/yilu /tmp/thisxxs /usr/bin/.sshd );
     for my $dir (@dirs) {
         next if !-e $dir;
-  		push( @SUMMARY, "> Root Level Compromise: possible bitcoin miner found." );
-		push( @SUMMARY, CYAN "\t \\_ " . $dir . " directory exists" );
+  		push( @SUMMARY, "> Suspicious directories found:" );
+		push( @SUMMARY, CYAN "\t\\_ " . $dir );
 	}
     @dirs  = qw( /root/.ssh/.dsa/a );
     @files = qw( f f.good in.txt nohup.out );
@@ -2537,7 +2608,7 @@ sub misc_checks {
             $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> Root Level Compromise: possible bitcoin miner found." );
+        		push( @SUMMARY, "> Suspicious files found: possible bitcoin miner." );
 				push( @SUMMARY, CYAN "\t \\_ " . $fullpath . " exists" );
             }
         }
@@ -2602,14 +2673,27 @@ sub chk_shadow_hack {
 	}
 }
 
+sub check_for_exim_vuln {
+	my $chk_eximlog=qx[ grep '\${run' /var/log/exim_mainlog* | head -1 ];
+	if ($chk_eximlog) { 
+		push @SUMMARY, "> Found the following string in /var/log/exim_mainlog file. Possible root level compromise:\n " . CYAN $chk_eximlog;
+	}
+	my $authkeysGID=(stat("/root/.ssh/authorized_keys")->gid);
+	my $authkeysGname=getgrgid($authkeysGID);
+	if ($authkeysGID > 0) { 
+		push @SUMMARY, "> Found the /root/.ssh/authorized_keys file to have an invalid group name [$authkeysGname]. Indicates tampering at the root level.";
+	}
+}
+
 sub spamscriptchk {
+	opendir my $dh, "/tmp";
+	my $totaltmpfiles = () = readdir($dh);
+	return if $totaltmpfiles > 1000;
 	#  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
 	my $string = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/* ];
     chomp($string);
 	if ($string) { 
-		#push @SUMMARY, "> Found evidence of user spamming script in /tmp [ $string ]\n\t \\_ Check ps output for that user and /tmp/dd.";
 		push @SUMMARY, "> Found evidence of user spamming script in /tmp [ $string ]\n";
-        # If $string is owned by root, then this is now a possible root level compromise.
 	}
 }
 
@@ -2664,10 +2748,14 @@ sub get_last_logins_WHM {
 	}
 	splice(@WHMIPs,0,1);
 	my @sorted=uniq(@WHMIPs);
-	my @sortedIPs=sort(@sorted);
+	#my @sortedIPs=sort(@sorted);
     push( @SUMMARY, "> The following IP address(es) logged on via WHM successfully as root:" );
-	foreach $WHMLogins(@sortedIPs) { 
+	#foreach $WHMLogins(@sortedIPs) { 
+	my $ipcnt=0;
+	foreach $WHMLogins(@sorted) { 
 		push( @SUMMARY, CYAN "\t\\_ IP: $WHMLogins" ) unless($WHMLogins =~ m/208.74.123.|184.94.197./);
+		last if $ipcnt > 8;
+		$ipcnt++;
 	}
 }
 
