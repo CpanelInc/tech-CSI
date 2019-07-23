@@ -419,6 +419,7 @@ sub check_kernel_updates {
     }
     my $has_kernelcare = 0;
 	if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '>', '11.68') ) { 
+        # The next command can fail if there is an update to kernelcare available that hasn't been installed!
     	if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates() ) {
         	$has_kernelcare = 1;
     	}
@@ -1495,6 +1496,7 @@ sub check_for_ELF_images {
 }
 
 sub check_for_ngioweb { 
+    return if (!-e "/etc/machine-id");
 	return unless(  qx[ grep 'ddb0b49d10ec42c38b1093b8ce9ad12a' /etc/machine-id ] );
 	push(@SUMMARY, "Found evidence of Linux.Ngioweb rootkit\n\t\\_ /etc/machine-id contains: ddb0b49d10ec42c38b1093b8ce9ad12a");
 }
@@ -2649,7 +2651,7 @@ sub vtlink {
     	push @SUMMARY, "  File: " . CYAN $FileToChk . GREEN " [ Not normally found on clean servers ]";
     	push @SUMMARY, "  Size: " . CYAN $FileSize . WHITE " (" . nearest(.1,$KFS) . "k)" . GREEN "  $sizeDesc ";
     	push @SUMMARY, "  Changed: " . CYAN scalar localtime($ctime) . GREEN " [ Approximate date the compromise may have occurred ]";
-    	push @SUMMARY, "  RPM Owned: " . $RPMowned . CYAN $RPMname;
+    	push @SUMMARY, "  RPM Owned: " . $RPMowned; 
     	push @SUMMARY, "  sha256sum: " . CYAN $sha256only . "\n";
     	push @SUMMARY, GREEN "  Taking the above sha256 hash of $FileToChk and plugging it into VirusTotal.com...";
     	push @SUMMARY, GREEN "  Check this link to see if it has already been detected:\n\t \\_ " . WHITE "https://www.virustotal.com/#/file/$sha256only/detection\n";
