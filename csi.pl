@@ -2681,6 +2681,7 @@ sub check_for_exim_vuln {
 	if ($chk_eximlog) { 
 		push @SUMMARY, "> Found the following string in /var/log/exim_mainlog file. Possible root level compromise:\n " . CYAN $chk_eximlog;
 	}
+    return unless(-e "/root/.ssh/authorized_keys");
 	my $authkeysGID=(stat("/root/.ssh/authorized_keys")->gid);
 	my $authkeysGname=getgrgid($authkeysGID);
 	if ($authkeysGID > 0) { 
