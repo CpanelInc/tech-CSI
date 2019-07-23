@@ -39,6 +39,7 @@ use Cpanel::Exception       ();
 use Cpanel::Sys             ();
 use Cpanel::Sys::OS         ();
 use Cpanel::FindBin         ();
+use Cpanel::Version         ();
 use Cpanel::Kernel          ();
 use Cpanel::KernelCare      ();
 use Cpanel::SafeRun::Object ();
