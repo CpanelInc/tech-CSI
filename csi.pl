@@ -1,5 +1,5 @@
 #!/usr/local/cpanel/3rdparty/bin/perl
-# Copyright 2018, cPanel, L.L.C.
+# Copyright 2019, cPanel, L.L.C.
 # All rights reserved.
 # http://cpanel.net
 #
@@ -53,7 +53,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.17";
+my $version = "3.4.18";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our $KernelChk;
@@ -677,6 +677,18 @@ sub check_processes {
             push @SUMMARY, "> ps output contains 'Loopback' indicates potential compromise";
             push @SUMMARY, "\t$line";
 		}
+		if ( $line =~ /httpntp/ ) { 
+            push @SUMMARY, "> ps output contains 'httpntp' indicates potential watchdog coin miner compromise";
+            push @SUMMARY, "\t$line";
+		}
+		if ( $line =~ /ftpsdns/ ) { 
+            push @SUMMARY, "> ps output contains 'ftpsdns' indicates potential watchdog coin miner compromise";
+            push @SUMMARY, "\t$line";
+		}
+		if ( $line =~ /watchdog/ ) { 
+            push @SUMMARY, "> ps output contains 'watchdog' indicates potential watchdog coin miner compromise";
+            push @SUMMARY, "\t$line";
+		}
     }
 }
 
@@ -999,7 +1011,7 @@ sub check_for_eggdrop {
 }
 
 sub check_for_korkerds {
-    my @dirs  = qw( /bin /etc /usr/sbin /usr/local/lib /tmp );
+    my @dirs  = qw( /bin /etc /usr/sbin /usr/local/lib /tmp /tmp/systemd-private-afjdhdicjijo473skiosoohxiskl573q-systemd-timesyncc.service-g1g5qf/cred/fghhhh/data );
     my @files = qw(
       httpdns
       netdns
@@ -1007,13 +1019,21 @@ sub check_for_korkerds {
       kworkerds
       zigw
       gmbpr
+      watchdog
+      config.json
+      config.txt
+      cpu.txt
+      pools.txt
+      .tmpc
+      .wwwwwwweeeeeeeeeeepaasss
     );
     my $bad_libs;
 
     for my $dir (@dirs) {
         next if !-e $dir;
         for my $file (@files) {
-            if ( -f "${dir}/${file}" and not -z "${dir}/${file}" ) {
+            #if ( -f "${dir}/${file}" and not -z "${dir}/${file}" ) {
+            if ( -f "${dir}/${file}" ) {
                 $bad_libs .= "${dir}/${file}";
             }
         }
@@ -1145,7 +1165,7 @@ sub check_for_libkeyutils_filenames {
         }
     }
     if ($bad_libs) {
-        push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found.\nFile: $bad_libs" );
+        push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found" );
         vtlink($bad_libs);
     }
 }
@@ -2577,7 +2597,7 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
 				chomp($_);
-                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166/ ) {
+                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|watchdog|oanacroane/ ) {
 					$isImmutable="";
 					my $attr = qx[ /usr/bin/lsattr $cron ];
 					if ( $attr =~ m/^\s*\S*[ai]/ ) {
@@ -2603,8 +2623,8 @@ sub misc_checks {
   		push( @SUMMARY, "> Suspicious directories found:" );
 		push( @SUMMARY, CYAN "\t\\_ " . $dir );
 	}
-    @dirs  = qw( /root/.ssh/.dsa/a );
-    @files = qw( f f.good in.txt nohup.out );
+    @dirs  = qw( /root/.ssh/.dsa/a /bin );
+    @files = qw( f f.good in.txt nohup.out ftpsdns httpntp watchdog );
     for my $dir (@dirs) {
         next if !-e $dir;
         for my $file (@files) {
@@ -2694,10 +2714,15 @@ sub spamscriptchk {
 	my $totaltmpfiles = () = readdir($dh);
 	return if $totaltmpfiles > 1000;
 	#  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
-	my $string = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/* ];
-    chomp($string);
-	if ($string) { 
-		push @SUMMARY, "> Found evidence of user spamming script in /tmp [ $string ]\n";
+	my @string = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/* ];
+    my $stringCnt=@string;
+    my $stringLine="";
+	if ($stringCnt > 0) { 
+		push @SUMMARY, "> Found evidence of user spamming script in /tmp directory";
+        foreach $stringLine(@string) { 
+            chomp($stringLine);
+            push @SUMMARY, "\t\\_ $stringLine";
+        }
 	}
 }
 
