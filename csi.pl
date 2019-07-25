@@ -685,10 +685,6 @@ sub check_processes {
             push @SUMMARY, "> ps output contains 'ftpsdns' indicates potential watchdog coin miner compromise";
             push @SUMMARY, "\t$line";
 		}
-		if ( $line =~ /watchdog/ ) { 
-            push @SUMMARY, "> ps output contains 'watchdog' indicates potential watchdog coin miner compromise";
-            push @SUMMARY, "\t$line";
-		}
     }
 }
 
@@ -2597,7 +2593,7 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
 				chomp($_);
-                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|watchdog|oanacroane/ ) {
+                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane/ ) {
 					$isImmutable="";
 					my $attr = qx[ /usr/bin/lsattr $cron ];
 					if ( $attr =~ m/^\s*\S*[ai]/ ) {
