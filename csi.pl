@@ -706,9 +706,15 @@ sub bitcoin_chk {
     if ( -e ("/tmp/e3ac24a0bcddfacd010a6c10f4a814bc") ) {
         push @SUMMARY, "> Found evidence of the SpeakUp Trojan: ";
     }
-	my $HasPastebinURL=qx[ grep -srl 'pastebin' /etc/cron* ];
-	if ($HasPastebinURL) { 
-        push @SUMMARY, "> Found pastebin URL's in cron files: " . CYAN $HasPastebinURL;
+	my @HasPastebinURL=qx[ grep -srl 'pastebin' /etc/cron* ];
+    my $PastebinCnt=@HasPastebinURL;
+    my $PastebinLine="";
+	if ($PastebinCnt > 0) { 
+        push @SUMMARY, "> Found pastebin URL's in cron files: ";
+        foreach $PastebinLine(@HasPastebinURL) { 
+            chomp($PastebinLine);
+            push @SUMMARY, "\t\\_ . CYAN $PastebinLine";
+        }
 	}
 }
 
@@ -1028,8 +1034,7 @@ sub check_for_korkerds {
     for my $dir (@dirs) {
         next if !-e $dir;
         for my $file (@files) {
-            #if ( -f "${dir}/${file}" and not -z "${dir}/${file}" ) {
-            if ( -f "${dir}/${file}" ) {
+            if ( -f "${dir}/${file}" and not -z "${dir}/${file}" ) {
                 $bad_libs .= "${dir}/${file}";
             }
         }
@@ -1061,6 +1066,7 @@ sub check_for_kthrotlds {
    				if ( -f _ and not -z _ ) {
 					push( @SUMMARY, "> Possible Rootkit found. - " . CYAN "Evidence of bitcoin miner found." );
 					push( @SUMMARY, "\t \\_ " . $fullpath . " found" );
+                    vtlink($fullpath);
    				}
    			}
 		}
