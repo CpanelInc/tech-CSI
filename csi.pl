@@ -53,7 +53,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.18";
+my $version = "3.4.19";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our $KernelChk;
@@ -713,8 +713,8 @@ sub bitcoin_chk {
         push @SUMMARY, "> Found pastebin URL's in cron files: ";
         foreach $PastebinLine(@HasPastebinURL) { 
             chomp($PastebinLine);
-            push @SUMMARY, "\t\\_ . CYAN $PastebinLine";
-        }
+            push @SUMMARY, CYAN "\t\\_ $PastebinLine";
+		}
 	}
 }
 
@@ -1488,31 +1488,39 @@ sub check_for_ELF_images {
 	my $isELF="";
 	my @ELFImages;
 	while ( defined ( my $image = $ELFimages1->match ) ) { 
-		$isELF=qx[ file $image | grep 'ELF' ];
-		push(@ELFImages, $image) unless (!$isELF);
+		$isELF = check_file_for_elf($image);
+		if ($isELF) { 
+			push(@ELFImages, "$image");
+		}
 	}
 	my $ELFimages2 = File::Find::Rule->file()->name( '*.jpg' )->start( '/' );
 	while ( defined ( my $image = $ELFimages2->match ) ) { 
-		$isELF=qx[ file $image | grep 'ELF' ];
-		push(@ELFImages, $image) unless (!$isELF);
+		$isELF = check_file_for_elf($image);
+		if ($isELF) { 
+			push(@ELFImages, "$image");
+		}
 	}
 	my $ELFimages3 = File::Find::Rule->file()->name( '*.gif' )->start( '/' );
 	while ( defined ( my $image = $ELFimages3->match ) ) { 
-		$isELF=qx[ file $image | grep 'ELF' ];
-		push(@ELFImages, $image) unless (!$isELF);
+		$isELF = check_file_for_elf($image);
+		if ($isELF) { 
+			push(@ELFImages, "$image");
+		}
 	}
 	my $ELFimages4 = File::Find::Rule->file()->name( '*.jpeg' )->start( '/' );
 	while ( defined ( my $image = $ELFimages4->match ) ) { 
-		$isELF=qx[ file $image | grep 'ELF' ];
-		push(@ELFImages, $image) unless (!$isELF);
+		$isELF = check_file_for_elf($image);
+		if ($isELF) { 
+			push(@ELFImages, "$image");
+		}
 	}
 	my $ELFImageCnt=@ELFImages;
 	if ($ELFImageCnt > 0 ) { 
-		push(@SUMMARY, "Found ELF binary file(s) masquerading as images: \n");
+		push(@SUMMARY, "Found ELF binary file(s) masquerading as images:");
 		my $ELFImage;
 		foreach $ELFImage(@ELFImages) { 
 			chomp($ELFImage);
-			vtlink($ELFImage);
+			push @SUMMARY, CYAN "\t\\_ $ELFImage";
 		}
 	}
 }
@@ -2585,7 +2593,6 @@ sub misc_checks {
             if ( -f _ and not -z _ ) {
         		push( @SUMMARY, "> Suspicous file found: possible root level compromise\n\t\\_ $fullpath" );
 				vtlink($fullpath);
-				last;
             }
         }
     }
@@ -2805,6 +2812,17 @@ sub get_last_logins_SSH {
 		push( @SUMMARY, CYAN "\t\\_ IP: $SSHLogins" ) unless($SSHLogins =~ m/208.74.123.|184.94.197./); 
 	}
     push( @SUMMARY, CYAN "\nDo you recognize any of the above IP addresses?\nIf not, then further investigation should be performed." );
+}
+
+sub check_file_for_elf { 
+	my $tcFile=$_[0];
+	my $retval=0;
+	if ($tcFile =~ /mynewdomain\/public_html\/png/) { 
+		$retval = timed_run(0, 'file', "$tcFile", '|grep "ELF"') ? 1:0;
+	}
+	#my $retval = qx[ file \"$tcFile\" | grep ELF ];
+	#my $retval = timed_run(0, 'file', "$tcFile", '|grep "ELF"');
+	return $retval;
 }
 
 # EOF
