@@ -42,22 +42,27 @@ use Cpanel::FindBin         ();
 use Cpanel::Version         ();
 use Cpanel::Kernel          ();
 use Cpanel::KernelCare      ();
+use Cpanel::IONice          ();
+use Cpanel::PwCache         ();
+use Cpanel::PwCache::Get    ();
 use Cpanel::SafeRun::Object ();
 use Math::Round;
 use File::Find::Rule;
 use POSIX;
 use Getopt::Long;
 use IO::Socket::INET;
+use IO::Prompt;
 use Term::ANSIColor qw(:constants);
 use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.19";
+my $version = "3.4.20";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our $KernelChk;
 our $spincounter;
+our $CPANEL_CONFIG_FILE    = q{/var/cpanel/cpanel.config};
 my $conf             = Cpanel::Config::LoadWwwAcctConf::loadwwwacctconf();
 my $cpconf           = Cpanel::Config::LoadCpConf::loadcpconf();
 my $allow_accesshash = $cpconf->{'allow_deprecated_accesshash'};
@@ -77,6 +82,7 @@ if ( $> != 0 ) {
 ###########################################################
 # Set defaults for positional parameters
 my $full;
+my $skipELF;
 my $help;
 my $userscan;
 my $binscan;
@@ -101,6 +107,7 @@ GetOptions(
     'bincheck'   => \$binscan,
     'userscan=s' => \$userscan,
     'full'       => \$full,
+    'skipELF'    => \$skipELF,,
     'skipClamAV' => \$skipClam,
     'help'       => \$help,
 );
@@ -131,6 +138,12 @@ if ($help) {
 }
 check_previous_scans();
 logit("=== STARTING CSI ===");
+
+my %cpconf = get_conf( $CPANEL_CONFIG_FILE );
+if ( Cpanel::IONice::ionice( 'best-effort', exists $cpconf{'ionice_import_exim_data'} ? $cpconf{'ionice_import_exim_data'} : 6 ) ) {
+	print_info ("Setting I/O priority to reduce system load: " . Cpanel::IONice::get_ionice() . "\n");
+   	setpriority( 0, 0, 19 );
+}
 my $scanstarttime = Time::Piece->new;
 print_header("Scan started on $scanstarttime");
 logit("Scan started on $scanstarttime");
@@ -182,6 +195,8 @@ sub show_help {
     print_header("Available default scan options");
     print_header("=================");
     print_header("--full                     Includes symlink hack check for entire server, and RPM check for non-owned RPM's.");
+    print_header("         		             Also does a check for any ELF binary files masquerading as images unless --skipELF is passed.");
+    print_normal("--skipELF                  Skip the ELF binary files masquerading as images as it can take a very long time. ");
     print_normal(" ");
     print_header("Available options for --userscan");
     print_header("=================");
@@ -340,6 +355,7 @@ sub scan {
 	print_header('[ Checking for spam sending script in /tmp ]');
 	logit("Checking for spam sending script in /tmp");
 	spamscriptchk();
+	spamscriptchk2();
 	print_header('[ Checking /usr/bin/ for rogue http binary ]');
 	logit("Checking /usr/bin for rogue http binary");
 	chkbinforhttp();
@@ -371,9 +387,11 @@ sub scan {
         print_header('[ Checking for shadow.roottn.bak hacks ]');
         logit("Checking for shadow.roottn.bak hacks");
         chk_shadow_hack();
-        print_header('[ Checking for ELF binaries disguised as image files ]');
-        logit("Checking for ELF binaries disguised as image files");
-        check_for_ELF_images();
+		if (!$skipELF) { 
+        	print_header('[ Checking for ELF binaries disguised as image files ]');
+        	logit("Checking for ELF binaries disguised as image files");
+        	check_for_ELF_images();
+		}
     }
 	# Checking for recommendations
     print_header('[ Checking for mod_security ]');
@@ -1041,17 +1059,17 @@ sub check_for_korkerds {
     }
     my $netstatcheck = qx[ netstat -nap | grep ':56415' ];
     if ($netstatcheck) {
-        push( @SUMMARY, "> [ROOTKIT: KORKERDS] - " . CYAN "Evidence of the Coinminer.Linux.KORKERDS.AB Rootkit found.\nSuspicious socket listening on one or more of the following ports\n$netstatcheck" );
+        push( @SUMMARY, "> [Possible rootkit: KORKERDS] - " . CYAN "Evidence of the Coinminer.Linux.KORKERDS.AB Rootkit found.\nSuspicious socket listening on one or more of the following ports\n$netstatcheck" );
     }
     if ($bad_libs) {
-        push( @SUMMARY, "> [ROOTKIT: KORKERDS] - " . CYAN "Evidence of the Coinminer.Linux.KORKERDS.AB Rootkit found.\n" );
+        push( @SUMMARY, "> [Possible rootkit: KORKERDS] - " . CYAN "Evidence of the Coinminer.Linux.KORKERDS.AB Rootkit found.\n" );
         vtlink($bad_libs);
     }
 }
 
 sub check_for_kthrotlds { 
 	if (-e("/usr/bin/\[kthrotlds\]")) {
-		push( @SUMMARY, "> [ROOTKIT: Linux/CoinMiner.AP] - " . CYAN "Evidence of Linux/CoinMiner.AP rootkit found." );
+		push( @SUMMARY, "> [Possible rootkit: Linux/CoinMiner.AP] - " . CYAN "Evidence of Linux/CoinMiner.AP rootkit found." );
    		vtlink("/usr/bin/\[kthrotlds\]");
 	}
 	else { 
@@ -1111,7 +1129,7 @@ sub check_for_cdorked_A {
         }
     }
     if ( $has_cdorked == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: CDORKED A] - " . CYAN "Evidence of CDORKED A Rootkit found." );
+        push( @SUMMARY, "> [Possible rootkit: CDORKED A] - " . CYAN "Evidence of CDORKED A Rootkit found." );
     }
 }
 
@@ -1126,7 +1144,7 @@ sub check_for_cdorked_B {
         }
     }
     if ( $has_cdorked_b == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: CDORKED B] - " . CYAN "Evidence of CDORKED B Rootkit found.\n\t Found " . $cdorked_files . " [Note space at end of files]" );
+        push( @SUMMARY, "> [Possible rootkit: CDORKED B] - " . CYAN "Evidence of CDORKED B Rootkit found.\n\t Found " . $cdorked_files . " [Note space at end of files]" );
     }
 }
 
@@ -1167,7 +1185,7 @@ sub check_for_libkeyutils_filenames {
         }
     }
     if ($bad_libs) {
-        push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found" );
+        push( @SUMMARY, "> [Possible rootkit: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found" );
         vtlink($bad_libs);
     }
 }
@@ -1209,7 +1227,7 @@ sub check_sha1_sigs_libkeyutils {
         chomp $checksum;
         $checksum =~ s/\s.*//g;
         if ( grep { /$checksum/ } @checksums ) {
-        	push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found." );
+        	push( @SUMMARY, "> [Possible rootkit: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found." );
         	vtlink($lib);
             last;
         }
@@ -1219,7 +1237,7 @@ sub check_sha1_sigs_libkeyutils {
 sub check_for_evasive_libkey { 
 	my $EvasiveLibKey=qx[ strings /etc/ld.so.cache |grep tls/ ];
 	if ($EvasiveLibKey) { 
-        push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Hidden/Evasive evidence of Ebury/Libkeys Rootkit found.\n\t \\_ TECH-759" );
+        push( @SUMMARY, "> [Possible rootkit: Ebury/Libkeys] - " . CYAN "Hidden/Evasive evidence of Ebury/Libkeys Rootkit found.\n\t \\_ TECH-759" );
 	}
 }
 
@@ -1233,7 +1251,7 @@ sub check_for_unowned_libkeyutils_files {
         }
     }
     if (@unowned_libs) {
-        push( @SUMMARY, "> [ROOTKIT: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found." );
+        push( @SUMMARY, "> [Possible rootkit: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found." );
 		for my $unowned_lib(@unowned_libs) { 
 			vtlink($unowned_lib);
 		}
@@ -1279,7 +1297,7 @@ sub check_sha1_sigs_httpd {
         }
     }
     if ( $infected == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: Apache Binary] - " . CYAN "Evidence of hacked Apache binary found.\n\t Found " . $sha1sum );
+        push( @SUMMARY, "> [Possible rootkit: Apache Binary] - " . CYAN "Evidence of hacked Apache binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1302,7 +1320,7 @@ sub check_sha1_sigs_named {
         }
     }
     if ( $infected == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: Named Binary] - " . CYAN "Evidence of hacked Named binary found.\n\t Found " . $sha1sum );
+        push( @SUMMARY, "> [Possible rootkit: Named Binary] - " . CYAN "Evidence of hacked Named binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1325,7 +1343,7 @@ sub check_sha1_sigs_ssh {
         }
     }
     if ( $infected == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: SSH Binary] - " . CYAN "Evidence of hacked SSH binary found.\n\t Found " . $sha1sum );
+        push( @SUMMARY, "> [Possible rootkit: SSH Binary] - " . CYAN "Evidence of hacked SSH binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1347,7 +1365,7 @@ sub check_sha1_sigs_ssh_add {
         }
     }
     if ( $infected == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: SSH-ADD Binary] - " . CYAN "Evidence of hacked SSH-ADD binary found.\n\t Found " . $sha1sum );
+        push( @SUMMARY, "> [Possible rootkit: SSH-ADD Binary] - " . CYAN "Evidence of hacked SSH-ADD binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1373,7 +1391,7 @@ sub check_sha1_sigs_sshd {
         }
     }
     if ( $infected == 1 ) {
-        push( @SUMMARY, "> [ROOTKIT: sshd Binary] - " . CYAN "Evidence of hacked sshd binary found.\n\t Found " . $sha1sum );
+        push( @SUMMARY, "> [Possible rootkit: sshd Binary] - " . CYAN "Evidence of hacked sshd binary found.\n\t Found " . $sha1sum );
     }
 }
 
@@ -1388,7 +1406,7 @@ sub check_for_ebury_ssh_G {
     my $ssh_G = timed_run_trap_stderr( 0, $ssh, '-G' );
 
     if ( $ssh_G !~ /illegal|unknown/ ) {
-        push( @SUMMARY, "> [ROOTKIT: ssh Binary] - " . CYAN "Evidence of hacked ssh binary found.\n\t " . $ssh . " -G did not return either 'illegal' or 'unknown'" );
+        push( @SUMMARY, "> [Possible rootkit: ssh Binary] - " . CYAN "Evidence of hacked ssh binary found.\n\t " . $ssh . " -G did not return either 'illegal' or 'unknown'" );
     }
 }
 
@@ -1412,7 +1430,7 @@ sub check_for_ebury_ssh_banner {
     return if !$ssh_banner;
     chomp $ssh_banner;
     if ( $ssh_banner =~ m{ \A SSH-2\.0-[0-9a-f]{22,46} }xms ) {
-        push( @SUMMARY, "> [ROOTKIT: ssh banner] - " . CYAN "Evidence of hacked ssh banner found.\n\t " . $ssh_banner . "." );
+        push( @SUMMARY, "> [Possible rootkit: ssh banner] - " . CYAN "Evidence of hacked ssh banner found.\n\t " . $ssh_banner . "." );
     }
 }
 
@@ -1422,7 +1440,7 @@ sub check_for_ebury_ssh_shmem {
         my $shmid = $href->{shmid};
         my $cpid  = $href->{cpid};
         if ( $PROCESS_REF->{$cpid}{CMD} && $PROCESS_REF->{$cpid}{CMD} =~ m{ \A /usr/sbin/sshd \b }x ) {
-            push( @SUMMARY, "> [ROOTKIT: SSHd Shared Memory] - " . CYAN "Evidence of hacked SSHd Shared Memory found.\n\t cpid: " . $cpid . " - shmid: " . $shmid . "." );
+            push( @SUMMARY, "> [Possible rootkit: SSHd Shared Memory] - " . CYAN "Evidence of hacked SSHd Shared Memory found.\n\t cpid: " . $cpid . " - shmid: " . $shmid . "." );
         }
     }
 }
@@ -1430,7 +1448,7 @@ sub check_for_ebury_ssh_shmem {
 sub check_for_ebury_root_file {
     my $file = '/home/ ./root';
     if ( -e $file ) {
-        push( @SUMMARY, "> [ROOTKIT: Ebury] - " . CYAN "Found hidden file: " . $file );
+        push( @SUMMARY, "> [Possible rootkit: Ebury] - " . CYAN "Found hidden file: " . $file );
     }
 }
 
@@ -1442,7 +1460,7 @@ sub check_for_ebury_3_digit_rpms {
         }
     }
     if ($bad_rpms) {
-        push( @SUMMARY, "> [ROOTKIT: Ebury] - " . CYAN "3-digit RPM's: " . $bad_rpms );
+        push( @SUMMARY, "> [Possible rootkit: Ebury] - " . CYAN "3-digit RPM's: " . $bad_rpms );
     }
 }
 
@@ -1451,7 +1469,7 @@ sub check_for_ebury_socket {
     my $found = 0;
     for my $line ( split( '\n', $netstat_out ) ) {
         if ( $line =~ m{@/proc/udevd} ) {
-            push( @SUMMARY, "> [ROOTKIT: Ebury] - " . CYAN "Ebury socket connection found: " . $line );
+            push( @SUMMARY, "> [Possible rootkit: Ebury] - " . CYAN "Ebury socket connection found: " . $line );
             $found = 1;
             last;
         }
@@ -1477,13 +1495,12 @@ sub check_for_ncom_filenames {
         }
     }
     if (@bad_libs) {
-        push( @SUMMARY, "> [ROOTKIT: NCOM] - " . CYAN "Evidence of the NCOM Rootkit found: " );
+        push( @SUMMARY, "> [Possible rootkit: NCOM] - " . CYAN "Evidence of the NCOM Rootkit found: " );
         vtlink(@bad_libs);
     }
 }
 
 sub check_for_ELF_images { 
-	#my @ELFimages = qx[ find / -regex ".*\.\(jpg\|gif\|png\|jpeg\)" -type f -exec file -p '{}' \; | grep ELF | cut -d":" -f1 ];
 	my $ELFimages1 = File::Find::Rule->file()->name( '*.png' )->start( '/' );
 	my $isELF="";
 	my @ELFImages;
@@ -1551,7 +1568,7 @@ sub check_for_hiddenwasp {
         }
     }
     if (@bad_libs) {
-        push( @SUMMARY, "> [ROOTKIT: HiddenWasp] - " . CYAN "Evidence of the HiddenWasp Rootkit found: " );
+        push( @SUMMARY, "> [Possible rootkit: HiddenWasp] - " . CYAN "Evidence of the HiddenWasp Rootkit found: " );
         vtlink(@bad_libs);
     }
 	if (-e ("/lib/libselinux.a")) {
@@ -1653,7 +1670,7 @@ sub check_for_dragnet {
     if ( open my $fh, '<', '/proc/self/maps' ) {
         while (<$fh>) {
             if (m{ (\s|\/) libc\.so\.0 (\s|$) }x) {
-                push( @SUMMARY, "> [ROOTKIT: Dragnet] - " . CYAN "Evidence of Dragnet Rootkit found.\n\t libc.so.0 was found in process maps." );
+                push( @SUMMARY, "> [Possible rootkit: Dragnet] - " . CYAN "Evidence of Dragnet Rootkit found.\n\t libc.so.0 was found in process maps." );
                 $found = 1;
                 last;
             }
@@ -1677,7 +1694,7 @@ sub check_for_xor_ddos {
         push @matched, $lib if -f $lib;
     }
     if (@matched) {
-        push( @SUMMARY, "> [ROOTKIT: Linux/XoRDDoS] - " . CYAN "Evidence of the Linux/XoRDDoS Rootkit found: " );
+        push( @SUMMARY, "> [Possible rootkit: Linux/XoRDDoS] - " . CYAN "Evidence of the Linux/XoRDDoS Rootkit found: " );
         vtlink(@matched);
     }
 }
@@ -1693,7 +1710,7 @@ sub check_for_abafar {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Abafar] - " . CYAN "Evidence of the Linux/SSHDoor.AB Rootkit found: " );
+        		push( @SUMMARY, "> [Possible rootkit: Abafar] - " . CYAN "Evidence of the Linux/SSHDoor.AB Rootkit found: " );
         		vtlink($fullpath);
             }
         }
@@ -1711,7 +1728,7 @@ sub check_for_akiva {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Akiva] - " . CYAN "Evidence of the Linux/SSHDoor.A Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Akiva] - " . CYAN "Evidence of the Linux/SSHDoor.A Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1729,7 +1746,7 @@ sub check_for_alderaan {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Alderaan] - " . CYAN "Evidence of the Linux/SSHDoor.AE Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Alderaan] - " . CYAN "Evidence of the Linux/SSHDoor.AE Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1751,7 +1768,7 @@ sub check_for_bashrootkit {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Bash Rootkit] - " . CYAN "Evidence of the Bash Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Bash Rootkit] - " . CYAN "Evidence of the Bash Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1771,7 +1788,7 @@ sub check_for_anoat {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Anoat] - " . CYAN "Evidence of the Linux/SSHDoor.AF Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Anoat] - " . CYAN "Evidence of the Linux/SSHDoor.AF Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1789,7 +1806,7 @@ sub check_for_atollon {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Atollon] - " . CYAN "Evidence of the Linux/SSHDoor.AT Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Atollon] - " . CYAN "Evidence of the Linux/SSHDoor.AT Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1807,7 +1824,7 @@ sub check_for_bespin {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Bespin] - " . CYAN "Evidence of the Linux/SSHDoor.BE Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Bespin] - " . CYAN "Evidence of the Linux/SSHDoor.BE Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1825,7 +1842,7 @@ sub check_for_bonadan {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Bonadan] - " . CYAN "Evidence of the Linux/SSHDoor.BO Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Bonadan] - " . CYAN "Evidence of the Linux/SSHDoor.BO Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1843,7 +1860,7 @@ sub check_for_kessel {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Kessel] - " . CYAN "Evidence of the Linux/SSHDoor.CK Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Kessel] - " . CYAN "Evidence of the Linux/SSHDoor.CK Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1862,7 +1879,7 @@ sub check_for_quarren {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Quarren] - " . CYAN "Evidence of the Linux/SSHDoor.Q Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Quarren] - " . CYAN "Evidence of the Linux/SSHDoor.Q Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1883,7 +1900,7 @@ sub check_for_polismassa {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Polis Massa] - " . CYAN "Evidence of the Linux/SSHDoor.P Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Polis Massa] - " . CYAN "Evidence of the Linux/SSHDoor.P Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1909,7 +1926,7 @@ sub check_for_onderon {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Onderon] - " . CYAN "Evidence of the Linux/SSHDoor.O Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Onderon] - " . CYAN "Evidence of the Linux/SSHDoor.O Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1927,7 +1944,7 @@ sub check_for_chandrila {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Chandrila] - " . CYAN "Evidence of the Linux/SSHDoor.CH Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Chandrila] - " . CYAN "Evidence of the Linux/SSHDoor.CH Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1945,7 +1962,7 @@ sub check_for_coruscant {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Coruscant] - " . CYAN "Evidence of the Linux/SSHDoor.CD Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Coruscant] - " . CYAN "Evidence of the Linux/SSHDoor.CD Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1963,7 +1980,7 @@ sub check_for_crait {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Crait] - " . CYAN "Evidence of the Linux/SSHDoor.Cl Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Crait] - " . CYAN "Evidence of the Linux/SSHDoor.Cl Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -1983,7 +2000,7 @@ sub check_for_batuu {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Batuu] - " . CYAN "Evidence of the Linux/SSHDoor.BX Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Batuu] - " . CYAN "Evidence of the Linux/SSHDoor.BX Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -2002,7 +2019,7 @@ sub check_for_ando {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Ando] - " . CYAN "Evidence of the Linux/SSHDoor.AN Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Ando] - " . CYAN "Evidence of the Linux/SSHDoor.AN Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -2056,7 +2073,7 @@ sub check_for_bg_botnet {
         }
     }
 	return unless ( scalar @found_bg_files );
-	push( @SUMMARY, "> [ROOTKIT: BG Botnet] - " . CYAN "Evidence of the BG Botnet Rootkit found." );
+	push( @SUMMARY, "> [Possible rootkit: BG Botnet] - " . CYAN "Evidence of the BG Botnet Rootkit found." );
 	vtlink(@found_bg_files);
 }
 
@@ -2069,14 +2086,14 @@ sub check_for_elknot_rootkit {
 		/bin/update-rc.d
 	);
 	my @found_elknot_files = grep{ -e $_ } @elknot_files;
-	push( @SUMMARY, "> [ROOTKIT: Elknot Rootkit] - " . CYAN "Evidence of the Elknot Rootkit found." );
+	push( @SUMMARY, "> [Possible rootkit: Elknot Rootkit] - " . CYAN "Evidence of the Elknot Rootkit found." );
 	vtlink(@found_elknot_files);
 }
 
 sub check_for_UMBREON_rootkit {
     my $dir = '/usr/local/__UMBREON__';
     if ( chdir $dir ) {
-        push( @SUMMARY, "> [ROOTKIT: UMBREON] - " . CYAN "Evidence of the UMBREON Rootkit found." );
+        push( @SUMMARY, "> [Possible rootkit: UMBREON] - " . CYAN "Evidence of the UMBREON Rootkit found." );
 		push( @SUMMARY, "\t \\_ " . $dir . "\n" );
     }
 }
@@ -2084,7 +2101,7 @@ sub check_for_UMBREON_rootkit {
 sub check_for_libms_rootkit {
     my $dir = '/lib/udev/x.modules';
     if ( chdir $dir ) {
-        push( @SUMMARY, "> [ROOTKIT: LIBMS] - " . CYAN "Evidence of the LIBMS Rootkit found." );
+        push( @SUMMARY, "> [Possible rootkit: LIBMS] - " . CYAN "Evidence of the LIBMS Rootkit found." );
 		push( @SUMMARY, "\t \\_ " . $dir . "\n" );
     }
 }
@@ -2103,7 +2120,7 @@ sub check_for_jynx2_rootkit {
             my $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-        		push( @SUMMARY, "> [ROOTKIT: Jynx2] - " . CYAN "Evidence of the Jynx2 Rootkit found." );
+        		push( @SUMMARY, "> [Possible rootkit: Jynx2] - " . CYAN "Evidence of the Jynx2 Rootkit found." );
         		vtlink($fullpath);
             }
         }
@@ -2126,7 +2143,7 @@ sub check_for_shellbot {
         push @matched, $lib if -f $lib;
     }
     if (@matched) {
-        push( @SUMMARY, "> [ROOTKIT: ShellBot] - " . CYAN "Evidence of the ShellBot Rootkit found." );
+        push( @SUMMARY, "> [Possible rootkit: ShellBot] - " . CYAN "Evidence of the ShellBot Rootkit found." );
         vtlink(@matched);
     }
 }
@@ -2136,7 +2153,7 @@ sub check_for_libkeyutils_symbols {
     my $output = timed_run_trap_stderr( 0, '/bin/true' );
     return unless $output;
     if ( $output =~ m{ /lib(keyutils|ns[25]|pw[35]|s[bl]r)\. }xms ) {
-        push( @SUMMARY, "> [ROOTKIT: Ebury] - " . CYAN "Evidence of the Ebury Rootkit found in symbol table.\n\t\_ Run: LD_DEBUG=symbols /bin/true 2>&1 | egrep '/lib(keyutils|ns[25]|pw[35]|s[bl]r)\.' to confirm." );
+        push( @SUMMARY, "> [Possible rootkit: Ebury] - " . CYAN "Evidence of the Ebury Rootkit found in symbol table.\n\t\_ Run: LD_DEBUG=symbols /bin/true 2>&1 | egrep '/lib(keyutils|ns[25]|pw[35]|s[bl]r)\.' to confirm." );
     }
 }
 
@@ -2249,19 +2266,10 @@ sub alltrim() {
 
 sub userscan {
     my $lcUserToScan = $_[0];
+	unlink("/root/CSI/csi_detections.txt") unless( ! -e "/root/CSI/csi_detections");
     logit("Running a user scan for $lcUserToScan");
     installClamAV() unless($skipClam);
-    my $RealHome;
-    my $etcpasswd = qx[ grep -w $lcUserToScan /etc/passwd ];
-    if ($etcpasswd) {
-        ($RealHome) = ( split( /:/, $etcpasswd ) )[5];
-        chomp($RealHome);
-    }
-    else {
-        print_warn("Sorry, $lcUserToScan not found in /etc/passwd file!");
-        logit( $lcUserToScan . " not found in /etc/passwd file!" );
-        return;
-    }
+    my $RealHome = Cpanel::PwCache::gethomedir($lcUserToScan);;
     if ( !( -e ("$RealHome") ) ) {
         print_warn("$lcUserToScan has no /home directory!");
         logit( $lcUserToScan . " has no /home directory!" );
@@ -2341,30 +2349,39 @@ sub userscan {
         qx[ /usr/local/cpanel/3rdparty/bin/clamscan -i --quiet -o --log="$csidir/${lcUserToScan}_clamscan.log" -r -z --phishing-sigs=yes --phishing-scan-urls=yes --algorithmic-detection=yes $RealHome/public_html ];
     }
     my $URL         = "https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
-    my @DEFINITIONS = qx[ curl -s $URL ];
+	my @DEFINITIONS     = qx[ curl -s $URL > "/root/CSI/csi_detections.txt" ];
+    @DEFINITIONS = qx[ curl -s $URL ];
     my $StringCnt   = @DEFINITIONS;
     print_status("Scanning $RealHome/public_html for ($StringCnt) known phrases/strings");
     logit("Beginning known phrases/strings scan for $lcUserToScan");
-    my @SEARCHSTRING    = sort(@DEFINITIONS);
-    my @FOUND           = undef;
-    my $SOMETHING_FOUND = 0;
-    my $SEARCHSTRING;
-
-    foreach $SEARCHSTRING (@SEARCHSTRING) {
-        chomp($SEARCHSTRING);
-        my $SCAN = qx[ grep -srIl --exclude=*.png --exclude=*.svg -w "$SEARCHSTRING" $RealHome/public_html ];
-        spin();
-        chomp($SCAN);
-        if ($SCAN) {
-            $SOMETHING_FOUND = 1;
-            $SEARCHSTRING =~ s/\\//g;
-            push( @SUMMARY, GREEN "The phrase $SEARCHSTRING was found in $SCAN" );
-        }
+	my $SOMETHING_FOUND=0;
+    my $ScannedLine;
+	my $find=":";
+	my $replace="|||";
+    use Path::Iterator::Rule;
+    my $rule = Path::Iterator::Rule->new;
+    my $it = $rule->iter( "$RealHome/public_html" );
+    while ( my $file = $it->() ) {
+        next if ($file =~ m/.png|.jpg|.jpeg|.svg|.css|.scss|.js|.json/);
+        next if ($file eq "." or $file eq "..");
+		my $retval = qx[ LC_ALL=C grep -FsrIwf /root/CSI/csi_detections.txt $file ];
+		my @retval = split(/\n/,$retval);
+		my $line;
+		foreach $line(@retval) { 
+			chomp($line);
+			$line =~ s/$find/$replace/;
+			next unless ($line =~ m/\|\|\|/ );
+			my ($scanFile,$scanValue)=(split(/\|\|\|/,$line));
+			next if (! -e $scanFile);
+			print YELLOW "\t \\_ The phrase " . CYAN . $scanValue . YELLOW . " was found in file: " . GREEN "$scanFile\n";
+			$SOMETHING_FOUND=1;
+		}
     }
     if ( !$SOMETHING_FOUND ) {
         print_info("No suspicious phrases/strings were found!");
         logit("No suspicious phrases/strings were found!");
     }
+	unlink("/root/CSI/csi_detections.txt") unless( ! -e "/root/CSI/csi_detections");
     print_header('[ cPanel Security Inspection Complete! ]');
     logit('[ cPanel Security Inspection Complete! ]');
     print_normal('');
@@ -2372,6 +2389,7 @@ sub userscan {
     dump_summary();
     return;
 }
+
 
 sub check_for_symlinks {
     my @FINDSYMLINKHACKS = qx[ find $HOMEDIR/*/public_html -type l -lname / -ls ];
@@ -2554,6 +2572,20 @@ sub misc_checks {
         push @SUMMARY, "> Found suspicious file 'bc.pl' in /tmp directory";
     }
 
+    if ( -e ("/tmp/.mysqli/mysqlc") ) {
+        push @SUMMARY, "> Found suspicious file '.mysqli/mysqlc' in /tmp directory";
+    }
+
+    if ( -e ("/etc/.ip") ) {
+        push @SUMMARY, "> Found suspicious file '.ip' in /etc directory";
+		vtlink("/etc/.ip");
+    }
+
+    if ( -e ("/var/log/.log") ) {
+        push @SUMMARY, "> Found suspicious file '.log' in /var/log directory";
+		vtlink("/var/log/.log");
+    }
+
 	# spy_master
 	my $spymaster = qx[ objdump -T /usr/bin/ssh /usr/sbin/sshd | grep spy_master ];
 	if ($spymaster) { 
@@ -2688,7 +2720,7 @@ sub vtlink {
 }
 
 sub rpm_yum_running_chk { 
-	my $lcRunning = qx[ ps auxfwww | egrep -i 'rpm|yum' | grep -v grep ];
+	my $lcRunning = qx[ ps auxfwww | egrep -i '/usr/bin/rpm|/usr/bin/yum' | grep -v grep ];
 	if ($lcRunning) { 
 		logit("An rpm/yum process may be running");
         print_warn("An rpm/yum process may be running. Could cause some checks to hang waiting for process to complete.");
@@ -2721,6 +2753,7 @@ sub check_for_exim_vuln {
 sub spamscriptchk {
 	opendir my $dh, "/tmp";
 	my $totaltmpfiles = () = readdir($dh);
+	closedir $dh;
 	return if $totaltmpfiles > 1000;
 	#  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
 	my @string = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/* ];
@@ -2732,6 +2765,26 @@ sub spamscriptchk {
             chomp($stringLine);
             push @SUMMARY, "\t\\_ $stringLine";
         }
+	}
+}
+
+sub spamscriptchk2 { 
+	opendir my $dh, "/var/spool/cron";
+	my @allcrons=readdir($dh);
+	closedir $dh;
+	my $usercron;
+	my @crondata;
+	my $cronline;
+	foreach $usercron(@allcrons) { 
+		open(USERCRON,"/var/spool/cron/$usercron");
+		@crondata=<USERCRON>;
+		close(USERCRON);
+		foreach $cronline(@crondata) { 
+			chomp($cronline);
+			if ( $cronline =~ m{ perl \s (?:/var)?/tmp/[a-zA-Z]+ }xms ) { 
+				push @SUMMARY, CYAN "> Found suspicious cron entry in the " . MAGENTA $usercron . CYAN " user account:" . YELLOW "\n\t\\_ $cronline";
+			}
+		}
 	}
 }
 
@@ -2823,6 +2876,20 @@ sub check_file_for_elf {
 	#my $retval = qx[ file \"$tcFile\" | grep ELF ];
 	#my $retval = timed_run(0, 'file', "$tcFile", '|grep "ELF"');
 	return $retval;
+}
+
+sub get_conf {
+    my $conf = shift;
+    my %cpconf;
+    if ( open( my $cpconf_fh, '<', $conf ) ) {
+        local $/ = undef;
+        %cpconf = map { ( split( /=/, $_, 2 ) )[ 0, 1 ] } split( /\n/, readline($cpconf_fh) );
+        close $cpconf_fh;
+        return %cpconf;
+    } else {
+        print_warn("Could not open file: $conf\n");
+    }
+    return;
 }
 
 # EOF
