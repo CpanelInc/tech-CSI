@@ -57,7 +57,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.20";
+my $version = "3.4.21";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our $KernelChk;
@@ -2354,30 +2354,18 @@ sub userscan {
     my $StringCnt   = @DEFINITIONS;
     print_status("Scanning $RealHome/public_html for ($StringCnt) known phrases/strings");
     logit("Beginning known phrases/strings scan for $lcUserToScan");
-	my $SOMETHING_FOUND=0;
-    my $ScannedLine;
-	my $find=":";
-	my $replace="|||";
-    use Path::Iterator::Rule;
-    my $rule = Path::Iterator::Rule->new;
-    my $it = $rule->iter( "$RealHome/public_html" );
-    while ( my $file = $it->() ) {
-        next if ($file =~ m/.png|.jpg|.jpeg|.svg|.css|.scss|.js|.json/);
-        next if ($file eq "." or $file eq "..");
-		my $retval = qx[ LC_ALL=C grep -FsrIwf /root/CSI/csi_detections.txt $file ];
-		my @retval = split(/\n/,$retval);
-		my $line;
-		foreach $line(@retval) { 
-			chomp($line);
-			$line =~ s/$find/$replace/;
-			next unless ($line =~ m/\|\|\|/ );
-			my ($scanFile,$scanValue)=(split(/\|\|\|/,$line));
-			next if (! -e $scanFile);
-			print YELLOW "\t \\_ The phrase " . CYAN . $scanValue . YELLOW . " was found in file: " . GREEN "$scanFile\n";
-			$SOMETHING_FOUND=1;
-		}
+	my $retval = qx[ LC_ALL=C grep -FsrIwf /root/CSI/csi_detections.txt $RealHome/public_html/* ];
+	my @retval = split(/\n/,$retval);
+    my $TotalFound=@retval;
+    my $ItemFound;
+    my $find=":";
+    my $replace=YELLOW . " contains the phrase: " . MAGENTA;
+    foreach $ItemFound(@retval) {
+        chomp($ItemFound);
+        $ItemFound =~ s/$find/$replace/;
+        print CYAN "\t \\_ The file: " . WHITE "$ItemFound\n";
     }
-    if ( !$SOMETHING_FOUND ) {
+    if ( $TotalFound == 0 ) {
         print_info("No suspicious phrases/strings were found!");
         logit("No suspicious phrases/strings were found!");
     }
