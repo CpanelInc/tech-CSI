@@ -413,7 +413,7 @@ sub scan {
     get_last_logins_SSH();
     print_header('[ Running Security Advisor ]');
     logit("Running Security Advisor");
-    security_advisor();
+#    security_advisor();
     print_header('[ cPanel Security Inspection Complete! ]');
     print_header('[ CSI Summary ]');
     print_normal('');
@@ -2082,26 +2082,50 @@ sub check_for_beastkit {
 }
 
 sub check_for_suckit {
+	my $SuckItCount=0;
+    my @dirs  = qw( /sbin /etc/rc.d/rc0.d /etc/rc.d/rc1.d /etc/rc.d/rc2.d /etc/rc.d/rc3.d /etc/rc.d/rc4.d /etc/rc.d/rc5.d /etc/rc.d/rc6.d /etc/.MG /usr/share/locale/sk/.sk12 /dev/sdhu0/tehdrakg /usr/lib/perl5/site_perl/i386-linux/auto/TimeDate/.packlist /dev/.golf );
+    my @files = qw( sk S23kmdac );
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            my $fullpath = $dir . "/" . $file;
+            stat $fullpath;
+            if ( -f _ and not -z _ ) {
+				$SuckItCount++;
+			}
+		}
+	}
     if ( -e "/sbin/init" ) {
         my ($SuckItHomeVal) = ( split( /=/, qx[ strings /sbin/init | grep 'HOME=' ] ) )[1];
-        if ( $SuckItHomeVal =~ m/[a-zA-z0-9]/ ) {
-            push( @SUMMARY, "> [Possible Rootkit: SuckIt] - " . CYAN "Evidence of the SuckIt Rootkit found." );
+        if ( $SuckItHomeVal and $SuckItHomeVal =~ m/[a-zA-z0-9]/ ) {
+			$SuckItCount++;
         }
+		my $SuckItFound = qx[ strings -an4 /sbin/init | egrep -ie "(fuck|backdoor|bin/rcpc|bin/login)" ];
+		if ($SuckItFound) { 
+			$SuckItCount++;
+		}
     }
-    my $HasSuckIt = qx[ cat /proc/1/maps | grep 'init' ];
+    my $HasSuckIt = qx[ cat /proc/1/maps | egrep "init." | grep -v '(deleted)' ];
     if ($HasSuckIt) {
-        push( @SUMMARY, "> [Possible Rootkit: SuckIt] - " . CYAN "Evidence of the SuckIt Rootkit found." );
-    }
-    if ( -e "/dev/.golf" ) {
-        push( @SUMMARY, "> [Possible Rootkit: SuckIt] - " . CYAN "Evidence of the SuckIt Rootkit found." );
+		$SuckItCount++;
     }
     my $initSymLink    = qx[ ls -li /sbin/init ];
     my $telinitSymLink = qx[ ls -li /sbin/telinit ];
     my ( $SLInode1, $isLink1 ) = ( split( /\s+/, $initSymLink ) )[ 0, 1 ];
     my ( $SLInode2, $isLink2 ) = ( split( /\s+/, $telinitSymLink ) )[ 0, 1 ];
     if ( $SLInode1 == $SLInode2 and substr( $isLink1, 0, 1 ) ne "l" or substr( $isLink2, 0, 1 ) ne "l" ) {
-        push( @SUMMARY, "> [Possible Rootkit: SuckIt] - " . CYAN "Evidence of the SuckIt Rootkit found." );
+		$SuckItCount++;
     }
+	my $SuckItHidden = qx[ touch "$csidir/suckittest.mem" "$csidir/suckittest.xrk" ];
+	if ( !-e "$csidir/suckittest.mem" or !-e "$csidir/suckittest.mem" ) {
+		$SuckItCount++;
+	}
+	if ($SuckItCount > 1) {
+        push( @SUMMARY, "> [Possible Rootkit: SuckIt] - " . CYAN "$SuckItCount out of 6 checks used have detected evidence of the SuckIt Rootkit." );
+		if ($SuckItCount > 2) { 
+			push( @SUMMARY, "  (More than 3 checks being positive, should be investigated)" );
+		}
+	}
 }
 
 sub check_for_redisHack {
