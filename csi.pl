@@ -57,7 +57,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.22";
+my $version = "3.4.23";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our $KernelChk;
@@ -413,7 +413,7 @@ sub scan {
     get_last_logins_SSH();
     print_header('[ Running Security Advisor ]');
     logit("Running Security Advisor");
-#    security_advisor();
+    security_advisor();
     print_header('[ cPanel Security Inspection Complete! ]');
     print_header('[ CSI Summary ]');
     print_normal('');
@@ -1095,6 +1095,44 @@ sub check_for_kthrotlds {
                     push( @SUMMARY, "\t \\_ " . $fullpath . " found" );
                     vtlink($fullpath);
                 }
+            }
+        }
+    }
+}
+
+sub check_for_skidmap {
+    my @dirs  = qw( /var/lib /usr/bin /tmp /lib/udev/ssd_control );
+    my @files = qw(
+      pc
+	  t
+	  miner2
+	  kauditd
+	  iproute.ko
+	  netlink.ko
+	  cryptov2.ko
+	  pamdicks
+    );
+	my @checksums = qw( 
+		c07fe8abf4f8ba83fb95d44730efc601ba9a7fc340b3bb5b4b2b2741b5e31042
+		3ae9b7ca11f6292ef38bd0198d7e7d0bbb14edb509fdeee34167c5194fa63462
+		e6eb4093f7d958a56a5cd9252a4b529efba147c0e089567f95838067790789ee
+		240ad49b6fe4f47e7bbd54530772e5d26a695ebae154e1d8771983d9dce0e452
+		945d6bd233a4e5e9bfb2d17ddace46f2b223555f60f230be668ee8f20ba8c33c
+		913208a1a4843a5341231771b66bb400390bd7a96a5ce3af95ce0b80d4ed879e
+	);
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            my $fullpath = $dir . "/" . $file;
+            stat $fullpath;
+            if ( -f _ and not -z _ ) {
+				my $checksum = timed_run( 0, 'sha256sum', "$fullpath" );
+				chomp($checksum);
+				$checksum =~ s/\s.*//g;
+				if ( grep { /$checksum/ } @checksums ) { 
+                	push( @SUMMARY, "> [Possible Rootkit: Skidmap] - " . CYAN "Evidence of the Skidmap Rootkit/miner found: " );
+                	vtlink($fullpath);
+				}
             }
         }
     }
@@ -2378,6 +2416,7 @@ sub all_malware_checks {
     check_for_ncom_filenames();
     check_for_hiddenwasp();
     check_for_ngioweb();
+	check_for_skidmap();
     check_for_dirtycow_passwd();
     check_for_dirtycow_kernel();
 }
@@ -2804,7 +2843,7 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4/ ) {
+                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet/ ) {
                     $isImmutable = "";
                     my $attr = qx[ /usr/bin/lsattr $cron ];
                     if ( $attr =~ m/^\s*\S*[ai]/ ) {
