@@ -57,7 +57,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.24";
+my $version = "3.4.25";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our @HISTORY;
@@ -88,6 +88,7 @@ my $elfchk;
 my $libchk;
 my $shadow;
 my $symlink;
+my $secadv;
 my $help;
 my $userscan;
 my $binscan;
@@ -115,6 +116,7 @@ GetOptions(
     'libchk'     => \$libchk,
     'shadow'     => \$shadow,
     'symlink'    => \$symlink,
+    'secadv'     => \$secadv,
     'help'       => \$help,
 );
 
@@ -206,6 +208,7 @@ sub show_help {
     print_header("--libchk	Performs a non-owned library/file check.");
     print_header("--shadow	Performs a check on all email accounts looking for variants of shadow.roottn hack.");
     print_header("--symlink	Performs a symlink hack check for all accounts.");
+    print_header("--secadv	Runs Security Advisor");
     print_header("--full		Performs all of the above checks - very time consuming.");
     print_normal(" ");
     print_header("Examples");
@@ -316,7 +319,12 @@ sub scan {
     print_header("[ System: $OS_RELEASE ]");
     print_normal('');
     print_header("[ Available flags when running csi.pl scan ]");
-    print_header('[     --full Performs a more compreshensive scan ]');
+    print_header( MAGENTA '[     --full Performs a more compreshensive scan ]' );
+    print_header( MAGENTA '[     --elfchk Scans for ELF binaries masquerading as images ]' );
+    print_header( MAGENTA '[     --libchk Performs a non-owned library/file check ]' );
+    print_header( MAGENTA '[     --shadow Scans all accounts for variants of shadow.roottn email hack ]' );
+    print_header( MAGENTA '[     --symlink Scans for symlink hacks going back to / ]' );
+    print_header( MAGENTA '[     --secadv Performs a Security Advisor run ]' );
     print_normal('');
     print_header('[ Checking logfiles ]');
     logit("Checking logfiles");
@@ -362,6 +370,10 @@ sub scan {
     print_header('[ Checking for modified/hacked SSH ]');
     logit("Checking for modified/hacked ssh");
     check_ssh();
+    print_header('[ Checking /root/.bash_history for anomalies ]');
+    logit("Checking /root/.bash_history");
+    check_for_TTY_shell_spawns();
+    check_roots_history();
     print_header('[ Checking for non-root users with ALL privileges in /etc/sudoers file ]');
     logit("Checking /etc/sudoers file");
     check_sudoers_file();
@@ -417,10 +429,13 @@ sub scan {
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM();
     get_last_logins_SSH();
-    print_header('[ Running Security Advisor ]');
-    logit("Running Security Advisor");
 
-    #    security_advisor();
+    if ( $full or $secadv ) {
+        print_header( YELLOW '[ Running Security Advisor ]' );
+        logit("Running Security Advisor");
+        security_advisor();
+    }
+
     print_header('[ cPanel Security Inspection Complete! ]');
     print_header('[ CSI Summary ]');
     print_normal('');
@@ -598,16 +613,21 @@ sub check_for_TTY_shell_spawns {
     foreach $histline (@HISTORY) {
         chomp($histline);
 
-        #if ($histline =~ m/python -c|import pty;|pty.spawn|\/bin\/sh|\/bin\/bash)/ ) {
         if ( $histline =~ m/python -c 'import pty; pty.spawn("\/bin\/sh");'|python -c 'import pty;pty.spawn("\/bin\/bash");'|echo os.system\('\/bin\/bash'\)|\/bin\/sh -i|\/bin\/bash -i/ ) {
             push( @SUMMARY, "> Evidence of in /root/.bash_history for possible TTY shell being spawned" );
             push( @SUMMARY, "\t \\_ $histline\n" );
         }
+    }
+}
 
-        #if ($histline =~ m/echo os.system\('\/bin\/bash'\)/ ) {
-        #}
-        #if ($histline =~ m/\/bin\/sh -i|\/bin\/bash -i/ ) {
-        #}
+sub check_roots_history {
+    my $histline;
+    foreach $histline (@HISTORY) {
+        chomp($histline);
+        if ( $histline =~ m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\/uninstall.sh|yum remove -y cpanel-clamav/ ) {
+            push( @SUMMARY, "> Suspicious entries found in /root/.bash_history" );
+            push( @SUMMARY, "\t\\_ $histline" );
+        }
     }
 }
 
@@ -2914,7 +2934,7 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet/ ) {
+                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex/ ) {
                     $isImmutable = "";
                     my $attr = qx[ /usr/bin/lsattr $cron ];
                     if ( $attr =~ m/^\s*\S*[ai]/ ) {
@@ -3222,10 +3242,15 @@ sub check_sudoers_file {
         next if ( $sudoerLine =~ m/\wheel/ );
         next unless ( $sudoerLine =~ m/ALL$/ );
         if ( $showHeader == 0 ) {
-            push( @SUMMARY, "> Found non-root users with ALL privileges in /etc/sudoers file." );
+            push( @SUMMARY, "> Found non-root users with insecure privileges in /etc/sudoers file." );
             $showHeader++;
         }
-        push( @SUMMARY, "\t\\_ $sudoerLine" );
+        if ( $sudoerLine =~ m/ALL, !root/ ) {
+            push( @SUMMARY, CYAN "\t\\_ $sudoerLine" . RED " (HAS !root - might be susceptible to CVE-2019-14287" );
+        }
+        else {
+            push( @SUMMARY, CYAN "\t\\_ $sudoerLine" );
+        }
     }
 }
 
@@ -3536,6 +3561,7 @@ sub look_for_suspicious_files {
       /var/run/.tmp
       /var/spool/lp/admins/.lp
       /var/spool/lp/.profile
+      /var/www/html/Index.php
       /var/.x
       /var/.x/psotnic
     );
