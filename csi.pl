@@ -57,7 +57,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.25";
+my $version = "3.4.26";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our @HISTORY;
@@ -367,6 +367,9 @@ sub scan {
     print_header('[ Checking for sshd_config ]');
     logit("Checking sshd_config");
     check_sshd_config();
+    print_header('[ Checking vm.nr.hugepages in /proc/sys/vm ]');
+    logit("Checking vm.nr.hugepages value");
+    check_proc_sys_vm();
     print_header('[ Checking for modified/hacked SSH ]');
     logit("Checking for modified/hacked ssh");
     check_ssh();
@@ -762,6 +765,10 @@ sub check_processes {
         }
         if ( $line =~ /bnrffa4/ ) {
             push @SUMMARY, "> ps output contains 'bnrffa4' indicates potential Linux/Lady Rootkit";
+            push @SUMMARY, "\t$line";
+        }
+        if ( $line =~ /systemdo/ ) {
+            push @SUMMARY, "> ps output contains 'systemdo' indicates potential cryptominer";
             push @SUMMARY, "\t$line";
         }
     }
@@ -1284,8 +1291,10 @@ sub check_for_libkeyutils_filenames {
         }
     }
     if ($bad_libs) {
-        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found" );
+        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] " );
+        push( @SUMMARY, CYAN "\t\\_ $bad_libs found" );
         vtlink($bad_libs);
+        $rootkitsfound = 1;
     }
 }
 
@@ -1350,8 +1359,10 @@ sub check_for_unowned_libkeyutils_files {
         }
     }
     if (@unowned_libs) {
-        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] - " . CYAN "Evidence of Ebury/Libkeys Rootkit found." );
+        return if ($rootkitsfound);
+        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys]" );
         for my $unowned_lib (@unowned_libs) {
+            push( @SUMMARY, CYAN "\t\\_ $unowned_lib is not owned by any RPM" );
             vtlink($unowned_lib);
         }
     }
@@ -2270,6 +2281,9 @@ sub check_for_linux_lady {
     if ($LLSocket1) {
         push @SUMMARY, "> Found socket listening on port 6379. Could indicate Linux/Lady Rootkit" unless ( $LLSocket1 =~ m/redis/ );
     }
+    if ( $LLSocket1 =~ m/root/ ) {
+        push @SUMMARY, "> Found redis server listening on port 6379, but running as root - VERY DANGEROUS!";
+    }
 }
 
 sub check_for_bg_botnet {
@@ -2468,6 +2482,7 @@ sub all_malware_checks {
     check_for_dirtycow_kernel();
     check_for_lilocked_ransomware();
     check_for_cryptolocker_ransomware();
+    check_for_junglesec();
 }
 
 sub get_httpd_path {
@@ -2607,6 +2622,33 @@ sub userscan {
     if ($acmetroldesh_ransomware) {
         push( @SUMMARY, "> Found evidence of Troldesh Ransomware in $acmedir" );
     }
+
+    # stealrat botnet
+    print_status( "Checking for Stealrat botnet in " . $RealHome . "/public_html/..." );
+    logit("Checking for for Stealrat botnet");
+    my $stealRatchk1 = qx[ find $RealHome/public_html -print | xargs -d'\n' grep -srl 'die(PHP_OS.chr(49).chr(48).chr(43).md5(0987654321' ];
+    if ($stealRatchk1) {
+        my @stealRatResults = split "\n", $stealRatchk1;
+        my @stealRatUniq    = uniq(@stealRatResults);
+        push( @SUMMARY, "> Found evidence of stealrat botnet" );
+        my $stealRatLine;
+        foreach $stealRatLine (@stealRatUniq) {
+            chomp($stealRatLine);
+            push( @SUMMARY, CYAN "\t\\_ $stealRatLine" );
+        }
+    }
+    @files = qw( sm13e.php sm14e.php ch13e.php Up.php Del.php Copy.php Patch.php Bak.php );
+
+    #$fullpath;
+    for my $file (@files) {
+        $fullpath = "$RealHome/public_html/" . $file;
+        stat $fullpath;
+        if ( -f _ and not -z _ ) {
+            push( @SUMMARY, "> Found evidence of stealrat botnet" );
+            push( @SUMMARY, CYAN "\t\\_ $fullpath" );
+        }
+    }
+
     my $isClamAVInstalled = qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
     if ($isClamAVInstalled) {
         print_status("ClamAV is installed - downloading suspicious strings YARA rules...");
@@ -2786,8 +2828,8 @@ sub check_sshd_config {
     if ( $PassAuth =~ m/yes/i ) {
         push( @SUMMARY, "> PasswordAuthentication is set to yes in /etc/ssh/sshd_config - consider using ssh keys instead!" );
     }
-    my $attr = qx[ /usr/bin/lsattr /etc/ssh/sshd_config ];
-    if ( $attr =~ m/^\s*\S*[ai]/ ) {
+    my $attr = isImmutable("/etc/ssh/sshd_config");
+    if ($attr) {
         push( @SUMMARY, "> The /etc/ssh/sshd_config file is " . MAGENTA "[IMMUTABLE]" . CYAN " indicates possible root-level compromise" );
     }
 }
@@ -2934,13 +2976,13 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex/ ) {
+                if ( $_ =~ /tor2web|onion|yxarsh\.shop|\/u\/SYSTEM|\/root\/\.ttp\/a\/updl\/root\/\/b\/sync|\/tmp\/\.mountfs\/\.rsync\/c\/aptitude|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh/ ) {
                     $isImmutable = "";
-                    my $attr = qx[ /usr/bin/lsattr $cron ];
-                    if ( $attr =~ m/^\s*\S*[ai]/ ) {
-                        $isImmutable = " [IMMUTABLE]";
+                    my $attr = isImmutable($cron);
+                    if ($attr) {
+                        $isImmutable = MAGENTA " [IMMUTABLE]";
                     }
-                    push @cronContains, CYAN "\t \\_ " . $cron . " Contains: [ " . $_ . " ] $isImmutable";
+                    push @cronContains, CYAN "\t \\_ " . $cron . " Contains: [ " . RED $_ . CYAN " ] $isImmutable";
                 }
             }
             close $cron_fh;
@@ -2960,8 +3002,8 @@ sub misc_checks {
         push( @SUMMARY, "> Suspicious directories found:" );
         push( @SUMMARY, CYAN "\t\\_ " . $dir );
     }
-    @dirs  = qw( /root/.ssh/.dsa/a /bin );
-    @files = qw( f f.good in.txt nohup.out ftpsdns httpntp watchdog );
+    @dirs  = qw( /root/.ssh/.dsa/a /bin /etc/rc.local );
+    @files = qw( f f.good in.txt nohup.out ftpsdns httpntp watchdog watchd0g.sh );
     for my $dir (@dirs) {
         next if !-e $dir;
         for my $file (@files) {
@@ -3006,11 +3048,16 @@ sub vtlink {
         my $sha256 = qx[ sha256sum $FileToChk ];
         chomp($sha256);
         ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
+        my $knownHash = known_sha256_hashes($sha256only);
         push @SUMMARY, "  File: " . CYAN $FileToChk . GREEN " [ Not normally found on clean servers ]";
         push @SUMMARY, "  Size: " . CYAN $FileSize . WHITE " (" . nearest( .1, $KFS ) . "k)" . GREEN "  $sizeDesc ";
         push @SUMMARY, "  Changed: " . CYAN scalar localtime($ctime) . GREEN " [ Approximate date the compromise may have occurred ]";
         push @SUMMARY, "  RPM Owned: " . $RPMowned;
         push @SUMMARY, "  sha256sum: " . CYAN $sha256only . "\n";
+
+        if ($knownHash) {
+            push @SUMMARY, MAGENTA "> The hash $sha256only is known to be suspicious!";
+        }
         push @SUMMARY, GREEN "  Taking the above sha256 hash of $FileToChk and plugging it into VirusTotal.com...";
         push @SUMMARY, GREEN "  Check this link to see if it has already been detected:\n\t \\_ " . WHITE "https://www.virustotal.com/#/file/$sha256only/detection\n";
     }
@@ -3043,7 +3090,7 @@ sub check_for_exim_vuln {
     my $authkeysGID   = ( stat("/root/.ssh/authorized_keys")->gid );
     my $authkeysGname = getgrgid($authkeysGID);
     if ( $authkeysGID > 0 ) {
-        push @SUMMARY, "> Found the /root/.ssh/authorized_keys file to have an invalid group name [$authkeysGname]. Indicates tampering at the root-level.";
+        push @SUMMARY, "> Found the /root/.ssh/authorized_keys file to have an invalid group name [" . MAGENTA $authkeysGname . YELLOW "] - " . CYAN "Indicates tampering at the root-level.";
     }
 }
 
@@ -3128,7 +3175,11 @@ sub get_cron_files {
 }
 
 sub get_last_logins_WHM {
-    my @lastWHMRootLogins = qx[ grep 'root' /usr/local/cpanel/logs/access_log | grep '200' | grep 'post_login=' ];
+
+    #my @lastWHMRootLogins = qx[ grep ' root ' /usr/local/cpanel/logs/access_log | grep '200' | grep 'post_login=' ];
+    my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = localtime();
+    $year = $year + 1900;
+    my @lastWHMRootLogins = qx[ grep ' root ' /usr/local/cpanel/logs/access_log | egrep '200|post_login=|$year' ];
     my $WHMLogins         = "";
     my @WHMIPs            = undef;
     foreach $WHMLogins (@lastWHMRootLogins) {
@@ -3139,16 +3190,20 @@ sub get_last_logins_WHM {
     my @sorted1 = uniq(@WHMIPs);
     my @sorted  = sort(@sorted1);
     push( @SUMMARY, "> The following IP address(es) logged on via WHM successfully as root:" );
-    my $ipcnt = 0;
+
+    #    my $ipcnt = 0;
     foreach $WHMLogins (@sorted) {
         push( @SUMMARY, CYAN "\t\\_ IP: $WHMLogins" ) unless ( $WHMLogins =~ m/208.74.123.|184.94.197./ );
-        last if $ipcnt > 8;
-        $ipcnt++;
+
+        #        last if $ipcnt > 8;
+        #        $ipcnt++;
     }
 }
 
 sub get_last_logins_SSH {
-    my @LastSSHRootLogins = qx[ last | grep 'root' | tail $Last10 ];
+
+    #my @LastSSHRootLogins = qx[ last | grep 'root' | tail $Last10 ];
+    my @LastSSHRootLogins = qx[ last | grep 'root' ];
     my $SSHLogins         = "";
     my @SSHIPs            = undef;
     foreach $SSHLogins (@LastSSHRootLogins) {
@@ -3347,6 +3402,7 @@ sub look_for_suspicious_files {
       /proc/knark
       /proc/kset
       /rescue/mount_fs
+      /root/watchd0g.sh
       /root/.ssh/KHK75NEOiq
       /sbin/home
       /sbin/pback
@@ -3380,6 +3436,7 @@ sub look_for_suspicious_files {
       /tmp/ramen.tgz
       /tmp/.rewt
       /tmp/sess.rotat
+      /tmp/systemdo
       /tmp/.unlock
       /tmp./update
       /tmp/.uua
@@ -3559,11 +3616,13 @@ sub look_for_suspicious_files {
       /var/run/+++screen.run
       /var/run/.ssh.pid
       /var/run/.tmp
+      /var/spool/cron/crontabs
       /var/spool/lp/admins/.lp
       /var/spool/lp/.profile
       /var/www/html/Index.php
       /var/.x
       /var/.x/psotnic
+      /watchd0g.sh
     );
 
     for my $file (@files) {
@@ -3574,6 +3633,71 @@ sub look_for_suspicious_files {
             my ( $changeDate, $changeTime ) = ( split( /\s+/, $changeDateLine ) )[ 1, 2 ];
             push( @SUMMARY, "> Found suspicious file: " . CYAN $file . MAGENTA " [ Changed: $changeDate $changeTime ]" );
         }
+    }
+}
+
+sub check_proc_sys_vm {
+    my $sysctl = { map { split( /\s=\s/, $_, 2 ) } split( /\n/, timed_run( 0, 'sysctl', '-a' ) ) };
+    if ( defined( $sysctl->{'vm.nr.hugepages'} && $sysctl->{'vm.nr.hugepages'} > '0' ) ) {
+        push( @SUMMARY, "> Found suspicious value for vm.nr.hugepages [" . CYAN $sysctl->{'vm.nr.hugepages'} . YELLOW "] - Possible cryptominer?" );
+    }
+}
+
+sub known_sha256_hashes {
+    my $checksum    = $_[0];
+    my @knownhashes = qw(
+      0adadc3799d06b35465107f98c07bd7eef5cb842b2cf09ebaeaa3773c1f02343
+      d814bf38f5cf7a58c3469d530d83106c4fc7653b6be079fc2a6f73a36b1b35c6
+      7f30ea52b09d6d9298f4f30b8045b77c2e422aeeb84541bb583118be2425d335
+      690aea53dae908c9afa933d60f467a17ec5f72463988eb5af5956c6cb301455b
+      1155fae112da3072d116f39e90f6af5430f44f78638db3f43a62a9037baa8333
+      2c7b1707564fb4b228558526163249a059cf5e90a6e946be152089f0b69e4025
+      48cf0f374bc3add6e3f73f6db466f9b62556b49a9f7abbcce068ea6fb79baa04
+      0b9c54692d25f68ede1de47d4206ec3cd2e5836e368794eccb3daa632334c641
+      7bef63fa84a17ab5ed0848b44e5e42570cb35160571be904b55f6f3c1b91af3b
+      15ee5b44947271e6bd15e18b45e04219859dc5cb0800063519a4a8273291c57e
+      03179a152a0ee80814ec62c91f8e7f0d0d6902bf190d2af1ecb6f17a0c0b8095
+      e1268b45a93ea4ec27bf3e0fa3bfade49b4bd9464c1a08c5fe628341526d687f
+      f808a42b10cf55603389945a549ce45edc6a04562196d14f7489af04688f12bc
+      dbc380cbfb1536dfb24ef460ce18bccdae549b4585ba713b5228c23924385e54
+      dcd37e5b266cc0cd3fab73caa63b218f5b92e9bd5b25cf1cacf1afdb0d8e76ff
+      de63ce4a42f06a5903b9daa62b67fcfbdeca05beb574f966370a6ae7fd21190d
+      09968c4573580398b3269577ced28090eae4a7c326c1a0ec546761c623625885
+      5b790f02bdb26b6b6b270a5669311b4f231d17872aafb237b7e87b6bbb57426d
+      e59be6eec9629d376a8a4a70fe9f8f3eec7b0919019f819d44b9bdd1c429277c
+      7a18c7bdf0c504832c8552766dcfe0ba33dd5493daa3d9dbe9c985c1ce36e5aa
+      a27acc07844bb751ac33f5df569fd949d8b61dba26eb5447482d90243fc739af
+    );
+
+    if ( grep { /$checksum/ } @knownhashes ) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
+sub check_for_junglesec {
+    my $IPRule = qx[ iptables -L -n | grep 'dport 64321' | grep 'j ACCEPT' ];
+    if ($IPRule) {
+        push( @SUMMARY, "> Port 64321 set to ACCEPT in firewall - evidence of backdoor created by JungleSec Ransomware" );
+    }
+    my $SearchJungleSec = qx[ find / -xdev -maxdepth 3 -name '*junglesec*' ];
+    if ($SearchJungleSec) {
+        push( @SUMMARY, "> Found possible JungleSec Ransomware - found several encrypted files with the junglesec extension." );
+        push( @SUMMARY, CYAN "\t\\_ Run: " . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" );
+    }
+}
+
+sub isImmutable {
+    my $FileToCheck = $_[0];
+    return if !-e $FileToCheck;
+    my $attr = qx[ /usr/bin/lsattr $FileToCheck ];
+    if ( $attr =~ m/^\s*\S*[ai]/ ) {
+        return 1;
+    }
+    else {
+        return 0;
     }
 }
 
