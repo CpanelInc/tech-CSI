@@ -32,6 +32,7 @@
 
 use strict;
 use warnings;
+my $version = "3.4.28";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -62,7 +63,6 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 
-my $version = "3.4.27";
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 our @HISTORY;
@@ -1161,6 +1161,7 @@ sub check_for_libkeyutils_filenames {
       libsbr.so
       libslr.so
       libtsr.so
+      libtsq.so
       libhdx.so
       tls/libkeyutils.so.1
       tls/libkeyutils.so.1.5
@@ -1175,9 +1176,8 @@ sub check_for_libkeyutils_filenames {
         }
     }
     return if ( @bad_libs == 0 );
-    push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] " );
+    push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys]" );
     foreach $bad_libs (@bad_libs) {
-        push( @SUMMARY, expand( CYAN "\t\\_ $bad_libs" ) );
         vtlink($bad_libs);
     }
     $rootkitsfound = 1;
@@ -1259,7 +1259,7 @@ sub check_for_unowned_libkeyutils_files {
     }
     if (@unowned_libs) {
         return if ($rootkitsfound);
-        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys]" );
+        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] - " . CYAN "Library/file not owned by an RPM" );
         for my $unowned_lib (@unowned_libs) {
             push( @SUMMARY, CYAN "\t\\_ $unowned_lib is not owned by any RPM" );
             vtlink($unowned_lib);
@@ -1748,6 +1748,8 @@ sub userscan {
         push( @symlinks, qx[ find "$RealHome/public_html" -type l -lname "$HOMEDIR/*/public_html/$conffile" -ls ] );
     }
     my $headerprinted = 0;
+    my $hp1           = 0;
+    my $hp2           = 0;
     my $symlink;
     foreach $symlink (@symlinks) {
         my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
@@ -1760,12 +1762,32 @@ sub userscan {
             my $fStat = stat($realpath);
             if ( -e _ ) {
                 if ( $symUID eq "root" or $symGID eq "root" ) {
-                    push( @SUMMARY, expand( RED "\t\\_ Found root owned symlink:\n\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
+                    if ( $hp1 == 0 ) {
+                        push( @SUMMARY, expand( CYAN "\t\\_ root owned symlinks " . BOLD RED "(should be considered root compromised!): " ) );
+                        $hp1 = 1;
+                    }
+                    push( @SUMMARY, expand( "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
                 }
                 else {
-                    push( @SUMMARY, expand( CYAN "\t\\_ Found user owned ($symUID) symlink:\n\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
+                    if ( $hp2 == 0 ) {
+                        push( @SUMMARY, expand( CYAN "\t\\_ User owned ($symUID) symlinks: " ) );
+                        $hp2 = 1;
+                    }
+                    push( @SUMMARY, expand( "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
                 }
             }
+        }
+    }
+
+    print_status("Checking for shadow.roottn.bak hack variants...");
+    my $shadow_roottn_baks = qx[ find $RealHome/etc/* -name 'shadow\.*' -print ];
+    if ($shadow_roottn_baks) {
+        my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
+        push @SUMMARY, "> Found the following directories containing possible variant of the shadow.roottn.bak hack:";
+        push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php" );
+        foreach $shadow_roottn_baks (@shadow_roottn_baks) {
+            chomp($shadow_roottn_baks);
+            push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
     }
 
@@ -1862,7 +1884,7 @@ sub userscan {
         next if ( $file eq "." or $file eq ".." );
         next unless ( "$file" =~ m/\.js$/ );
         spin();
-        my $MageCartStringFound = qx[ egrep 'aHR0cHM6Ly9jb250ZW50LW|_0x8205=|_0xdb2b=|z0ogkswp6146oodog3d9jb|YUhSMGNITTZN|fca9c64fe59ea2f|h545f985|Ly90TXRRTS9rUGk0SHV5d|givemejs.cc|content-delivery.cc|cdn-content.cc|deliveryjs.cc|darvishkhan.net' $file ];
+        my $MageCartStringFound = qx[ egrep 'zdsassets.com|c2V0VGltZW91dChmdW5|aHR0cHM6Ly9jb250ZW50LW|_0x8205=|_0xdb2b=|z0ogkswp6146oodog3d9jb|YUhSMGNITTZN|fca9c64fe59ea2f|h545f985|Ly90TXRRTS9rUGk0SHV5d|givemejs.cc|content-delivery.cc|cdn-content.cc|deliveryjs.cc|darvishkhan.net' $file ];
         if ($MageCartStringFound) {
             push( @SUMMARY, "> Found evidence of possible MageCart hack in" );
             push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
@@ -1882,7 +1904,7 @@ sub userscan {
         my $resultLine;
         my @FOUND = undef;
         my @results =
-          qx[ /usr/local/cpanel/3rdparty/bin/clamscan --no-summary --infected --suppress-ok-results --log=/root/suspicious_strings_scan_results.log --recursive --exclude=".crt" --exclude=".mp4" --exclude=".mp3" --exclude=".zip" --exclude=".webm" --exclude=".json" --exclude=".pdf"  --exclude=".png" --exclude=".css" --exclude=".svg" --include=".php" --include=".*htm*" --include=".t*t" --database /root/suspicious_strings.yara "$RealHome/public_html" ];
+          qx[ /usr/local/cpanel/3rdparty/bin/clamscan --no-summary --infected --suppress-ok-results --log=/root/suspicious_strings_scan_results.log --recursive --exclude=".psd" --exclude=".dat" --exclude=".bz2" --exclude=".crt" --exclude=".mp4" --exclude=".mp3" --exclude=".zip" --exclude=".webm" --exclude=".json" --exclude=".pdf"  --exclude=".png" --exclude=".css" --exclude=".svg" --include=".php" --include=".*htm*" --include=".t*t" --database /root/suspicious_strings.yara "$RealHome/public_html" ];
 
         if ( @results > 0 ) {
             push( @SUMMARY, "> A general scan of the $lcUserToScan account found the following suspicous items" );
@@ -1984,6 +2006,8 @@ sub check_for_symlinks {
         push( @symlinks, qx[ find /home/*/public_html -type l -lname "/home/*/$conffile" -ls ] );
     }
     my $headerprinted = 0;
+    my $hp1           = 0;
+    my $hp2           = 0;
     my $symlink;
     foreach $symlink (@symlinks) {
         my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
@@ -1996,10 +2020,19 @@ sub check_for_symlinks {
             my $fStat = stat($realpath);
             if ( -e _ ) {
                 if ( $symUID eq "root" or $symGID eq "root" ) {
-                    push( @SUMMARY, expand( RED "\t\\_ Found root owned symlink:\n\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
+                    if ( $hp1 == 0 ) {
+                        push( @SUMMARY, expand( CYAN "\t\\_ root owned symlink " . BOLD RED "(should be considered root compromised!): " ) );
+                        $hp1 = 1;
+                    }
+                    push( @SUMMARY, expand( "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
+
                 }
                 else {
-                    push( @SUMMARY, expand( CYAN "\t\\_ Found user owned ($symUID) symlink:\n\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
+                    if ( $hp2 == 0 ) {
+                        push( @SUMMARY, expand( CYAN "\t\\_ User owned ($symUID) symlink: " ) );
+                        $hp2 = 1;
+                    }
+                    push( @SUMMARY, expand( "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath ) );
                 }
             }
         }
@@ -2663,6 +2696,8 @@ sub look_for_suspicious_files {
       /proc/kset
       /rescue/mount_fs
       /root/README_DECRYPT
+      /root/READ_TO_DECRYPT
+      /root/READ_ME.txt
       /root/README_DECRYPT.html
       /root/.a
       /root/.cd
@@ -3149,6 +3184,7 @@ sub known_sha256_hashes {
       240ad49b6fe4f47e7bbd54530772e5d26a695ebae154e1d8771983d9dce0e452
       945d6bd233a4e5e9bfb2d17ddace46f2b223555f60f230be668ee8f20ba8c33c
       913208a1a4843a5341231771b66bb400390bd7a96a5ce3af95ce0b80d4ed879e
+      bf88572ce96677afea10f4c7968b3e144b8cc53250d1dc69f8d7916943e8ce68
     );
 
     if ( grep { /$checksum/ } @knownhashes ) {
