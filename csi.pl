@@ -32,7 +32,7 @@
 
 use strict;
 use warnings;
-my $version = "3.4.28";
+my $version = "3.4.29";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -364,6 +364,9 @@ sub scan {
     print_header('[ Checking for miscellaneous compromises ]');
     logit("Checking for miscellaneous compromises");
     misc_checks();
+    print_header('[ Checking Apache Modules ]');
+    logit("Checking Apache Modules (owned by RPM)");
+    check_apache_modules();
     print_header('[ Checking for deprecated plugins/modules ]');
     logit("Checking for deprecated plugins");
     check_for_deprecated();
@@ -781,6 +784,10 @@ sub check_processes {
             push @SUMMARY, "> ps output contains '[kworker/u8:7ev]' indicates potential ACBackdoor rootkit";
             push @SUMMARY, "\t$line";
         }
+        if ( $line =~ /\[stealth\]/ ) {
+            push @SUMMARY, "> ps output contains '[stealth]' should be investigated";
+            push @SUMMARY, "\t$line";
+        }
     }
 }
 
@@ -863,6 +870,7 @@ sub check_lib {
     my @RPMNotOwned = undef;
     foreach $line (@AllDirs) {
         chomp($line);
+        next unless ( ! -d $line );
         next if $line =~ m{/usr/lib/systemd/system|/lib/modules|/lib/firmware|/usr/lib/vmware-tools|/lib64/xtables|jvm|php|perl5|/usr/lib/ruby|python|golang|fontconfig|/usr/lib/exim|/usr/lib/exim/bin|/usr/lib64/pkcs11|/usr/lib64/setools|/usr/lib64/dovecot/old-stats|/usr/lib64/libdb4};
         my $NotOwned = qx[ rpm -qf $line | grep 'not owned' ];
         next unless ($NotOwned);
@@ -1554,7 +1562,6 @@ sub check_for_bg_botnet {
       /etc/xfsdxd
       /etc/rc.d/init.d/DbSecuritySpt
       /etc/rc.d/init.d/selinux
-      /usr/bin/bsd-port/getty
       /usr/bin/pojie
       /usr/lib/libamplify.so
       /etc/pprt
@@ -2222,10 +2229,11 @@ sub misc_checks {
     my @cronContains = undef;
     my $isImmutable  = "";
     for my $cron (@crons_aref) {
+        $isImmutable=isImmutable($cron);
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                if ( $_ =~ /tor2web|onion|yxarsh\.shop|cr2\sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh/ ) {
+                if ( $_ =~ /tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]/ ) {
                     $isImmutable = "";
                     my $attr = isImmutable($cron);
                     if ($attr) {
@@ -2577,6 +2585,7 @@ sub look_for_suspicious_files {
       /dev/saux
       /dev/.shit/red.tgz
       /dev/shm/cfgas
+      /dev/shm/.kauditd
       /dev/srd0
       /dev/ttyof
       /dev/ttyop
@@ -2764,6 +2773,8 @@ sub look_for_suspicious_files {
       /tmp/.font-unix/.cinik
       /tmp/.h
       /tmp/.helpdd
+      /tmp/./xL
+      /tmp/./xL.1
       /tmp/httpd
       /tmp/httpd.conf
       /tmp/.IptabLes
@@ -2820,6 +2831,7 @@ sub look_for_suspicious_files {
       /usr/bin/atm
       /usr/bin/bnrffa4
       /usr/bin/bsd-port
+      /usr/bin/bsd-port/knerl
       /usr/bin/bsd-port/getty
       /usr/bin/chsh2
       /usr/bin/cleaner
@@ -3107,12 +3119,17 @@ sub look_for_suspicious_files {
             my $isNOTRPMowned = qx[ rpm -qf $file | grep 'not owned by' ];
             chomp($isNOTRPMowned);
             my $RPMowned = "Yes";
-
             if ($isNOTRPMowned) {
                 $RPMowned = "No";
             }
-            push @SUMMARY, expand( "> Suspicious directory/file found: " . CYAN $file . YELLOW "\n\t\\_ Size: " . CYAN $FileSize . YELLOW " Date Changed: " . CYAN scalar localtime($ctime) . YELLOW " RPM Owned: " . CYAN $RPMowned . YELLOW " Owned by UID/GID: " . CYAN $FileU . "/" . $FileG );
-            vtlink($file);
+            my $isImmutable = isImmutable($file);
+            if ($isImmutable) { 
+                $isImmutable = MAGENTA " [IMMUTABLE]";
+            }
+            else { 
+                $isImmutable = "";
+            }
+            push @SUMMARY, expand( "> Suspicious directory/file found: " . CYAN $file . $isImmutable . YELLOW "\n\t\\_ Size: " . CYAN $FileSize . YELLOW " Date Changed: " . CYAN scalar localtime($ctime) . YELLOW " RPM Owned: " . CYAN $RPMowned . YELLOW " Owned by UID/GID: " . CYAN $FileU . "/" . $FileG );
         }
     }
 }
@@ -3185,6 +3202,11 @@ sub known_sha256_hashes {
       945d6bd233a4e5e9bfb2d17ddace46f2b223555f60f230be668ee8f20ba8c33c
       913208a1a4843a5341231771b66bb400390bd7a96a5ce3af95ce0b80d4ed879e
       bf88572ce96677afea10f4c7968b3e144b8cc53250d1dc69f8d7916943e8ce68
+      48c4891ba19a3998b8828543dec53488e8fe8f1d0b0ff47b124392d1a8894cb0
+      d8189f4ab2bbe8dbd92391ebc83985fae7ce8cb1377ad54205adeabadb0fb9c3
+      c0165ad421a8421ddad2e625e509be90f515cb8cd0519431ddabf273ffd2a589
+      9f22b453d5a5acbb465380a78349fca81fd4900f6ab13fa235f0275f82e9ba89
+      99783b36b8779334e308ce5a9d9d79fa6039b17716c5ce93146849509052b6a2
     );
 
     if ( grep { /$checksum/ } @knownhashes ) {
@@ -3210,7 +3232,7 @@ sub check_for_junglesec {
 sub isImmutable {
     my $FileToCheck = $_[0];
     return if !-e $FileToCheck;
-    my $attr = qx[ /usr/bin/lsattr $FileToCheck ];
+    my $attr = qx[ /usr/bin/lsattr $FileToCheck 2> /dev/null ];
     if ( $attr =~ m/^\s*\S*[ai]/ ) {
         return 1;
     }
@@ -3252,6 +3274,25 @@ sub check_cpupdate_conf {
     }
     unless ( $_is_allowed->('SARULESUP') ) {
         push( @SUMMARY, "> SARULESUP set to never or manual. Please consider enabling SpamAssassin Rule updates." );
+    }
+}
+
+sub check_apache_modules { 
+    return if (! -d "/etc/apache2/modules" );
+    my $ApacheMod;
+    opendir(APACHEMODS,"/etc/apache2/modules");
+    my @ApacheMods=readdir(APACHEMODS);
+    closedir(APACHEMODS);
+    my $FoundOne=0;
+    my $FoundMod = "";
+    foreach $ApacheMod(@ApacheMods) {  
+        my $NotOwned = qx[ rpm -qf "/etc/apache2/modules/$ApacheMod" | grep 'not owned' ];
+        next unless ($NotOwned);
+        $FoundMod .= $ApacheMod . " ";
+        $FoundOne=1;
+    }
+    if ($FoundOne) { 
+        push( @SUMMARY, expand( "> Found at least one Apache module in /etc/apache/modules that is not owned by an RPM!\n\t\\_ " . CYAN "Should be investigated " . MAGENTA $FoundMod ));
     }
 }
 
