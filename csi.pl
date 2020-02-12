@@ -31,8 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-use warnings;
-my $version = "3.4.29";
+my $version = "3.4.30";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -40,6 +39,7 @@ $tabstop = 4;
 use File::Basename;
 use File::Path;
 use File::stat;
+use DateTime;
 use Cpanel::Exception       ();
 use Cpanel::Sys             ();
 use Cpanel::Sys::OS         ();
@@ -51,6 +51,7 @@ use Cpanel::IONice          ();
 use Cpanel::PwCache         ();
 use Cpanel::PwCache::Get    ();
 use Cpanel::SafeRun::Object ();
+use List::MoreUtils qw(uniq);
 use Math::Round;
 use File::Find::Rule;
 use POSIX;
@@ -358,12 +359,14 @@ sub scan {
     print_header('[ Checking process list for suspicious processes ]');
     logit("Checking process list for suspicious processes");
     check_processes();
+    check_for_stealth_in_ps();
     print_header('[ Checking for suspicious bitcoin miners ]');
     logit("Checking for suspicious bitcoin miners");
     bitcoin_chk();
     print_header('[ Checking for miscellaneous compromises ]');
     logit("Checking for miscellaneous compromises");
     misc_checks();
+    check_changepasswd_modules();
     print_header('[ Checking Apache Modules ]');
     logit("Checking Apache Modules (owned by RPM)");
     check_apache_modules();
@@ -433,6 +436,7 @@ sub scan {
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM();
     get_last_logins_SSH();
+    get_root_pass_changes();
 
     if ( $full or $secadv ) {
         print_header( YELLOW '[ Additional check Security Advisor ]' );
@@ -784,10 +788,6 @@ sub check_processes {
             push @SUMMARY, "> ps output contains '[kworker/u8:7ev]' indicates potential ACBackdoor rootkit";
             push @SUMMARY, "\t$line";
         }
-        if ( $line =~ /\[stealth\]/ ) {
-            push @SUMMARY, "> ps output contains '[stealth]' should be investigated";
-            push @SUMMARY, "\t$line";
-        }
     }
 }
 
@@ -870,7 +870,7 @@ sub check_lib {
     my @RPMNotOwned = undef;
     foreach $line (@AllDirs) {
         chomp($line);
-        next unless ( ! -d $line );
+        next unless ( !-d $line );
         next if $line =~ m{/usr/lib/systemd/system|/lib/modules|/lib/firmware|/usr/lib/vmware-tools|/lib64/xtables|jvm|php|perl5|/usr/lib/ruby|python|golang|fontconfig|/usr/lib/exim|/usr/lib/exim/bin|/usr/lib64/pkcs11|/usr/lib64/setools|/usr/lib64/dovecot/old-stats|/usr/lib64/libdb4};
         my $NotOwned = qx[ rpm -qf $line | grep 'not owned' ];
         next unless ($NotOwned);
@@ -926,7 +926,7 @@ sub timed_run_trap_stderr {
     my $fh;
     eval {
         local $SIG{'__DIE__'} = 'DEFAULT';
-        local $SIG{'ALRM'} = sub { $output = ""; print RED ON_BLACK "Timeout while executing: " . join( ' ', @PROGA ) . "\n"; die; };
+        local $SIG{'ALRM'}    = sub { $output = ""; print RED ON_BLACK "Timeout while executing: " . join( ' ', @PROGA ) . "\n"; die; };
         alarm($timer);
         if ( $pid = open( $fh, '-|' ) ) {
             local $/;
@@ -969,7 +969,7 @@ sub timed_run {
     my $fh;
     eval {
         local $SIG{'__DIE__'} = 'DEFAULT';
-        local $SIG{'ALRM'} = sub { $output = ""; print RED ON_BLACK "Timeout while executing: " . join( ' ', @PROGA ) . "\n"; die; };
+        local $SIG{'ALRM'}    = sub { $output = ""; print RED ON_BLACK "Timeout while executing: " . join( ' ', @PROGA ) . "\n"; die; };
         alarm($timer);
         if ( $pid = open( $fh, '-|' ) ) {
             local $/;
@@ -1018,10 +1018,6 @@ sub create_summary {
         print $CSISUMMARY $_, "\n";
     }
     close($CSISUMMARY);
-    my $clamlog = qx[ find $csidir -name '*_clamscan.log' ];
-    if ($clamlog) {
-        print_info("Don't forget to review $clamlog");
-    }
 }
 
 sub dump_summary {
@@ -1030,15 +1026,17 @@ sub dump_summary {
     }
     else {
         create_summary();
-        print_warn('The following negative items were found:');
-        foreach (@SUMMARY) {
-            print BOLD YELLOW $_ . "\n";
+        if (@SUMMARY) {
+            print_warn('The following negative items were found:');
+            foreach (@SUMMARY) {
+                print BOLD YELLOW $_ . "\n";
+            }
+            print_normal('');
+            print_separator('If you believe there are negative items, you should consult with your system administrator or a security professional.');
+            print_separator('If you need a system administrator, one can probably be found by going to https://go.cpanel.net/sysadmin');
+            print_separator('Note: cPanel Support cannot assist you with any negative issues found.');
+            print_normal('');
         }
-        print_normal('');
-        print_separator('If you believe there are negative items, you should consult with your system administrator or a security professional.');
-        print_separator('If you need a system administrator, one can probably be found by going to https://go.cpanel.net/sysadmin');
-        print_separator('Note: cPanel Support cannot assist you with any negative issues found.');
-        print_normal('');
     }
 }
 
@@ -1139,7 +1137,7 @@ sub check_for_cdorked_A {
 
 sub check_for_cdorked_B {
     my $has_cdorked_b = 0;
-    my @files = ( '/usr/sbin/arpd ', '/usr/sbin/tunelp ', '/usr/bin/s2p ' );
+    my @files         = ( '/usr/sbin/arpd ', '/usr/sbin/tunelp ', '/usr/bin/s2p ' );
     my $cdorked_files;
     for my $file (@files) {
         if ( -e $file ) {
@@ -1496,7 +1494,7 @@ sub check_for_suckit {
     }
     my $initSymLink    = qx[ ls -li /sbin/init ];
     my $telinitSymLink = qx[ ls -li /sbin/telinit ];
-    my ( $SLInode1, $isLink1 ) = ( split( /\s+/, $initSymLink ) )[ 0,    1 ];
+    my ( $SLInode1, $isLink1 ) = ( split( /\s+/, $initSymLink ) )[ 0, 1 ];
     my ( $SLInode2, $isLink2 ) = ( split( /\s+/, $telinitSymLink ) )[ 0, 1 ];
     if ( $SLInode1 == $SLInode2 and substr( $isLink1, 0, 1 ) ne "l" or substr( $isLink2, 0, 1 ) ne "l" ) {
         $SuckItCount++;
@@ -1656,6 +1654,7 @@ sub check_for_libkeyutils_symbols {
 sub all_malware_checks {
     check_for_kthrotlds();
     check_for_linux_lady();
+    check_for_ncom_rootkit();
     check_for_jynx2_rootkit();
     check_for_azazel_rootkit();
     check_for_cdorked_A();
@@ -1794,8 +1793,31 @@ sub userscan {
         push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php" );
         foreach $shadow_roottn_baks (@shadow_roottn_baks) {
             chomp($shadow_roottn_baks);
+            next if ( $shadow_roottn_baks =~ m/shadow.lock/ );
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
+    }
+
+    print_status("Checking cgi-bin directory for suspicious bash script");
+    my $suspBash = qx [ find $RealHome/public_html/cgi-bin/jarrewrite.sh ];
+    if ($suspBash) {
+        chomp($suspBash);
+        push @SUMMARY, "> Found suspicious bash script $suspBash";
+    }
+
+    print_status("Checking for php scripts in $RealHome/public_html/.well-known");
+    use Path::Iterator::Rule;
+    my $rule          = Path::Iterator::Rule->new;
+    my $it            = $rule->iter("$RealHome/public_html/.well-known");
+    my $headerprinted = 0;
+    while ( my $file = $it->() ) {
+        next if ( $file eq "." or $file eq ".." );
+        next unless ( "$file" =~ m/\.php$/ );
+        if ( $headerprinted == 0 ) {
+            push( @SUMMARY, YELLOW "> Found php script under $RealHome/public_html/.well-known" );
+            $headerprinted = 1;
+        }
+        push( @SUMMARY, CYAN "\t\\_ $file" );
     }
 
     print_status( "Checking for deprecated .accesshash file in " . $RealHome . "..." );
@@ -1857,19 +1879,7 @@ sub userscan {
 
     # stealrat botnet
     print_status( "Checking for Stealrat botnet in " . $RealHome . "/public_html/..." );
-    logit("Checking for for Stealrat botnet");
-
-    #    my $stealRatchk1 = qx[ find $RealHome/public_html -print | xargs -d'\n' grep -srl 'die(PHP_OS.chr(49).chr(48).chr(43).md5(0987654321' ];
-    #    if ($stealRatchk1) {
-    #        my @stealRatResults = split "\n", $stealRatchk1;
-    #        my @stealRatUniq    = uniq(@stealRatResults);
-    #        push( @SUMMARY, "> Found evidence of stealrat botnet" );
-    #        my $stealRatLine;
-    #        foreach $stealRatLine (@stealRatUniq) {
-    #            chomp($stealRatLine);
-    #            push( @SUMMARY, CYAN "\t\\_ $stealRatLine" );
-    #        }
-    #    }
+    logit("Checking for Stealrat botnet");
     @files = qw( sm13e.php sm14e.php ch13e.php Up.php Del.php Copy.php Patch.php Bak.php );
     for my $file (@files) {
         $fullpath = "$RealHome/public_html/" . $file;
@@ -1879,6 +1889,16 @@ sub userscan {
             push( @SUMMARY, "> Found evidence of stealrat botnet" );
             push( @SUMMARY, CYAN "\t\\_ $fullpath" );
         }
+    }
+
+    # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
+    print_status("Checking for malicious WordPress plugins");
+    logit("Checking for malicious WordPress plugins");
+    if ( -e "$RealHome/public_html/wp-content/plugins/supersociall" ) {
+        push( @SUMMARY, "> Found possible malicious WordPress plugin in $RealHome/public_html/wp-content/plugins/supercociall/" );
+    }
+    if ( -e "$RealHome/public_html/wp-content/plugins/blockspluginn" ) {
+        push( @SUMMARY, "> Found possible malicious WordPress plugin in $RealHome/public_html/wp-content/plugins/blockpluginn/" );
     }
 
     # MageCart Hack checks
@@ -1891,7 +1911,7 @@ sub userscan {
         next if ( $file eq "." or $file eq ".." );
         next unless ( "$file" =~ m/\.js$/ );
         spin();
-        my $MageCartStringFound = qx[ egrep 'zdsassets.com|c2V0VGltZW91dChmdW5|aHR0cHM6Ly9jb250ZW50LW|_0x8205=|_0xdb2b=|z0ogkswp6146oodog3d9jb|YUhSMGNITTZN|fca9c64fe59ea2f|h545f985|Ly90TXRRTS9rUGk0SHV5d|givemejs.cc|content-delivery.cc|cdn-content.cc|deliveryjs.cc|darvishkhan.net' $file ];
+        my $MageCartStringFound = qx[ egrep 'EventsListenerPool|OpenDoorCDN.com|TopLevelStatic.com|ATMZOW|zdsassets.com|aHR0cHM6Ly9jb250ZW50LW|_0x8205=|_0xdb2b=|z0ogkswp6146oodog3d9jb|YUhSMGNITTZN|fca9c64fe59ea2f|h545f985|Ly90TXRRTS9rUGk0SHV5d|givemejs.cc|content-delivery.cc|cdn-content.cc|deliveryjs.cc|darvishkhan.net' $file ];
         if ($MageCartStringFound) {
             push( @SUMMARY, "> Found evidence of possible MageCart hack in" );
             push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
@@ -1923,8 +1943,8 @@ sub userscan {
             chomp($scannedFile);
             chomp($foundRule);
             $scannedFile =~ s/://g;
-            $foundRule =~ s/YARA.//g;
-            $foundRule =~ s/.UNOFFICIAL//g;
+            $foundRule   =~ s/YARA.//g;
+            $foundRule   =~ s/.UNOFFICIAL//g;
             my $resultCnt = 1;
             my $ruleData;
 
@@ -2133,6 +2153,12 @@ sub check_sshd_config {
     if ($attr) {
         push( @SUMMARY, "> The /etc/ssh/sshd_config file is " . MAGENTA "[IMMUTABLE]" . CYAN " indicates possible root-level compromise" );
     }
+    return unless ( -e "/root/.ssh/authorized_keys" );
+    my $authkeysGID   = ( stat("/root/.ssh/authorized_keys")->gid );
+    my $authkeysGname = getgrgid($authkeysGID);
+    if ( $authkeysGID > 0 ) {
+        push @SUMMARY, "> Found the /root/.ssh/authorized_keys file to have an invalid group name [" . MAGENTA $authkeysGname . YELLOW "] - " . CYAN "Indicates tampering at the root-level.";
+    }
 }
 
 sub isEA4 {
@@ -2187,38 +2213,21 @@ sub misc_checks {
     }
 
     # bitcoin
-    @dirs  = qw( /dev/shm/.X12-unix /dev/shm /usr/local/lib /dev/shm/.X0-locked /dev/shm/.X13-unix );
-    @files = qw(
-      a
-      bash.pid
-      cron.d
-      dir.dir
-      e
-      f
-      httpd
-      kthreadd
-      md.so
-      screen.so
-      y.so
-      kdevtmpfs
-      r
-      systemd
-      upd
-      x
-      aPOg5A3
-      de33f4f911f20761
-      e6mAfed
-      sem.Mvlg_ada_lock
-      prot
-    );
+    @dirs  = qw( /dev/shm/.X12-unix /dev/shm /usr/local/lib /dev/shm/.X0-locked /dev/shm/.X13-unix /tmp/.X19-unix/.rsync/a );
+    @files = qw( a bash.pid cron.d dir.dir e f httpd kthreadd md.so screen.so y.so kdevtmpfs r systemd upd x aPOg5A3 de33f4f911f20761 e6mAfed sem.Mvlg_ada_lock prot);
 
+    my $headerprinted = 0;
     for my $dir (@dirs) {
         next if !-e $dir;
         for my $file (@files) {
             $fullpath = $dir . "/" . $file;
             stat $fullpath;
-            if ( -f _ and not -z _ ) {
-                push( @SUMMARY, "> Suspicous file found: possible root-level compromise\n\t\\_ $fullpath" );
+            if ( -f _ or -d _ and not -z _ ) {
+                if ( $headerprinted == 0 ) {
+                    push( @SUMMARY, "> Suspicous file found (possible bitcoin miner?)" );
+                    $headerprinted = 1;
+                }
+                push( @SUMMARY, CYAN "\t\\_ $fullpath" );
                 vtlink($fullpath);
             }
         }
@@ -2229,7 +2238,7 @@ sub misc_checks {
     my @cronContains = undef;
     my $isImmutable  = "";
     for my $cron (@crons_aref) {
-        $isImmutable=isImmutable($cron);
+        $isImmutable = isImmutable($cron);
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
@@ -2318,6 +2327,7 @@ sub chk_shadow_hack {
         push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php" );
         foreach $shadow_roottn_baks (@shadow_roottn_baks) {
             chomp($shadow_roottn_baks);
+            next if ( $shadow_roottn_baks =~ m/shadow.lock/ );
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
     }
@@ -2327,12 +2337,6 @@ sub check_for_exim_vuln {
     my $chk_eximlog = qx[ grep '\${run' /var/log/exim_mainlog* | head -1 ];
     if ($chk_eximlog) {
         push @SUMMARY, "> Found the following string in /var/log/exim_mainlog file. Possible root-level compromise:\n " . CYAN $chk_eximlog;
-    }
-    return unless ( -e "/root/.ssh/authorized_keys" );
-    my $authkeysGID   = ( stat("/root/.ssh/authorized_keys")->gid );
-    my $authkeysGname = getgrgid($authkeysGID);
-    if ( $authkeysGID > 0 ) {
-        push @SUMMARY, "> Found the /root/.ssh/authorized_keys file to have an invalid group name [" . MAGENTA $authkeysGname . YELLOW "] - " . CYAN "Indicates tampering at the root-level.";
     }
 }
 
@@ -2411,39 +2415,81 @@ sub get_cron_files {
 }
 
 sub get_last_logins_WHM {
-    my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = localtime();
-    $year = $year + 1900;
-    my @lastWHMRootLogins = qx[ grep ' root ' /usr/local/cpanel/logs/access_log | egrep '200|post_login=|$year' ];
-    my $WHMLogins         = "";
-    my @WHMIPs            = undef;
-    foreach $WHMLogins (@lastWHMRootLogins) {
-        my ($lastIP) = ( split( /\s+/, $WHMLogins ) )[0];
-        push @WHMIPs, $lastIP;
+    my $dt   = DateTime->now;
+    my $year = $dt->year;
+    open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
+    my @ACCESSLOG = <ACCESSLOG>;
+    close(ACCESSLOG);
+    my $accessline;
+    my @Success;
+    foreach $accessline (@ACCESSLOG) {
+        chomp($accessline);
+        my ( $ipaddr, $user, $date, $haslogin, $status ) = ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8 ];
+        if ( $user eq "root" and $status eq "200" and $haslogin =~ m/post_login/ and $date =~ m/$year/ ) {
+            push( @Success, "$ipaddr" );
+        }
     }
-    splice( @WHMIPs, 0, 1 );
-    my @sorted1 = uniq(@WHMIPs);
-    my @sorted  = sort(@sorted1);
+    my @unique_ips = uniq @Success;
+    my $num;
+    my $success;
+    my $times;
     push( @SUMMARY, "> The following IP address(es) logged on via WHM successfully as root:" );
-    foreach $WHMLogins (@sorted) {
-        push( @SUMMARY, CYAN "\t\\_ IP: $WHMLogins" ) unless ( $WHMLogins =~ m/208.74.123.|184.94.197./ );
+    foreach $success (@unique_ips) {
+        chomp($success);
+        $num   = grep { $_ eq $success } @Success;
+        $times = "time";
+        if ( $num > 1 ) { $times = "times"; }
+        push( @SUMMARY, CYAN "\t\\_ $success ($num $times)" ) unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
     }
 }
 
 sub get_last_logins_SSH {
+    my $dt                = DateTime->now;
+    my $mon               = $dt->month_abbr;
     my @LastSSHRootLogins = qx[ last | grep 'root' ];
     my $SSHLogins         = "";
     my @SSHIPs            = undef;
     foreach $SSHLogins (@LastSSHRootLogins) {
-        my ($lastIP) = ( split( /\s+/, $SSHLogins ) )[2];
+        my ( $lastIP, $cMonth ) = ( split( /\s+/, $SSHLogins ) )[ 2, 4 ];
+        next unless ( $cMonth eq $mon );
         push @SSHIPs, $lastIP unless ( $lastIP =~ /[a-zA-Z]/ );
     }
     splice( @SSHIPs, 0, 1 );
     my @sortedIPs = uniq(@SSHIPs);
-    push( @SUMMARY, "> The following IP address(es) logged on via SSH successfully as root:" );
+    push( @SUMMARY, "> The following IP address(es) logged on via SSH successfully as root (in $mon):" );
     foreach $SSHLogins (@sortedIPs) {
         push( @SUMMARY, CYAN "\t\\_ IP: $SSHLogins" ) unless ( $SSHLogins =~ m/208.74.12|184.94.197./ );
     }
     push( @SUMMARY, CYAN "\nDo you recognize any of the above IP addresses?\nIf not, then further investigation should be performed." );
+}
+
+sub get_root_pass_changes {
+    my $dt   = DateTime->now;
+    my $year = $dt->year;
+    open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
+    my @ACCESSLOG = <ACCESSLOG>;
+    close(ACCESSLOG);
+    my $accessline;
+    my @Success;
+    foreach $accessline (@ACCESSLOG) {
+        chomp($accessline);
+        my ( $ipaddr, $user, $date, $chpass, $status ) = ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8 ];
+        if ( $user eq "root" and $status eq "200" and $chpass =~ m/chrootpass/ and $date =~ m/$year/ ) {
+            push( @Success, "$ipaddr" );
+        }
+    }
+    my @unique_ips = uniq @Success;
+    my $num;
+    my $success;
+    my $times;
+    push( @SUMMARY, "> The following IP address(es) changed roots password via WHM (in $year):" );
+    foreach $success (@unique_ips) {
+        chomp($success);
+        $num   = grep { $_ eq $success } @Success;
+        $times = "time";
+        if ( $num > 1 ) { $times = "times"; }
+        push( @SUMMARY, CYAN "\t\\_ $success ($num $times)" ) unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
+    }
 }
 
 sub check_file_for_elf {
@@ -2586,6 +2632,7 @@ sub look_for_suspicious_files {
       /dev/.shit/red.tgz
       /dev/shm/cfgas
       /dev/shm/.kauditd
+      /dev/shm/.ssh/./x86_64
       /dev/srd0
       /dev/ttyof
       /dev/ttyop
@@ -2730,6 +2777,9 @@ sub look_for_suspicious_files {
       /root/.cache/.rm
       /root/.cache/root
       /root/.cache/.sysud
+      /root//dev/shm/./sshd
+      /root/.ssh/./xL
+      /root/.ssh/./sshd
       /sbin/home
       /sbin/libselinux.so
       /sbin/libselinux.a
@@ -2775,6 +2825,7 @@ sub look_for_suspicious_files {
       /tmp/.helpdd
       /tmp/./xL
       /tmp/./xL.1
+      /tmp/./xL.2
       /tmp/httpd
       /tmp/httpd.conf
       /tmp/.IptabLes
@@ -2826,6 +2877,9 @@ sub look_for_suspicious_files {
       /tmp/xp
       /tmp/zilog
       /tmp/zolog
+      /usr/bin/_-config
+      /usr/bin/_-pud
+      /usr/bin/_-minerd
       /usr/bin/4004.db
       /usr/bin/adore
       /usr/bin/atm
@@ -2989,6 +3043,9 @@ sub look_for_suspicious_files {
       /usr/local/bin/curl
       /usr/local/bin/dns
       /usr/local/bin/xmrig
+      /usr/local/cpanel/backup/dnsadmin
+      /usr/local/cpanel/backup/run
+      /usr/local/cpanel/backup/xh
       /usr/local/include/uconf.h
       /usr/local/lib/libjdk.so
       /usr/local/sbin/bin/bash.pid
@@ -3119,14 +3176,15 @@ sub look_for_suspicious_files {
             my $isNOTRPMowned = qx[ rpm -qf $file | grep 'not owned by' ];
             chomp($isNOTRPMowned);
             my $RPMowned = "Yes";
+
             if ($isNOTRPMowned) {
                 $RPMowned = "No";
             }
             my $isImmutable = isImmutable($file);
-            if ($isImmutable) { 
+            if ($isImmutable) {
                 $isImmutable = MAGENTA " [IMMUTABLE]";
             }
-            else { 
+            else {
                 $isImmutable = "";
             }
             push @SUMMARY, expand( "> Suspicious directory/file found: " . CYAN $file . $isImmutable . YELLOW "\n\t\\_ Size: " . CYAN $FileSize . YELLOW " Date Changed: " . CYAN scalar localtime($ctime) . YELLOW " RPM Owned: " . CYAN $RPMowned . YELLOW " Owned by UID/GID: " . CYAN $FileU . "/" . $FileG );
@@ -3207,6 +3265,8 @@ sub known_sha256_hashes {
       c0165ad421a8421ddad2e625e509be90f515cb8cd0519431ddabf273ffd2a589
       9f22b453d5a5acbb465380a78349fca81fd4900f6ab13fa235f0275f82e9ba89
       99783b36b8779334e308ce5a9d9d79fa6039b17716c5ce93146849509052b6a2
+      5f1402a6dc4885cb5d2f3a34a6cdfe91b7fab4f1174047f18578e166ea57ac8e
+      4c3e505da13bc6d52af09bfcda88cdeb3ebabe0051969f8d87a34c8474d5f4ac
     );
 
     if ( grep { /$checksum/ } @knownhashes ) {
@@ -3277,22 +3337,64 @@ sub check_cpupdate_conf {
     }
 }
 
-sub check_apache_modules { 
-    return if (! -d "/etc/apache2/modules" );
+sub check_apache_modules {
+    return if ( !-d "/etc/apache2/modules" );
     my $ApacheMod;
-    opendir(APACHEMODS,"/etc/apache2/modules");
-    my @ApacheMods=readdir(APACHEMODS);
+    opendir( APACHEMODS, "/etc/apache2/modules" );
+    my @ApacheMods = readdir(APACHEMODS);
     closedir(APACHEMODS);
-    my $FoundOne=0;
+    my $FoundOne = 0;
     my $FoundMod = "";
-    foreach $ApacheMod(@ApacheMods) {  
+    foreach $ApacheMod (@ApacheMods) {
         my $NotOwned = qx[ rpm -qf "/etc/apache2/modules/$ApacheMod" | grep 'not owned' ];
         next unless ($NotOwned);
         $FoundMod .= $ApacheMod . " ";
-        $FoundOne=1;
+        $FoundOne = 1;
     }
-    if ($FoundOne) { 
-        push( @SUMMARY, expand( "> Found at least one Apache module in /etc/apache/modules that is not owned by an RPM!\n\t\\_ " . CYAN "Should be investigated " . MAGENTA $FoundMod ));
+    if ($FoundOne) {
+        push( @SUMMARY, expand( "> Found at least one Apache module in /etc/apache/modules that is not owned by an RPM!\n\t\\_ " . CYAN "Should be investigated " . MAGENTA $FoundMod ) );
+    }
+}
+
+sub check_for_stealth_in_ps {
+    chomp( my @ps_output = qx(ps auxfwww) );
+    foreach my $line (@ps_output) {
+        if ( $line =~ /\[stealth\]/ ) {
+            push @SUMMARY, "> ps output contains '[stealth]' should be investigated";
+            push @SUMMARY, CYAN "\t$line";
+            my ( $stealthUser, $stealthPid ) = ( split( /\s+/, $line ) )[ 0, 1 ];
+            my $stealthExe = qx[ ls -al /proc/$stealthPid/exe ];
+            chomp($stealthExe);
+            push( @SUMMARY, CYAN "\tPid: $stealthPid | User: $stealthUser | Exe: $stealthExe" );
+        }
+    }
+}
+
+sub check_changepasswd_modules {
+    my $dir = '/usr/local/cpanel/Cpanel/ChangePasswd/';
+    return unless ( -d $dir );
+    return unless opendir( my $dh, $dir );
+    my @dir_contents = grep { /\.pm\Z/ } readdir $dh;
+    close $dh;
+    return unless @dir_contents;
+    my @suspicious;
+    foreach my $module (@dir_contents) {
+        next if ( $module eq 'DigestAuth.pm' );
+        push @suspicious, $module if ( -s $dir . $module );
+    }
+    if (@suspicious) {
+        push @SUMMARY, "> Found custom ChangePasswd module(s) in " . GREEN "/usr/local/cpanel/Cpanel/ChangePasswd/" . YELLOW " directory";
+        push @SUMMARY, CYAN "\t\\_ " . join( ' ', @suspicious );
+    }
+}
+
+sub check_for_ncom_rootkit {
+    return if !-e "/etc/ld.so.preload";
+    my $HasNCOM = qx[ strings $(cat /etc/ld.so.preload) | egrep 'libncom|libselinux|drop_suidshell_if_env_is_set|shall_stat_return_error|is_readdir64_result_invisible|is_readdir_result_invisible|drop_dupshell|is_file_invisible' ];
+    if ($HasNCOM) {
+        push( @SUMMARY, "> [Possible Rootkit: NCOM/iDRAC]" );
+        push( @SUMMARY, "\t\\_ /etc/ld.so.preload contains evidence of the following:" );
+        push( @SUMMARY, "\t\\_ $HasNCOM" );
     }
 }
 
