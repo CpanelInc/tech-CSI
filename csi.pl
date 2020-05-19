@@ -2045,7 +2045,7 @@ sub userscan {
     print_status( "Checking for MageCart hacks in any JavaScript files under" . $RealHome . "/public_html/" );
     logit("Checking for for MageCart hacks");
     my $headerPrinted   = 0;
-    my $URL             = "https://cpaneltech.ninja/cptech/magecartstrings.txt";
+    my $URL             = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/magecartstrings.txt";
     my @MageCartStrings = qx[ curl -s $URL > "$csidir/magecartstrings.txt" ];
     my @retval          = qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/ ];
     my $TotalFound      = @retval;
@@ -2765,7 +2765,7 @@ sub check_sudoers_file {
 }
 
 sub look_for_suspicious_files {
-    my $URL   = "https://cpaneltech.ninja/cptech/suspicious_files.txt";
+    my $URL   = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt";
     my @files = qx[ curl -s $URL ];
     for my $file (@files) {
         chomp($file);
@@ -2815,7 +2815,7 @@ sub check_proc_sys_vm {
 
 sub known_sha256_hashes {
     my $checksum    = $_[0];
-    my $URL         = "https://cpaneltech.ninja/cptech/known_256hashes.txt";
+    my $URL         = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt";
     my @knownhashes = qx[ curl -s $URL ];
     if ( grep { /$checksum/ } @knownhashes ) {
         return 1;
