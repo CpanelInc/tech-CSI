@@ -264,14 +264,18 @@ sub bincheck {
     my $binaryline;
 
     # We skip cpanel and ea- provided RPM's since those are checked via /usr/local/cpanel/scripts/check_cpanel_rpms
-    my @RPMS   = qx[ /usr/bin/rpm -qa --qf "%{NAME}\n" | egrep -v "^(ea-|cpanel|kernel)" | sort -n | uniq ];
+    # CentOS 6 apparently installs RPM in /bin/rpm (why this hasn't failed on a C6 server before now is a mystery)
+    my $whichRPM = qx[ which rpm ];
+    chomp($whichRPM);
+    my @RPMS   = qx[ $whichRPM -qa --qf "%{NAME}\n" | egrep -v "^(ea-|cpanel|kernel)" | sort -n | uniq ];
     my $RPMcnt = @RPMS;
     print_status( 'Done - Found: ' . $RPMcnt . ' RPMs to verify' );
     print_header('[ Verifying RPM binaries - This may take some time... ]');
     logit("Verifying RPM binaries");
+
     foreach $rpmline (@RPMS) {
         chomp($rpmline);
-        $verify = qx[ /usr/bin/rpm -V $rpmline | egrep "/(s)?bin" ];
+        $verify = qx[ $whichRPM -V $rpmline | egrep "/(s)?bin" ];
         chomp($verify);
         spin();
         push( @BINARIES, $verify ) unless ( $verify eq "" );
@@ -363,6 +367,9 @@ sub scan {
     print_header('[ Checking reseller ACLs ]');
     logit("Checking reseller ACLs");
     check_resellers_for_all_ACL();
+    print_header('[ Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE ]');
+    logit("Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE");
+    check_apitokens_json();
     print_header('[ Checking for PHP backdoors in unprotected path ]');
     logit("Checking /usr/local/cpanel/base/unprotected for PHP backdoors");
     check_for_unprotected_backdoors();
@@ -466,6 +473,8 @@ sub check_previous_scans {
 }
 
 sub check_kernel_updates {
+
+    # Need to put check for 11.68 here...
     my $CanModify             = Cpanel::Kernel::can_modify_kernel();
     my $boot_kernelversion    = Cpanel::Kernel::get_default_boot_version();
     my $running_kernelversion = Cpanel::Kernel::get_running_version();
@@ -836,6 +845,14 @@ sub check_processes {
             push @SUMMARY, "> ps output contains 'pwndns.pw' indicates possible coin miner";
             push @SUMMARY, "\t$line";
         }
+        if ( $line =~ /\/usr\/sbin\/acpid/ and !-e "/usr/sbin/acpid" ) {
+            push @SUMMARY, "> ps output contains '/usr/sbin/acpid' could indicate a bitcoin mining hack";
+            push @SUMMARY, "\t$line";
+        }
+        if ( $line =~ /\/usr\/sbin\/sdpd/ and !-e "/usr/sbin/sdpd" ) {
+            push @SUMMARY, "> ps output contains '/usr/sbin/sdpd' could indicate a bitcoin mining hack";
+            push @SUMMARY, "\t$line";
+        }
     }
 }
 
@@ -907,10 +924,69 @@ sub check_ssh {
             push( @ssh_errors, " $sshd_process_found[0]" );
         }
     }
+    my @SSHRPMs = qw( openssh-server openssh-clients openssh );
+    my $SSHRPM;
+    my $ssh_error_cnt = 0;
+    foreach $SSHRPM (@SSHRPMs) {
+        chomp($SSHRPM);
+
+        # Vendor
+        my $rpmVendor = qx[ rpm -qi $SSHRPM | grep 'Vendor' ];
+        chomp($rpmVendor);
+        if ( $rpmVendor =~ (m/CloudLinux|CentOS|Red Hat, Inc./) ) {
+
+            # All good
+        }
+        else {
+            $ssh_error_cnt++;
+        }
+        if ( $rpmVendor =~ (m/none/) ) {
+
+            # Vendor should NEVER be (none)!!!
+            $ssh_error_cnt++;
+        }
+
+        # Build Host
+        my $rpmBuildHost = qx[ rpm -qi $SSHRPM | grep 'Build Host' ];
+        chomp($rpmBuildHost);
+        if ( $rpmBuildHost =~ (m/cloudlinux.com|centos.org|redhat.com/) ) {
+
+            # All good
+        }
+        else {
+            $ssh_error_cnt++;
+        }
+        if ( $rpmBuildHost =~ (m/none/) ) {
+
+            # Build Host should NEVER be (none)!!!
+            $ssh_error_cnt++;
+        }
+
+        # Signature
+        my $rpmSignature = qx[ rpm -qi $SSHRPM | grep 'Signature' ];
+        chomp($rpmSignature);
+        if ( $rpmSignature =~ (m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51/) ) {
+
+            # All good
+        }
+        else {
+            $ssh_error_cnt++;
+        }
+        if ( $rpmSignature =~ (m/none/) ) {
+
+            # Signature should NEVER be (none)!!!
+            $ssh_error_cnt++;
+        }
+    }
+    if ( $ssh_error_cnt > 3 ) {
+        push( @ssh_errors, "Either the Vendor, Build Host, or Signature for one of the openssh RPM's does not match a known and suspected value" );
+        push( @ssh_errors, expand( MAGENTA "Check by running: " . WHITE "rpm -qi openssh-server openssh-clients openssh | egrep 'Vendor|Build Host|Signature'" ) );
+    }
+
     if (@ssh_errors) {
-        push @SUMMARY, "> System has detected the presence of a *POSSIBLY* compromised SSH:\n";
+        push @SUMMARY, "> Detected presence of *POSSIBLY* compromised openssh RPM's";
         foreach (@ssh_errors) {
-            push( @SUMMARY, $_ );
+            push( @SUMMARY, expand( CYAN "\t\\_ " . $_ ) );
         }
     }
 }
@@ -1640,7 +1716,7 @@ sub check_for_linux_lady {
 
 sub check_for_twink {
     my $TwinkSSHPort = qx[ lsof -i tcp:322 | grep sshd ];
-    my $InRootsCron  = qx[ grep '/tmp/twink' /var/spool/cron/root ];
+    my $InRootsCron  = qx[ grep '/tmp/twink' /var/spool/cron/root ] unless ( !-e "/var/spool/cron/root" );
     if ( $TwinkSSHPort and $InRootsCron ) {
         push @SUMMARY, "> Found sshd listening on " . CYAN "port 322" . YELLOW " and " . RED "/tmp/twink" . YELLOW " in roots crontab. Indicates a possible rootkit";
     }
@@ -1861,7 +1937,7 @@ sub userscan {
     print_status("Checking for symlinks to other locations...");
     logit( "Checking for symlink hacks in " . $RealHome . "/public_html" );
     my @symlinks;
-    my @conffiles = qw( wp-config.php configuration.php conf_global.php Settings.php config.php settings.php root );
+    my @conffiles = qw( functions.php confic.php db.php wp-config.php configuration.php conf_global.php Settings.php config.php settings.php settings.inc.php submitticket.php );
     my $conffile;
     foreach $conffile (@conffiles) {
         chomp($conffile);
@@ -1917,19 +1993,31 @@ sub userscan {
         push @SUMMARY, "> Found suspicious bash script $RealHome/public_html/cgi-bin/jarrewrite.sh";
     }
 
+    print_status("Checking public_html/wp-includes directory for suspicious *.ico files");
+    if ( -e ("$RealHome/public_html/wp-includes") ) {
+        my $suspICOfiles = qx[ find $RealHome/public_html/wp-includes -iname '*.ico' ];
+        if ($suspICOfiles) {
+            push @SUMMARY, "> Found suspicious ico file in $RealHome/public_html/wp-includes/ directory";
+        }
+    }
+
     if ( -e ("$RealHome/.anonymousFox") ) {
         push @SUMMARY, "> Found suspicious file $RealHome/.anonymousFox";
     }
 
     if ( -e ("$RealHome/etc/shadow") ) {
-        my $hassmtpF0x = qx[ grep -i 'smtpF0x' $RealHome/etc/shadow ];
+        my $hassmtpF0x = qx[ egrep -i 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/shadow ];
         if ($hassmtpF0x) {
             push @SUMMARY, "> Found suspicious smtpF0x user in " . CYAN "$RealHome/etc/shadow" . YELLOW " file";
         }
-        my $hassmtpF0x = qx[ find $RealHome/etc/*/* -name 'shadow' -print | xargs grep -i 'smtpf0x' ];
-        if ($hassmtpF0x) {
-            push @SUMMARY, "> Found suspicious smtpF0x user in email accounts under the " . CYAN $lcUserToScan . YELLOW " account.";
-        }
+    }
+    my $hassmtpF0x = qx[ find $RealHome/etc/* -name 'shadow' -print | xargs egrep -li 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' ];
+    if ($hassmtpF0x) {
+        push @SUMMARY, "> Found suspicious smtpF0x user in email accounts under the " . CYAN $lcUserToScan . YELLOW " account.";
+    }
+    my $hassmtpF0x = qx[ find $RealHome/etc/*/* -name 'shadow' -print | xargs egrep -li 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' ];
+    if ($hassmtpF0x) {
+        push @SUMMARY, "> Found suspicious smtpF0x user in email accounts under the " . CYAN $lcUserToScan . YELLOW " account.";
     }
     if ( -d ("$RealHome/public_html/ConfigF0x") ) {
         push @SUMMARY, "> Found suspicious ConfigFox directory in $RealHome/public_html/";
@@ -2035,16 +2123,27 @@ sub userscan {
     }
     if ( -d "$RealHome/public_html/wp-includes" ) {
         my $chk4ico = qx[ find $RealHome/public_html/wp-includes -name "*.ico" ];
+
+        # RIGHT HERE
         if ($chk4ico) {
-            push( @SUMMARY, "> Found possible malicious WordPress vulnerabilityin $RealHome/public_html/wp-includes icon (*.ico) file found.\n" . CYAN "\t\\_ See: https://wordpress.org/support/topic/wordpress-hacked-strange-files-appears/" );
-            push( @SUMMARY, CYAN "\t\\_ See: https://wordpress.org/support/article/faq-my-site-was-hacked/\n\t\\_ See: https://wordpress.org/support/article/hardening-wordpress/" );
+            my @chk4ico = split( /\n/, $chk4ico );
+            my $icoFound;
+            push( @SUMMARY, "> Found possible malicious WordPress vulnerability in the $RealHome/public_html/wp-includes directory.  An icon (*.ico) file found." );
+            foreach $icoFound (@chk4ico) {
+                chomp($icoFound);
+                push( @SUMMARY, expand( WHITE "\t\\_ $icoFound" ) );
+            }
+            push( @SUMMARY, expand( CYAN "\t\\_ See: https://wordpress.org/support/topic/wordpress-hacked-strange-files-appears/" ) );
+            push( @SUMMARY, expand( CYAN "\t\\_ See: https://wordpress.org/support/article/faq-my-site-was-hacked/" ) );
+            push( @SUMMARY, expand( CYAN "\t\\_ See: https://wordpress.org/support/article/hardening-wordpress/" ) );
         }
     }
 
     # MageCart Hack checks
     print_status( "Checking for MageCart hacks in any JavaScript files under" . $RealHome . "/public_html/" );
     logit("Checking for for MageCart hacks");
-    my $headerPrinted   = 0;
+    my $headerPrinted = 0;
+
     my $URL             = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/magecartstrings.txt";
     my @MageCartStrings = qx[ curl -s $URL > "$csidir/magecartstrings.txt" ];
     my @retval          = qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/ ];
@@ -2064,14 +2163,35 @@ sub userscan {
         }
     }
 
+    # Check if Exiftool is installed and if so, use it to check for any favicon.ico files.
+    # See https://www.bleepingcomputer.com/news/security/hackers-hide-credit-card-stealing-scripts-in-favicon-exif-data/
+    my $isExifInstalled = qx[ rpm -q perl-Image-ExifTool | grep 'is not installed' ];
+    if ( !$isExifInstalled and -e "/usr/bin/exiftool" ) {
+        my $favIcon;
+        my @favicons = qx[ find $RealHome -iname 'favicon.ico' ];
+        foreach $favIcon (@favicons) {
+            chomp($favIcon);
+            my $exifScanLine;
+            my @exifScan = qx[ /usr/bin/exiftool $favIcon ];
+            foreach $exifScanLine (@exifScan) {
+                if ( $exifScanLine =~ m/eval|function|String\.from|CharCode/ ) {
+                    push @SUMMARY, "> Found suspicious JavaScript code within the " . CYAN $favIcon . YELLOW " file";
+                }
+            }
+        }
+    }
+    else {
+        push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "yum install perl-Image-ExifTool" . YELLOW " and running this scan again for additional checks.";
+    }
+
     logit("Running a user scan for $lcUserToScan");
-    unlink("/root/CSI/csi_detections.txt")      unless ( !-e "/root/CSI/csi_detections" );
-    unlink("/root/CSI/suspicious_strings.yara") unless ( !-e "/root/CSI/suspicious_strings.yara" );
+    unlink("$csidir/csi_detections.txt")      unless ( !-e "$csidir/csi_detections" );
+    unlink("$csidir/suspicious_strings.yara") unless ( !-e "$csidir/suspicious_strings.yara" );
     if ( -e "/usr/local/cpanel/3rdparty/bin/clamscan" ) {
         my $URL         = "https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara";
         my @DEFINITIONS = qx[ curl -s $URL > "$csidir/suspicious_strings.yara" ];
         print CYAN "Scanning " . WHITE $RealHome . "/public_html... (Using YARA rules)\n";
-        open( RULES, "/root/suspicious_strings.yara" );
+        open( RULES, "$csidir/suspicious_strings.yara" );
         my @RULEDATA = <RULES>;
         close(RULES);
         my $resultLine;
@@ -2113,7 +2233,8 @@ sub userscan {
         my $cntFOUND = @FOUND;
         my $foundLine;
         if ( $cntFOUND == 0 ) {
-            push( @SUMMARY, GREEN "Result: No suspicious strings/phrases were found!" );
+
+            # Nothing suspicious found
         }
         else {
             foreach $foundLine (@FOUND) {
@@ -2127,11 +2248,11 @@ sub userscan {
     else {
         print YELLOW "ClamAV is not installed - skipping suspicious strings YARA scan...\n";
         my $URL         = "https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
-        my @DEFINITIONS = qx[ curl -s $URL > "/root/ai_detections.txt" ];
+        my @DEFINITIONS = qx[ curl -s $URL > "$csidir/csi_detections.txt" ];
         @DEFINITIONS = qx[ curl -s $URL ];
         my $StringCnt = @DEFINITIONS;
         print "Scanning $RealHome/public_html for ($StringCnt) known phrases/strings\n";
-        my $retval     = qx[ LC_ALL=C grep -srIwf /root/ai_detections.txt $RealHome/public_html/* ];
+        my $retval     = qx[ LC_ALL=C grep -srIwf $csidir/csi_detections.txt $RealHome/public_html/* ];
         my @retval     = split( /\n/, $retval );
         my $TotalFound = @retval;
         my $ItemFound;
@@ -2159,11 +2280,11 @@ sub userscan {
             push( @SUMMARY, YELLOW "These should be investigated.\n" );
         }
     }
-    unlink("/root/CSI/csi_detections.txt")      unless ( !-e "/root/CSI/csi_detections" );
-    unlink("/root/CSI/suspicious_strings.yara") unless ( !-e "/root/CSI/suspicious_strings.yara" );
+    unlink("$csidir/csi_detections.txt")      unless ( !-e "$csidir/csi_detections" );
+    unlink("$csidir/suspicious_strings.yara") unless ( !-e "$csidir/suspicious_strings.yara" );
 
-    print_header('[ cPanel Security Inspection Complete! ]');
-    logit('[ cPanel Security Inspection Complete! ]');
+    print_header('[ cPanel Security Inspection (UserScan) Complete! ]');
+    logit('[ cPanel Security Inspection (UserScan) Complete! ]');
     print_normal('');
     logit("Creating summary");
     dump_summary();
@@ -2172,7 +2293,7 @@ sub userscan {
 
 sub check_for_symlinks {
     my @symlinks;
-    my @conffiles = qw( wp-config.php configuration.php conf_global.php Settings.php config.php settings.php );
+    my @conffiles = qw( functions.php confic.php db.php wp-config.php configuration.php conf_global.php Settings.php config.php settings.php settings.inc.php submitticket.php );
     my $conffile;
     foreach $conffile (@conffiles) {
         chomp($conffile);
@@ -2765,12 +2886,21 @@ sub check_sudoers_file {
 }
 
 sub look_for_suspicious_files {
+
+    #my $URL   = "https://cpaneltech.ninja/cptech/suspicious_files.txt";
     my $URL   = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt";
     my @files = qx[ curl -s $URL ];
+    my $fileType;
     for my $file (@files) {
         chomp($file);
         my $fStat = lstat($file);
         if ( -f _ or -d _ and not -z _ and not -l _ ) {
+            if ( -f _ ) {
+                $fileType = "file";
+            }
+            if ( -d _ ) {
+                $fileType = "directory";
+            }
             my $FileU = qx[ stat -c "%U" $file ];
             chomp($FileU);
             my $FileG = qx[ stat -c "%G" $file ];
@@ -2800,7 +2930,7 @@ sub look_for_suspicious_files {
                 vtlink($file);
             }
             else {
-                push @SUMMARY, expand( "> Suspicious directory/file found: " . CYAN $file . $isImmutable . YELLOW "\n\t\\_ Size: " . CYAN $FileSize . YELLOW " Date Changed: " . CYAN scalar localtime($ctime) . YELLOW " RPM Owned: " . CYAN $RPMowned . YELLOW " Owned by U/G: " . CYAN $FileU . "/" . $FileG );
+                push @SUMMARY, expand( "> Suspicious $fileType found: " . CYAN $file . $isImmutable . YELLOW "\n\t\\_ Size: " . CYAN $FileSize . YELLOW " Date Changed: " . CYAN scalar localtime($ctime) . YELLOW " RPM Owned: " . CYAN $RPMowned . YELLOW " Owned by U/G: " . CYAN $FileU . "/" . $FileG );
             }
         }
     }
@@ -2814,7 +2944,9 @@ sub check_proc_sys_vm {
 }
 
 sub known_sha256_hashes {
-    my $checksum    = $_[0];
+    my $checksum = $_[0];
+
+    #my $URL         = "https://cpaneltech.ninja/cptech/known_256hashes.txt";
     my $URL         = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt";
     my @knownhashes = qx[ curl -s $URL ];
     if ( grep { /$checksum/ } @knownhashes ) {
@@ -2822,6 +2954,19 @@ sub known_sha256_hashes {
     }
     else {
         return 0;
+    }
+}
+
+sub check_apitokens_json {
+    return unless ( -e "/var/cpanel/authn/api_tokens_v2/whostmgr/root.json" );
+    my $attr = isImmutable("/var/cpanel/authn/api_tokens_v2/whostmgr/root.json");
+    if ($attr) {
+        push @SUMMARY, "> Found the " . CYAN "/var/cpanel/authn/api_tokens_v2/whostmgr/root.json" . YELLOW " file set to " . MAGENTA "IMMUTABLE";
+        push @SUMMARY, expand("\t\\_ This is highly unusual and could indicate a root compromise!");
+    }
+    my $hasOldname = qx[ grep 'transfer-1567672078' /var/cpanel/authn/api_tokens_v2/whostmgr/root.json ];
+    if ($hasOldname) {
+        push @SUMMARY, "> Found " . CYAN "transfer-1567672078" . YELLOW " in the " . RED "/var/cpanel/authn/api_tokens_v2/whostmgr/root.json" . YELLOW " file";
     }
 }
 
@@ -2939,7 +3084,11 @@ sub check_changepasswd_modules {
     }
     if (@suspicious) {
         push @SUMMARY, "> Found custom module(s) in " . GREEN "/usr/local/cpanel/Cpanel/ChangePasswd/" . YELLOW " directory";
-        push @SUMMARY, CYAN "\t\\_ " . join( ' ', @suspicious );
+        my $suspline;
+        foreach $suspline (@suspicious) {
+            push @SUMMARY, expand( CYAN "\t\\_ " . $suspline );
+        }
+        push @SUMMARY, "\nThese files should be investigated!";
     }
 }
 
