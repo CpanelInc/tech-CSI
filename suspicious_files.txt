@@ -80,6 +80,7 @@
 /dev/shm/.X99910/.rsync/c/aptitude
 /dev/shm/.bash
 /dev/shm/.kauditd
+/dev/shm/.kauditd/[kauditd]
 /dev/shm/.ssh/./x86_64
 /dev/shm/.systemd/.systemd
 /dev/shm/cfgas
