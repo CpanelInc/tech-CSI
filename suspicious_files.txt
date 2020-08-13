@@ -146,6 +146,7 @@
 /etc/ld.so.hash
 /etc/libdns.so
 /etc/listpr
+/etc/my.conf
 /etc/netdns
 /etc/pools.txt
 /etc/profile.d/.h
