@@ -146,6 +146,7 @@
 /etc/ld.so.hash
 /etc/libdns.so
 /etc/listpr
+/etc/my.conf
 /etc/netdns
 /etc/pools.txt
 /etc/profile.d/.h
@@ -166,6 +167,7 @@
 /etc/ssh/notepad++
 /etc/ssh/ssh_known_hosts
 /etc/sysconfig/console/load.zk
+/etc/sysconfig/modules/.modules
 /etc/systemd/system/ntp.service
 /etc/ttyhash
 /etc/xinetd.d/asp
