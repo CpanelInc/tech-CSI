@@ -219,6 +219,7 @@
 /opt/yilu/work/xige/xige
 /proc/knark
 /proc/kset
+/proc/rtkit
 /rescue/mount_fs
 /root/.a
 /root/.asmon
@@ -373,6 +374,7 @@
 /tmp/.cinik
 /tmp/.cron
 /tmp/.datass
+/tmp/dr_client
 /tmp/.dump
 /tmp/.font-unix/.cinik
 /tmp/.h
