@@ -147,6 +147,7 @@
 /etc/libdns.so
 /etc/listpr
 /etc/my.conf
+/etc/mysql5
 /etc/netdns
 /etc/pools.txt
 /etc/profile.d/.h
