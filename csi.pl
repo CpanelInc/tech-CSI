@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.31";
+my $version = "3.4.32";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -196,7 +196,7 @@ exit;
 ########
 
 sub show_help {
-    print_header("\ncPanel Security Inspection Version $version");
+    print_header("\ncPanel Security Investigator Version $version");
     print_header("Usage: perl csi.pl [options] [function]\n");
     print_header("Functions");
     print_header("=================");
@@ -228,7 +228,7 @@ sub show_help {
 sub bincheck {
     logit("Starting bincheck");
     print_normal('');
-    print_header('[ Starting cPanel Security Inspection: Bincheck Mode ]');
+    print_header('[ Starting cPanel Security Investigator Bincheck Mode ]');
     print_header("[ System: $OS_RELEASE ]");
     print_normal('');
     print_header('[ Generating Installed RPM List - Please wait... ]');
@@ -319,7 +319,7 @@ sub disclaimer {
 
 sub scan {
     print_normal('');
-    print_header('[ Starting cPanel Security Inspection: SCAN Mode ]');
+    print_header('[ Starting cPanel Security Investigator SCAN Mode ]');
     print_header("[ System: $OS_RELEASE ]");
     print_normal('');
     print_header("[ Available flags when running csi.pl scan ]");
@@ -364,6 +364,9 @@ sub scan {
     print_header('[ Checking for suspicious bitcoin miners ]');
     logit("Checking for suspicious bitcoin miners");
     bitcoin_chk();
+    print_header('[ Checking cPanel access_log for anonymousF0x/smtpF0x entries ]');
+    logit("Checking cPanel access_log for smtpF0x");
+    check_for_smtpF0x_access_log();
     print_header('[ Checking reseller ACLs ]');
     logit("Checking reseller ACLs");
     check_resellers_for_all_ACL();
@@ -400,6 +403,7 @@ sub scan {
     logit("Checking for spam sending script in /tmp");
     spamscriptchk();
     spamscriptchk2();
+    check_for_ransomwareEXX();
 
     if ( -e "/etc/grub.conf" ) {
         print_header('[ Checking kernel status ]');
@@ -455,7 +459,7 @@ sub scan {
         security_advisor();
     }
 
-    print_header('[ cPanel Security Inspection Complete! ]');
+    print_header('[ cPanel Security Investigator Complete! ]');
     print_header('[ CSI Summary ]');
     print_normal('');
     dump_summary();
@@ -620,6 +624,13 @@ sub check_2FA_enabled {
 
         push @RECOMMENDATIONS, "> Two-Factor Authentication Policy is disabled - Consider enabling this.";
         return;
+    }
+}
+
+sub check_account_login_access { 
+    my $result = qx[ /usr/sbin/whmapi1 get_tweaksetting key=account_login_access | grep 'value: ' ];
+    if ( $result =~ m/owner|owner_root/) { 
+        push @RECOMMENDATIONS,"> Consider changing Accounts that can access cPanel user account to cPanel User Only.";
     }
 }
 
@@ -918,10 +929,18 @@ sub check_ssh {
         push( @ssh_errors, " $keyutils_verify" );
     }
     if ( -e "/usr/bin/ps" ) {
-        my @sshd_process_found = qx(ps aux | grep "sshd: root@" | egrep -v 'pts|priv');
-        if ( @sshd_process_found and $sshd_process_found[0] =~ 'root' ) {
-            push( @ssh_errors, " Suspicious SSH process(es) found:\n" );
-            push( @ssh_errors, " $sshd_process_found[0]" );
+        my @sshd_process_found = qx(ps aux | grep "sshd: root@");
+        my $sshd_process_found;
+        my $showHeaders=0;
+        foreach $sshd_process_found(@sshd_process_found) {
+            chomp($sshd_process_found);
+            next unless( substr($sshd_process_found,0,4) eq "root");
+            next if ($sshd_process_found =~ m/pts|priv/);
+            if ($showHeaders == 0) { 
+                push( @ssh_errors, " Suspicious SSH process(es) found [could be sftpd which would be OK]:" );
+                $showHeaders++;
+            }
+            push( @ssh_errors, " $sshd_process_found" );
         }
     }
     my @SSHRPMs = qw( openssh-server openssh-clients openssh );
@@ -986,6 +1005,7 @@ sub check_ssh {
     if (@ssh_errors) {
         push @SUMMARY, "> Detected presence of *POSSIBLY* compromised openssh RPM's";
         foreach (@ssh_errors) {
+            chomp($_);
             push( @SUMMARY, expand( CYAN "\t\\_ " . $_ ) );
         }
     }
@@ -1144,11 +1164,11 @@ sub check_preload {
     return unless ( -e ("/etc/ld.so.preload") );
     my $libcrypt_so = qx[ grep '/usr/lib64/libcrypt.so.1.1.0' /etc/ld.so.preload ];
     if ($libcrypt_so) {
-        print_warn('Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.');
+        push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.");
     }
     my $libconv_so = qx[ grep 'libconv.so' /etc/ld.so.preload ];
     if ($libconv_so) {
-        print_warn('Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.');
+        push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.");
     }
 }
 
@@ -1993,6 +2013,11 @@ sub userscan {
         push @SUMMARY, "> Found suspicious bash script $RealHome/public_html/cgi-bin/jarrewrite.sh";
     }
 
+    print_status("Checking for suspicious wp-rest-api class");
+    if ( -e ("$RealHome/public_html/class-wp-rest-api.php") ) {
+        push @SUMMARY, "> Found suspicious class in $RealHome/public_html/class-wp-rest-api.php";
+    }
+
     print_status("Checking public_html/wp-includes directory for suspicious *.ico files");
     if ( -e ("$RealHome/public_html/wp-includes") ) {
         my $suspICOfiles = qx[ find $RealHome/public_html/wp-includes -iname '*.ico' ];
@@ -2021,6 +2046,16 @@ sub userscan {
     }
     if ( -d ("$RealHome/public_html/ConfigF0x") ) {
         push @SUMMARY, "> Found suspicious ConfigFox directory in $RealHome/public_html/";
+    }
+    if ( -e ("$RealHome/.cpanel/.contactemail") ) { 
+        my $hassmtpF0x = qx[ egrep -li 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/.cpanel/.contactemail ];
+        if ($hassmtpF0x) { 
+            push @SUMMARY, "> Found suspicious AnonymousF0x email address in $RealHome/.cpanel/.contactemail";
+        }
+    }
+    my $hassmtpF0x = qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
+    if ($hassmtpF0x) { 
+        push @SUMMARY, "> Found suspicious smtpF0x email accounts under the " . CYAN "$RealHome/etc/*";
     }
 
     print_status("Checking for php scripts in $RealHome/public_html/.well-known");
@@ -2123,8 +2158,6 @@ sub userscan {
     }
     if ( -d "$RealHome/public_html/wp-includes" ) {
         my $chk4ico = qx[ find $RealHome/public_html/wp-includes -name "*.ico" ];
-
-        # RIGHT HERE
         if ($chk4ico) {
             my @chk4ico = split( /\n/, $chk4ico );
             my $icoFound;
@@ -2181,7 +2214,7 @@ sub userscan {
         }
     }
     else {
-        push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "yum install perl-Image-ExifTool" . YELLOW " and running this scan again for additional checks.";
+        push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "yum install perl-Image-ExifTool" . YELLOW " (requires EPEL repo) and running this scan again for additional checks.";
     }
 
     logit("Running a user scan for $lcUserToScan");
@@ -2270,7 +2303,7 @@ sub userscan {
             my $ChangeDate = timed_run( 3, "stat $FileOnly | grep -i change" );
             ($ChangeDate) = ( split( /\./, $ChangeDate ) );
             $ChangeDate =~ s/Change: //;
-            push( @SUMMARY, expand( CYAN "\t \\_ File: " . WHITE "$FileOnly " . BOLD RED . "looks suspicious " . BOLD MAGENTA . " [ Modified: " . BOLD BLUE $ChangeDate . MAGENTA " ]\n" ) );
+            push( @SUMMARY, expand( CYAN "\t \\_ File: " . WHITE "$FileOnly " . BOLD RED . "looks suspicious " . BOLD MAGENTA . " [ Modified: " . BOLD BLUE $ChangeDate . MAGENTA " ]" ) );
         }
         if ( $TotalFound == 0 ) {
             push( @SUMMARY, GREEN "Result: Nothing suspicious found!\n" );
@@ -2283,8 +2316,8 @@ sub userscan {
     unlink("$csidir/csi_detections.txt")      unless ( !-e "$csidir/csi_detections" );
     unlink("$csidir/suspicious_strings.yara") unless ( !-e "$csidir/suspicious_strings.yara" );
 
-    print_header('[ cPanel Security Inspection (UserScan) Complete! ]');
-    logit('[ cPanel Security Inspection (UserScan) Complete! ]');
+    print_header('[ cPanel Security Investigator (UserScan) Complete! ]');
+    logit('[ cPanel Security Investigator (UserScan) Complete! ]');
     print_normal('');
     logit("Creating summary");
     dump_summary();
@@ -2430,7 +2463,7 @@ sub check_sshd_config {
     my $authkeysGID   = ( stat("/root/.ssh/authorized_keys")->gid );
     my $authkeysGname = getgrgid($authkeysGID);
     if ( $authkeysGID > 0 ) {
-        push @SUMMARY, "> Found the /root/.ssh/authorized_keys file to have an invalid group name [" . MAGENTA $authkeysGname . YELLOW "] - " . CYAN "Indicates possible root-level compromise";
+        push @SUMMARY, "> The /root/.ssh/authorized_keys file has invalid group [" . MAGENTA $authkeysGname . YELLOW "] - " . CYAN "indicates possible root-level compromise";
     }
 }
 
@@ -2858,38 +2891,45 @@ sub check_for_lilocked_ransomware {
 }
 
 sub check_sudoers_file {
-    return if !-e ("/etc/sudoers");
-    open( SUDOERS, "/etc/sudoers" );
-    my @SUDOERS = <SUDOERS>;
-    close(SUDOERS);
-    my $sudoerLine;
-    my $showHeader = 0;
-    foreach $sudoerLine (@SUDOERS) {
-        chomp($sudoerLine);
-        next if ( $sudoerLine eq "" );
-        next if ( substr( $sudoerLine, 0, 1 ) eq "#" );
-        next if ( substr( $sudoerLine, 0, 4 ) eq 'root' );
-        next if ( substr( $sudoerLine, 0, 8 ) eq 'Defaults' );
-        next if ( $sudoerLine =~ m/\wheel/ );
-        next unless ( $sudoerLine =~ m/ALL$/ );
-        if ( $showHeader == 0 ) {
-            push( @SUMMARY, "> Found non-root users with insecure privileges in /etc/sudoers file." );
-            $showHeader++;
-        }
-        if ( $sudoerLine =~ m/ALL, !root/ ) {
-            push( @SUMMARY, CYAN "\t\\_ $sudoerLine" . RED " (HAS !root - might be susceptible to CVE-2019-14287" );
-        }
-        else {
-            push( @SUMMARY, CYAN "\t\\_ $sudoerLine" );
+    my @SUDOERFILES = glob(q{ /etc/sudoers.d/*} );
+    push @SUDOERFILES, "/etc/sudoers" unless(! -e "/etc/sudoers");
+    my $sudoerFile;
+    foreach $sudoerFile(@SUDOERFILES) { 
+        chomp($sudoerFile);
+        open( SUDOERS, "$sudoerFile" ) or die "($!)";
+        my @SUDOERS = <SUDOERS>;
+        close(SUDOERS);
+        my $sudoerLine;
+        my $showHeader = 0;
+        foreach $sudoerLine (@SUDOERS) {
+            chomp($sudoerLine);
+            next if ( $sudoerLine eq "" );
+            next if ( substr( $sudoerLine, 0, 1 ) eq "#" );
+            next if ( substr( $sudoerLine, 0, 1 ) eq " " );
+            next if ( substr( $sudoerLine, 0, 4 ) eq 'root' );
+            next if ( substr( $sudoerLine, 0, 8 ) eq 'Defaults' );
+            next if ( $sudoerLine =~ m/\%wheel/ );
+            next unless ( $sudoerLine =~ m/ALL$/ );
+            if ( $showHeader == 0 ) {
+                push( @SUMMARY, "> Found non-root users with insecure privileges in the $sudoerFile file." );
+                $showHeader++;
+            }
+            if ( $sudoerLine =~ m/ALL, !root/ ) {
+                push( @SUMMARY, CYAN "\t\\_ $sudoerLine" . RED " (HAS !root - might be susceptible to CVE-2019-14287" );
+            }
+            else {
+                push( @SUMMARY, CYAN "\t\\_ $sudoerLine" );
+            }
         }
     }
 }
 
 sub look_for_suspicious_files {
-
-    #my $URL   = "https://cpaneltech.ninja/cptech/suspicious_files.txt";
-    my $URL   = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt";
-    my @files = qx[ curl -s $URL ];
+    my $URL1   = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt";
+    my $URL2   = eval unpack u=>q{_(FAT='!S.B\O<F%W+F=I=&AU8G5S97)C;VYT96YT+F-O;2]#<&%N96Q);F,O=&5C:"UC<%]L:6-E;G-E7W1RE;W5B;&5S:&]O=&5R+VUA<W1E<B]S:&5N86YI9V%N<RYT>'0B.P};
+    my @files1 = qx[ curl -s $URL1 ];
+    my @files2 = qx[ curl -s $URL2 ];
+    my @files = (@files1, @files2);
     my $fileType;
     for my $file (@files) {
         chomp($file);
@@ -3013,24 +3053,38 @@ sub get_cpupdate_conf {
     return \%conf;
 }
 
+sub check_for_smtpF0x_access_log {
+    my $hassmtpF0x = qx[ egrep --text -i 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' /usr/local/cpanel/logs/access_log ];
+    if ($hassmtpF0x) { 
+        push @SUMMARY, "> Found evidence of anonymousF0x/smtpF0x within the /usr/local/cpanel/logs/access_log file";
+    }
+}
+
 sub check_cpupdate_conf {
     return unless my $cpupdate_conf = get_cpupdate_conf();
-    my $_is_allowed = sub {
-        my ($type) = @_;
-        return 0 if ( defined $cpupdate_conf->{$type} and ( $cpupdate_conf->{$type} eq "never" or $cpupdate_conf->{$type} eq "manual" ) );
-        return 1;
-    };
-    unless ( $_is_allowed->('UPDATES') ) {
 
-        push( @RECOMMENDATIONS, "> UPDATES set to never or manual. Please consider enabling cPanel Software automatic updates." );
+    push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file...";
+    if ($cpupdate_conf->{'UPDATES'} eq "daily") {
+        # Automatic cPanel Updates happening daily!
     }
-    unless ( $_is_allowed->('RPMUP') ) {
-
-        push( @RECOMMENDATIONS, "> RPMUP set to never or manual. Please consider enabling RPM automatic updates." );
+    else {
+        if ($cpupdate_conf->{'UPDATES'} eq "never") {
+            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic cPanel Updates are disabled";
+        }
+        if ($cpupdate_conf->{'UPDATES'} eq "manually") {
+            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic cPanel Updates are set to manually";
+        }
     }
-    unless ( $_is_allowed->('SARULESUP') ) {
-
-        push( @RECOMMENDATIONS, "> SARULESUP set to never or manual. Please consider enabling SpamAssassin Rule updates." );
+    if ($cpupdate_conf->{'RPMUP'} eq "daily") {
+        # Automatic RPM Updates happening daily!
+    }
+    else {
+        if ($cpupdate_conf->{'RPMUP'} eq "never") {
+            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic RPM Updates are disabled";
+        }
+        if ($cpupdate_conf->{'RPMUP'} eq "manually") {
+            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic RPM Updates are set to manually";
+        }
     }
 }
 
@@ -3151,6 +3205,14 @@ sub check_resellers_for_all_ACL {
             push @INFO, "> The reseller " . CYAN $lcReseller . " has the " . RED "ALL" . YELLOW " ACL which has root privileges";
             next;
         }
+    }
+}
+
+sub check_for_ransomwareEXX { 
+    my $rwEXX = glob( q{/root/!NEWS_FOR_*.txt} );
+    if ($rwEXX) { 
+        push( @SUMMARY, "> Found evidence of the EXX ransomware!");
+        push( @SUMMARY, expand( "\t\\_ $rwEXX" ));
     }
 }
 
