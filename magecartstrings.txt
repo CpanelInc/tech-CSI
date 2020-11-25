@@ -16,3 +16,7 @@ content-delivery.cc
 cdn-content.cc
 deliveryjs.cc
 darvishkhan.net
+mcdnn.net
+facelook.no
+imags.pw
+consoler.in

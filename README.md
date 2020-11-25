@@ -19,7 +19,7 @@ they have since been removed.
 ### professional security consultant. There are never any guarantees   #
 ########################################################################
 
-Usage: perl csi.pl [options] [function]
+Usage: /usr/local/cpanel/3rdparty/bin/perl csi.pl [options] [function]
 
 Functions
 =================

@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.32";
+my $version = "3.4.33";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -197,7 +197,7 @@ exit;
 
 sub show_help {
     print_header("\ncPanel Security Investigator Version $version");
-    print_header("Usage: perl csi.pl [options] [function]\n");
+    print_header("Usage: /usr/local/cpanel/3rdparty/bin/perl csi.pl [options] [function]\n");
     print_header("Functions");
     print_header("=================");
     print_status("With no arguments, performs a quick scan looking for IoC's.");
@@ -3071,8 +3071,8 @@ sub check_cpupdate_conf {
         if ($cpupdate_conf->{'UPDATES'} eq "never") {
             push @RECOMMENDATIONS, CYAN "\t\\_ Automatic cPanel Updates are disabled";
         }
-        if ($cpupdate_conf->{'UPDATES'} eq "manually") {
-            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic cPanel Updates are set to manually";
+        if ($cpupdate_conf->{'UPDATES'} eq "manual") {
+            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic cPanel Updates are set to manual";
         }
     }
     if ($cpupdate_conf->{'RPMUP'} eq "daily") {
@@ -3082,8 +3082,8 @@ sub check_cpupdate_conf {
         if ($cpupdate_conf->{'RPMUP'} eq "never") {
             push @RECOMMENDATIONS, CYAN "\t\\_ Automatic RPM Updates are disabled";
         }
-        if ($cpupdate_conf->{'RPMUP'} eq "manually") {
-            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic RPM Updates are set to manually";
+        if ($cpupdate_conf->{'RPMUP'} eq "manual") {
+            push @RECOMMENDATIONS, CYAN "\t\\_ Automatic RPM Updates are set to manual";
         }
     }
 }

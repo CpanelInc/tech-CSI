@@ -86,6 +86,8 @@
 /dev/shm/cfgas
 /dev/shm/config.json
 /dev/shm/devs_mx_cache
+/dev/shm/.lwp
+/dev/shm/.lwp/.rsync
 /dev/shm/mnem
 /dev/shm/sd
 /dev/shm/sud
