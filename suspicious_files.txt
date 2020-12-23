@@ -87,6 +87,7 @@
 /dev/shm/config.json
 /dev/shm/devs_mx_cache
 /dev/shm/.lwp
+/dev/shm/.lwp/.out
 /dev/shm/.lwp/.rsync
 /dev/shm/mnem
 /dev/shm/sd
@@ -177,6 +178,7 @@
 /etc/xinetd.d/asp
 /etc/xmrig
 /etc/zigw
+/home//.ssh/authorized_keys
 /lib/.fx
 /lib/.ifup-local
 /lib/.libgh-gh
@@ -393,6 +395,12 @@
 /tmp/.pfile
 /tmp/.psy
 /tmp/.rewt
+/tmp/.ssh
+/tmp/.mountfs
+/tmp/.X13-unix
+/tmp/.X17-unix
+/tmp/.X19-unix
+/tmp/.X19-unix/dota3
 /tmp/.stabip
 /tmp/.tmpcelse
 /tmp/.tmpcfi
@@ -795,5 +803,6 @@
 /var/tmp/kworkerds
 /var/tmp/linux.lock
 /var/tmp/salt-store
+/var/tmp/dota3.tar.gz
 /var/www/html/Index.php
 /watchd0g.sh
