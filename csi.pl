@@ -1012,6 +1012,11 @@ sub check_processes {
 "> ps output contains '/usr/sbin/sdpd' could indicate a bitcoin mining hack";
             push @SUMMARY, "\t$line";
         }
+        if ( $line =~ /dedpma|dovecat/ ) {
+            push @SUMMARY,
+              "> ps output contains either 'dedpma or dovecat' indicates possible coin miner related to QNAP NAS";
+            push @SUMMARY, "\t$line";
+        }
     }
 }
 
@@ -3093,7 +3098,7 @@ sub misc_checks {
     @dirs =
       qw( /dev/shm/.X12-unix /dev/shm /usr/local/lib /dev/shm/.X0-locked /dev/shm/.X13-unix /tmp/.X19-unix/.rsync/a );
     @files =
-      qw( a bash.pid cron.d dir.dir e f httpd kthreadd md.so screen.so y.so kdevtmpfs r systemd upd x aPOg5A3 de33f4f911f20761 e6mAfed sem.Mvlg_ada_lock prot);
+      qw( a bash.pid cron.d dir.dir e f httpd kthreadd md.so screen.so y.so kdevtmpfs r systemd upd x aPOg5A3 de33f4f911f20761 e6mAfed prot);
 
     my $headerprinted = 0;
     for my $dir (@dirs) {

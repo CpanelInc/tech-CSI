@@ -79,10 +79,13 @@
 /dev/shm/.X99910/.rsync/c
 /dev/shm/.X99910/.rsync/c/aptitude
 /dev/shm/.bash
+/dev/shm/.bin
 /dev/shm/.kauditd
 /dev/shm/.kauditd/[kauditd]
+/dev/shm/.linux
 /dev/shm/.ssh/./x86_64
 /dev/shm/.systemd/.systemd
+/dev/shm/callservice
 /dev/shm/cfgas
 /dev/shm/config.json
 /dev/shm/devs_mx_cache
@@ -92,6 +95,7 @@
 /dev/shm/mnem
 /dev/shm/sd
 /dev/shm/sud
+/dev/shm/sys.png
 /dev/shm/xmg
 /dev/shm/xmgs
 /dev/shm/xmrigMiner
@@ -116,6 +120,7 @@
 /etc/config.json
 /etc/config.txt
 /etc/cpu.txt
+/etc/cron.d/0systemd-service
 /etc/cron.d/.a
 /etc/cron.d/.cd
 /etc/cron.d/.editorinfo
@@ -133,6 +138,8 @@
 /etc/cron.d/system
 /etc/cron.d/system.bak
 /etc/cron.d/systemcat
+/etc/cron.d/systemdd
+/etc/cron.d/tmp00
 /etc/cron.daily/pwnrig
 /etc/cron.hourly/pwnrig
 /etc/cron.monthly/pwnrig
@@ -175,6 +182,7 @@
 /etc/sysconfig/modules/.modules
 /etc/systemd/system/ntp.service
 /etc/ttyhash
+/etc/xcompile
 /etc/xinetd.d/asp
 /etc/xmrig
 /etc/zigw
@@ -218,6 +226,7 @@
 /lib64/libncom.so.4.0.1
 /lib64/libselinux.so.4
 /opt/KHK75NEOiq33
+/opt/systemd-service.sh
 /opt/yilu/mservice
 /opt/yilu/work/xig
 /opt/yilu/work/xig/xig
@@ -395,8 +404,14 @@
 /tmp/.pfile
 /tmp/.psy
 /tmp/.rewt
+/tmp/.salted
 /tmp/.ssh
+/tmp/.systemd-salt
 /tmp/.mountfs
+/tmp/.X11-unix
+/tmp/.X11-unix/sshd
+/tmp/.X11-unix/01
+/tmp/.X11-unix/22
 /tmp/.X13-unix
 /tmp/.X17-unix
 /tmp/.X19-unix
