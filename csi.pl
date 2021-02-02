@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.34";
+my $version = "3.4.35";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -1017,6 +1017,11 @@ sub check_processes {
               "> ps output contains either 'dedpma or dovecat' indicates possible coin miner related to QNAP NAS";
             push @SUMMARY, "\t$line";
         }
+        if ( $line =~ /masscan/ ) {
+            push @SUMMARY,
+              "> ps output contains 'masscan' indicates possible mass IP scanner";
+            push @SUMMARY, "\t$line";
+        }
     }
 }
 
@@ -1946,6 +1951,8 @@ sub check_for_xor_ddos {
       /lib/libgcc4.4.so
       /lib/libgcc4.so
       /lib/libudev.so
+      /etc/cron.hourly/udev.sh
+      /etc/cron.hourly/gcc.sh
     );
     my @matched;
 
@@ -3244,7 +3251,7 @@ sub vtlink {
 sub rpm_yum_running_chk {
     return if !-e "/usr/bin/ps";
     my $lcRunning =
-      qx[ ps auxfwww | egrep -i '/usr/bin/rpm|/usr/bin/yum' | grep -v grep ];
+      qx[ ps auxfwww | egrep -i '/usr/bin/rpm|/usr/bin/yum' | egrep -v 'grep|wp-toolkit-cpanel' ];
     if ($lcRunning) {
         logit("An rpm/yum process may be running");
         print_warn(

@@ -298,6 +298,9 @@
 /root/.lkl
 /root/.lvagq
 /root/.lwk
+/root/moneroocean
+/root/moneroocean/config.json
+/root/moneroocean/xmrig
 /root/.mxt
 /root/.nlu
 /root/.ntp
