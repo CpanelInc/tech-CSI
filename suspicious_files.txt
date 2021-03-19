@@ -149,6 +149,7 @@
 /etc/host.ph1
 /etc/httpdns
 /etc/init.d/kworker
+/etc/init.d/po1kitd-update
 /etc/init.d/pwnrig
 /etc/init.d/S67
 /etc/init.d/syslogd
@@ -168,6 +169,7 @@
 /etc/profile.d/.helpdd
 /etc/profile.d/kacpi_notify
 /etc/rc2.d/S04syslogd
+/etc/rc2.d/S99po1kitd-update
 /etc/rc3.d/S04syslogd
 /etc/rc4.d/S04syslogd
 /etc/rc5.d/S04syslogd
@@ -327,6 +329,8 @@
 /root/README_DECRYPT.html
 /root/READ_ME.txt
 /root/READ_TO_DECRYPT
+/root/xmrig-6.9.0
+/root/xmrig-6.9.0/xmrig
 /root/.rfyyn
 /root/.rm
 /root/.ronhcje
@@ -457,8 +461,10 @@
 /tmp/kacpi_notify
 /tmp/kauditd
 /tmp/KCtbBo
+/tmp/kdevtmpfsi
 /tmp/kidd0
 /tmp/kidd0.c
+/tmp/kinsing
 /tmp/libapache
 /tmp/linux.lock
 /tmp/.local/*
@@ -501,6 +507,7 @@
 /tmp/.tmpdropoff
 /tmp/twink
 /tmp/.unlock
+/tmp/up
 /tmp./update
 /tmp/.user
 /tmp/.uua
@@ -538,6 +545,7 @@
 /usr/bin/ishit
 /usr/bin/jdc
 /usr/bin/kauditd
+/usr/bin/kaudited
 /usr/bin/kfl
 /usr/bin/kr4p
 /usr/bin/ldu
@@ -554,6 +562,9 @@
 /usr/bin/netlink.ko
 /usr/bin/ntpsx
 /usr/bin/pamdicks
+/usr/bin/pamdicks.org
+/usr/bin/pamdicks.org1
+/usr/bin/pamdicks.org2
 /usr/bin/pc
 /usr/bin/.ps
 /usr/bin/_-pud
@@ -784,6 +795,7 @@
 /usr/src/.poop
 /usr/src/.puta
 /usr/.stabip
+/usr/syno/etc/rc.d/S99po1kitd-update.sh
 /usr/tmp/~tmp441
 /usr/X11R6/include/pain
 /usr/X11R6/.zk
@@ -803,12 +815,15 @@
 /var/lib/pamdicks
 /var/lib/pc
 /var/lib/t
+/var/lib/up
 /var/local/.lpd
 /var/log/.log
 /var/log/.login
 /var/log/utmp
 /var/log/xmrig
 /var/opt/power
+/var/run/bioset
+/run/bioset
 /var/run/lvm//lvm.pid
 /var/run/npss.state
 /var/run/nscd/ns.pid
@@ -842,3 +857,5 @@
 /var/.x
 /var/.x/psotnic
 /watchd0g.sh
+/lib/x86_64-linux-gnu/security/pam_unix.so
+/lib64/x86_64-linux-gnu/security/pam_unix.so
