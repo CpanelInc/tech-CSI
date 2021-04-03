@@ -1,5 +1,5 @@
 #!/usr/local/cpanel/3rdparty/bin/perl
-# Copyright 2020, cPanel, L.L.C.
+# Copyright 2021, cPanel, L.L.C.
 # All rights reserved.
 # http://cpanel.net
 #
@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.35";
+my $version = "3.4.36";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -104,6 +104,7 @@ my %ipcs;
 &get_ipcs_hash( \%ipcs );
 my $distro         = Cpanel::Sys::OS::getos();
 my $distro_version = Cpanel::Sys::OS::getreleaseversion();
+my $ignoreload;
 our $OS_RELEASE = ucfirst($distro) . " Linux release " . $distro_version;
 our $HTTPD_PATH = get_httpd_path();
 our $LIBKEYUTILS_FILES_REF = build_libkeyutils_file_list();
@@ -119,6 +120,7 @@ GetOptions(
     'shadow'     => \$shadow,
     'symlink'    => \$symlink,
     'secadv'     => \$secadv,
+    'ignoreload' => \$ignoreload,
     'help'       => \$help,
 );
 
@@ -146,6 +148,17 @@ if ($help) {
 }
 check_previous_scans();
 logit("=== STARTING CSI ===");
+
+# Add load average check.
+my $corecnt = qx[ nproc ];
+chomp($corecnt);
+my ($loadavg) = (split(/\s+/,qx[ cat /proc/loadavg ]))[0];
+chomp($loadavg);
+if ($loadavg > ($corecnt * 3) && !$ignoreload ) {
+    print RED "Load Average is too high ($loadavg) which is > than 3 times the number of cores\n";
+    print WHITE "If you really want to continue, pass --ignoreload\n";
+    exit;
+}
 
 my %cpconf = get_conf($CPANEL_CONFIG_FILE);
 if (
@@ -405,7 +418,6 @@ sub scan {
     print_header('[ Checking process list for suspicious processes ]');
     logit("Checking process list for suspicious processes");
     check_processes();
-    check_for_stealth_in_ps();
     print_header('[ Checking for suspicious bitcoin miners ]');
     logit("Checking for suspicious bitcoin miners");
     bitcoin_chk();
@@ -462,14 +474,15 @@ sub scan {
         logit("Checking kernel status");
         check_kernel_updates();
     }
-    print_header('[ Checking for MySQL users with Super privileges ]');
-    logit("Checking for MySQL users with Super privileges");
+    print_header('[ Checking for suspicious MySQL users (Including Super privileges) ]');
+    logit("Checking for suspicious MySQL users including Super privileges");
     check_for_Super_privs();
+    check_for_mysqlbackups_user();
 
     print_header('[ Checking for files/libraries not owned by an RPM ]');
     logit("Checking for non-owned files/libraries");
 
-    #check_lib();
+    check_lib();
 
     if ( $full or $symlink ) {
         print_header( YELLOW '[ Additional check for symlink hacks ]' );
@@ -507,7 +520,7 @@ sub scan {
     get_root_pass_changes("root");
     push( @INFO,
         CYAN
-"\nDo you recognize any of the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist."
+"\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist."
     );
 
     if ( $full or $secadv ) {
@@ -534,8 +547,7 @@ sub check_previous_scans {
 }
 
 sub check_kernel_updates {
-
-    # Need to put check for 11.68 here...
+    return if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.68'));
     my $CanModify             = Cpanel::Kernel::can_modify_kernel();
     my $boot_kernelversion    = Cpanel::Kernel::get_default_boot_version();
     my $running_kernelversion = Cpanel::Kernel::get_running_version();
@@ -544,22 +556,8 @@ sub check_kernel_updates {
         $custom_kernel = 1;
     }
     my $has_kernelcare = 0;
-    if (
-        Cpanel::Version::compare(
-            Cpanel::Version::getversionnumber(),
-            '>', '11.68'
-        )
-      )
-    {
-
-# The next command can fail if there is an update to kernelcare available that hasn't been installed!
-        if (
-            Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates(
-            )
-          )
-        {
-            $has_kernelcare = 1;
-        }
+    if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates()) {
+        $has_kernelcare = 1;
     }
     my $reboot_required = 0;
     if ( $running_kernelversion ne $boot_kernelversion ) {
@@ -670,7 +668,6 @@ sub check_history {
             push @SUMMARY, "> /root/.bash_history is a symlink, $result";
         }
 
-        #elsif ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
         my $attr          = isImmutable("/root/.bash_history");
         my $lcisImmutable = "";
         if ($attr) {
@@ -761,8 +758,6 @@ sub check_for_TTY_shell_spawns {
     my $histline;
     foreach $histline (@HISTORY) {
         chomp($histline);
-
-#if ( $histline =~ m/python -c 'import pty; pty.spawn("\/bin\/sh");'|python -c 'import pty;pty.spawn("\/bin\/bash");'|echo os.system\('\/bin\/bash'\)|\/bin\/sh -i|\/bin\/bash -i/ ) {
         if ( $histline =~
 m/pty.spawn("\/bin\/sh")|pty.spawn\("\/bin\/bash"\)|os.system\('\/bin\/bash'\)|os.system\('\/bin\/sh'\)|\/bin\/sh -i|\/bin\/bash -i/
           )
@@ -813,214 +808,17 @@ sub check_httpd_config {
 }
 
 sub check_processes {
-    if ( !-e "/usr/bin/ps" ) {
-        return;
-    }
-    foreach my $line (@process_list) {
-        if ( $line =~ 'sleep 7200' ) {
-            push @SUMMARY,
-"> ps output contains 'sleep 7200' which is a known part of a hack process:";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ 'sleep 30' ) {
-            push @SUMMARY,
-"> ps output contains 'sleep 30/300' which is might be part of a root-level infection";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ / perl$/ ) {
-            push @SUMMARY,
-"> ps output contains 'perl' without a command following, which could indicate a possible hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /eggdrop/ ) {
-            push @SUMMARY,
-              "> ps output contains 'eggdrop' which is a known IRC bot";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /mine/ ) {
-            push @SUMMARY,
-"> ps output contains 'mine' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /cryptonight/ ) {
-            push @SUMMARY,
-"> ps output contains 'cryptonight' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /manero/ ) {
-            push @SUMMARY,
-"> ps output contains 'manero' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /zcash/ ) {
-            push @SUMMARY,
-"> ps output contains 'zcash' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /xmr-stak/ ) {
-            push @SUMMARY,
-"> ps output contains 'xmr-stak' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /xmrig/ ) {
-            push @SUMMARY,
-"> ps output contains 'xmrig' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /xm2sg/ ) {
-            push @SUMMARY,
-"> ps output contains 'xm2sg' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /DSST/ ) {
-            push @SUMMARY,
-"> ps output contains 'DSST' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /pty.spwan\(\"\/bin\/sh\"\)/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spwan(\"/bin/ssh\")' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /xmr.crypto-pool.fr/ ) {
-            push @SUMMARY,
-"> ps output contains 'xmr.crypto-pool.fr' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /xmrpool/ ) {
-            push @SUMMARY,
-              "> ps output contains 'xmrpool' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /stratum.f2pool.com/ ) {
-            push @SUMMARY,
-"> ps output contains 'stratum.f2pool.com' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\/var\/tmp\/java/ ) {
-            push @SUMMARY,
-"> ps output contains '/var/tmp/java' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /ddgs/ ) {
-            push @SUMMARY,
-              "> ps output contains 'ddgs' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /qW3xT/ ) {
-            push @SUMMARY,
-              "> ps output contains 'qW3xT' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /t00ls.ru/ ) {
-            push @SUMMARY,
-              "> ps output contains 't00ls.ru' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\/var\/tmp\/sustes/ ) {
-            push @SUMMARY,
-"> ps output contains '/var/tmp/sustes' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /biosetjenkins/ ) {
-            push @SUMMARY,
-"> ps output contains 'biosetjenkins' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /AnXqV.yam/ ) {
-            push @SUMMARY,
-              "> ps output contains 'AnXqV.yam' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /Loopback/ ) {
-            push @SUMMARY,
-              "> ps output contains 'Loopback' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /httpntp/ ) {
-            push @SUMMARY,
-"> ps output contains 'httpntp' indicates potential watchdog coin miner compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /ftpsdns/ ) {
-            push @SUMMARY,
-"> ps output contains 'ftpsdns' indicates potential watchdog coin miner compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /bnrffa4/ ) {
-            push @SUMMARY,
-"> ps output contains 'bnrffa4' indicates potential Linux/Lady Rootkit";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /systemdo/ ) {
-            push @SUMMARY,
-              "> ps output contains 'systemdo' indicates potential cryptominer";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\[kworker\/u8:7-ev\]/ ) {
-            push @SUMMARY,
-"> ps output contains '[kworker/u8:7ev]' indicates potential ACBackdoor rootkit";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /pty.spawn\(\"\/bin\/sh\"\)/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spawn shell' indicates possible TTY shell being spawned";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /pty.spawn\(\"\/bin\/bash\"\)/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spawn shell' indicates possible TTY shell being spawned";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /os.system\(\"\/bin\/bash\"\)/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spawn shell' indicates possible TTY shell being spawned";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /os.system\(\"\/bin\/sh\"\)/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spawn shell' indicates possible TTY shell being spawned";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\/bin\/sh -i/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spawn shell' indicates possible TTY shell being spawned";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\/bin\/bash -i/ ) {
-            push @SUMMARY,
-"> ps output contains 'pty.spawn shell' indicates possible TTY shell being spawned";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /rr.sh/ ) {
-            push @SUMMARY,
-              "> ps output contains 'rr.sh' indicates potential compromise";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /pwndns.pw/ ) {
-            push @SUMMARY,
-              "> ps output contains 'pwndns.pw' indicates possible coin miner";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\/usr\/sbin\/acpid/ and !-e "/usr/sbin/acpid" ) {
-            push @SUMMARY,
-"> ps output contains '/usr/sbin/acpid' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /\/usr\/sbin\/sdpd/ and !-e "/usr/sbin/sdpd" ) {
-            push @SUMMARY,
-"> ps output contains '/usr/sbin/sdpd' could indicate a bitcoin mining hack";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /dedpma|dovecat/ ) {
-            push @SUMMARY,
-              "> ps output contains either 'dedpma or dovecat' indicates possible coin miner related to QNAP NAS";
-            push @SUMMARY, "\t$line";
-        }
-        if ( $line =~ /masscan/ ) {
-            push @SUMMARY,
-              "> ps output contains 'masscan' indicates possible mass IP scanner";
-            push @SUMMARY, "\t$line";
+    my $URL = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt";
+    my $susp_procs = timed_run( 6, 'curl', '-s', "$URL" );
+    my @susp_procs = split /\n/, $susp_procs;
+    my $headerPrint=0;
+    foreach my $suspicious_process(@susp_procs) { 
+        chomp($suspicious_process);
+        if ( my %procs = grep_process_cmd( $suspicious_process, 'root' ) ) {
+            next if ( $suspicious_process eq "sleep 30" && -e "/usr/local/sbin/maldet" );
+            push @SUMMARY, "> The following suspicious process was found (please verify)" unless( $headerPrint == 1 );
+            $headerPrint=1;
+            push @SUMMARY, CYAN "\t\\_ " . join( "\t\\_ ", map { my ( $u, $c, $a ) = @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' }; "[pid: $_] [user: $u] [cmd: $c] [args: $a]" } keys %procs );
         }
     }
 }
@@ -1036,37 +834,11 @@ sub bitcoin_chk {
         push @SUMMARY,
           "> Found evidence of possible bitcoin miner: " . CYAN $xm2sg_socket;
     }
-    if ( -e ("/tmp/.FILE/stak /") ) {
-        my $FILE_stak = qx[ stat -c "%U %n" '/tmp/.FILE/stak /' ];
-        if ($FILE_stak) {
-            push @SUMMARY,
-              "> Found evidence of a bitcoin miner: " . CYAN $FILE_stak;
-        }
-    }
-    if ( -e ("/tmp/e3ac24a0bcddfacd010a6c10f4a814bc") ) {
-        push @SUMMARY, "> Found evidence of the SpeakUp Trojan: ";
-    }
-    my @HasPastebinURL = qx[ grep -srl 'pastebin' /etc/cron* ];
-    my $PastebinCnt    = @HasPastebinURL;
-    my $PastebinLine   = "";
-    if ( $PastebinCnt > 0 ) {
-        push @SUMMARY, "> Found pastebin URL's in cron files: ";
-        foreach $PastebinLine (@HasPastebinURL) {
-            chomp($PastebinLine);
-            push @SUMMARY, CYAN "\t\\_ $PastebinLine";
-        }
-    }
 }
 
 sub get_process_list {
-
     # NOTE: On 6.10 ps is at /bin/ps while on 7.x it's in /usr/bin/ps
-    my $whichPS = qx[ which ps | grep 'no ps' ];
-    if ( !$whichPS ) {
-        $whichPS = qx[ which ps ];
-    }
-    chomp($whichPS);
-    if ( !$whichPS ) {
+    if ( !-s 'bin/bs' && !-s '/usr/bin/ps' ) {
         push @SUMMARY,
             '> '
           . CYAN
@@ -1082,8 +854,8 @@ sub check_ssh {
     my $ssh_verify;
     foreach my $rpm (qx(rpm -qa openssh*)) {
         chomp($rpm);
-        $ssh_verify =
-qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
+        #$ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
+        $ssh_verify = qx(rpm --verify $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
         if ( $ssh_verify ne '' ) {
             push( @ssh_errors, " RPM verification on $rpm failed:\n" );
             push( @ssh_errors, " $ssh_verify" );
@@ -1188,6 +960,10 @@ qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh
             chomp($_);
             push( @SUMMARY, expand( CYAN "\t\\_ " . $_ ) );
         }
+        #if ( -e '/var/log/prelink/prelink.log' ) { 
+            #push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Above might be OK if the RPM was prelinked." );
+            #push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
+        #}
     }
 }
 
@@ -1228,17 +1004,41 @@ m{/usr/lib/systemd/system|/lib/modules|/lib/firmware|/usr/lib/vmware-tools|/lib6
     }
 }
 
-sub get_process_pid_hash ($) {
+sub get_process_pid_hash () {
     return if !-e "/usr/bin/ps";
-    my ($href) = @_;
-    for ( split /\n/, timed_run( 0, 'ps', 'axwww', '-o', 'user,pid,ppid,cmd' ) )
-    {
-        if (m{ ^ ([^\s]+) \s+ (\d+) \s+ (\d+) \s+ (.*?) \s* $ }xms) {
-            ${$href}{$2}{USER} = $1;
-            ${$href}{$2}{PPID} = $3;
-            ${$href}{$2}{CMD}  = $4;
+    my $field_separator = '#^#';
+    my $ps_format_opt   = join( $field_separator, qw( %p %P %U %t %n %c %a ) );
+    my %hash            = map {
+        my ( $pid, $ppid, $user, $etime, $nice, $comm, $args ) = split /\s*\Q$field_separator\E\s*/, $_;
+        $pid  =~ s/^\s+//;
+        $args =~ s/\s+$//;
+        my ( $sec, $min, $hou, $day ) = reverse split( /[:-]/, $etime );
+        $day += 0;
+        $hou += 0;
+        $min += 0;
+        $sec += $day * 86400 + $hou * 3600 + $min * 60;
+        $pid => {
+            'PPID'   => defined $ppid  ? $ppid  : '',
+            'USER'   => defined $user  ? $user  : '',
+            'ETIME'  => defined $etime ? $etime : '',
+            'NICE'   => defined $nice  ? $nice  : '0',
+            'COMM'   => defined $comm  ? $comm  : '',
+            'ARGS'   => defined $args  ? $args  : '',
+            'ETIMES' => $sec,
         }
+    } split /\n/, timed_run( 0, 'ps', '--no-headers', '--width=1000', '-eo', $ps_format_opt );
+    return \%hash;
+}
+
+sub grep_process_cmd {
+    my ( $pattern, $user ) = @_;
+    my $procs = get_process_pid_hash();
+    my %result;
+    for my $pid ( keys %{$procs} ) {
+        next                           if defined $user ? $procs->{$pid}->{'USER'} ne $user : 0;
+        $result{$pid} = $procs->{$pid} if grep { /$pattern/ } @{ $procs->{$pid} }{ 'COMM', 'ARGS' };
     }
+    return %result;
 }
 
 sub get_ipcs_hash ($) {
@@ -1369,6 +1169,12 @@ sub check_preload {
 "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise."
         );
     }
+    my $libs_so = qx[ grep '/lib64/libs.so' /etc/ld.so.preload ];
+    if ($libs_so) {
+        push( @SUMMARY,
+"> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise."
+        );
+    }
 }
 
 sub create_summary {
@@ -1416,7 +1222,6 @@ sub dump_summary {
         print BOLD GREEN "> Congratulations, no negative items found!\n\n";
     }
 
-    #else {
     create_summary();
     if (@SUMMARY) {
         print_warn('The following negative items were found:');
@@ -1454,8 +1259,6 @@ sub dump_summary {
             print BOLD YELLOW $_ . "\n";
         }
     }
-
-    #}
 }
 
 sub print_normal {
@@ -2011,7 +1814,7 @@ qx[ strings -an4 /sbin/init | egrep -ie "(fuck|backdoor|bin/rcpc|bin/login)" ];
     }
     my $SuckItHidden =
       qx[ touch "$csidir/suckittest.mem" "$csidir/suckittest.xrk" ];
-    if ( !-e "$csidir/suckittest.mem" or !-e "$csidir/suckittest.mem" ) {
+    if ( !-e "$csidir/suckittest.mem" or !-e "$csidir/suckittest.xrk" ) {
         $SuckItCount++;
     }
     if ( $SuckItCount > 1 ) {
@@ -2026,6 +1829,8 @@ qx[ strings -an4 /sbin/init | egrep -ie "(fuck|backdoor|bin/rcpc|bin/login)" ];
             );
         }
     }
+    if ( -e "$csidir/suckittest.mem" ) { unlink( "$csidir/suckittest.mem"); }
+    if ( -e "$csidir/suckittest.xrk" ) { unlink( "$csidir/suckittest.xrk"); }
 }
 
 sub check_for_redisHack {
@@ -2269,7 +2074,7 @@ sub logit {
     my $date        = `date`;
     chomp($Message2Log);
     chomp($date);
-    open( CSILOG, ">>/root/CSI/csi.log" ) or die($!);
+    open( CSILOG, ">>$csidir/csi.log" ) or die($!);
     print CSILOG "$date - $Message2Log\n";
     close(CSILOG);
 }
@@ -2279,12 +2084,6 @@ sub spin {
     $spincounter = ( !defined $spincounter ) ? '|' : $spinner{$spincounter};
     print STDERR "\b$spincounter";
     print STDERR "\b";
-}
-
-sub alltrim() {
-    my $string2trim = $_[0];
-    $string2trim =~ s/^\s*(.*?)\s*$/$1/;
-    return $string2trim;
 }
 
 sub userscan {
@@ -3024,14 +2823,15 @@ sub check_sshd_config {
     }
     my $attr = isImmutable("/etc/ssh/sshd_config");
     if ($attr) {
-
-        push( @SUMMARY,
-                "> The /etc/ssh/sshd_config file is "
-              . MAGENTA "[IMMUTABLE]"
-              . CYAN " indicates possible root-level compromise" );
+        push( @SUMMARY, "> The /etc/ssh/sshd_config file is " . MAGENTA "[IMMUTABLE]" );
+        push @SUMMARY, expand( CYAN "\t\\_ indicates possible root-level compromise!");
     }
     return unless ( -e "/root/.ssh/authorized_keys" );
     my $authkeysGID   = ( stat("/root/.ssh/authorized_keys")->gid );
+    my $suspicious_key = qx[ grep 'mdrfckr' /root/.ssh/authorized_keys ];
+    if ($suspicious_key) {
+        push @SUMMARY, "> /root/.ssh/authorized_keys file contains a malicious key!";
+    }
     my $authkeysGname = getgrgid($authkeysGID);
     if ( $authkeysGID > 0 ) {
         push @SUMMARY,
@@ -3039,6 +2839,11 @@ sub check_sshd_config {
           . MAGENTA $authkeysGname
           . YELLOW "] - "
           . CYAN "indicates possible root-level compromise";
+    }
+    my $attr = isImmutable('/root/.ssh/authorized_keys');
+    if ($attr) {
+        push @SUMMARY, "> The /root/.ssh/authorized_keys file set to " . MAGENTA "[IMMUTABLE]";
+        push @SUMMARY, expand( CYAN "\t\\_ indicates possible root-level compromise!");
     }
 }
 
@@ -3125,7 +2930,6 @@ sub misc_checks {
         }
     }
 
-    #    my %warning = ();
     return unless my @crons_aref = get_cron_files();
     my @cronContains = undef;
     my $isImmutable  = "";
@@ -3366,6 +3170,14 @@ qx[ mysql -BNe "SELECT Host,User FROM mysql.user WHERE Super_priv='Y'" | egrep -
     }
 }
 
+sub check_for_mysqlbackups_user {
+    return if !-e "/var/lib/mysql/mysql.sock";
+    my $mysqlbackups_user = qx[ mysql -BNe "SELECT User FROM mysql.user WHERE User LIKE 'mysqlbackups%'" ];
+    if ($mysqlbackups_user) { 
+        push @SUMMARY, CYAN "> Found mysqlbackups user in MySQL.user table - Could be a MySQL backdoor";
+    }
+}
+
 sub build_libkeyutils_file_list {
     my @dirs = qw( /lib /lib/tls /lib64 /lib64/tls );
     my @libkeyutils_files;
@@ -3487,8 +3299,6 @@ sub get_root_pass_changes {
         chomp($accessline);
         my ( $ipaddr, $user, $date, $chpass, $status ) =
           ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8 ];
-
-#if ( $user eq "root" and $status eq "200" and $chpass =~ m/chrootpass/ and $date =~ m/$year/ ) {
         if (    $user eq "$lcUser"
             and $status eq "200"
             and $chpass =~ m/chrootpass/
@@ -3568,42 +3378,55 @@ sub check_for_lilocked_ransomware {
 }
 
 sub check_sudoers_file {
-    my @SUDOERFILES = glob(q{ /etc/sudoers.d/*});
-    push @SUDOERFILES, "/etc/sudoers" unless ( !-e "/etc/sudoers" );
-    my $sudoerFile;
-    foreach $sudoerFile (@SUDOERFILES) {
-        chomp($sudoerFile);
-        next if ( $sudoerFile eq "/etc/sudoers.d/48-wp-toolkit" );
-        open( SUDOERS, "$sudoerFile" ) or die "($!)";
-        my @SUDOERS = <SUDOERS>;
-        close(SUDOERS);
-        my $sudoerLine;
-        my $showHeader = 0;
-        foreach $sudoerLine (@SUDOERS) {
-            chomp($sudoerLine);
-            next if ( $sudoerLine eq "" );
-            next if ( substr( $sudoerLine, 0, 1 ) eq "#" );
-            next if ( substr( $sudoerLine, 0, 1 ) eq " " );
-            next if ( substr( $sudoerLine, 0, 4 ) eq 'root' );
-            next if ( substr( $sudoerLine, 0, 8 ) eq 'Defaults' );
-            next if ( $sudoerLine =~ m/\%wheel/ );
-            next unless ( $sudoerLine =~ m/ALL$/ );
-
-            if ( $showHeader == 0 ) {
-                push( @SUMMARY,
-"> Found non-root users with insecure privileges in the $sudoerFile file."
-                );
-                $showHeader++;
-            }
-            if ( $sudoerLine =~ m/ALL, !root/ ) {
-                push( @SUMMARY,
-                        CYAN "\t\\_ $sudoerLine"
-                      . RED
-                      " (HAS !root - might be susceptible to CVE-2019-14287" );
+    my @sudoersfiles = glob(q{/etc/sudoers.d/*});
+    push @sudoersfiles, "/etc/sudoers" unless( !-e "/etc/sudoers" );
+    my $showHeader=0;
+    my $external_ip_address = qx[ curl -s https://myip.cpanel.net/v1.0/ ];
+    chomp($external_ip_address);
+    my $isAWS_IP = getAWS_IPs($external_ip_address);
+    foreach my $sudoerfile (@sudoersfiles) {
+        chomp($sudoerfile);
+        next if ( $sudoerfile =~ m{/etc/sudoers.d/ticket[0-9]} );
+        open( my $fh, '<', $sudoerfile );
+        my @sudoers = <$fh>;
+        close( $fh );
+        foreach my $sudoerline (@sudoers) {
+            chomp($sudoerline);
+            next if ( $sudoerline =~ m/^(#|$|root|Defaults|%wheel)/ );
+            next if ( $sudoerline =~ m/ec2-user/ && $isAWS_IP );
+            next if ( $sudoerline =~ m/centos|ubuntu|wp-toolkit/ );
+            next unless ( $sudoerline =~ m/ALL$/ );
+            push @SUMMARY,"Found non-root users with insecure privileges in a sudoer file." unless($showHeader == 1);
+            $showHeader = 1;
+            if ( $sudoerline =~ m/ALL, !root/ ) {
+                push @SUMMARY,"\t\\_ $sudoerfile: $sudoerline has !root - might be susceptible to CVE-2019-14287";
             }
             else {
-                push( @SUMMARY, CYAN "\t\\_ $sudoerLine" );
+                push @SUMMARY, CYAN "\t\\_ $sudoerfile: " . MAGENTA $sudoerline;
             }
+        }
+    }
+}
+
+sub getAWS_IPs {
+    my $chkIP = shift;
+    chomp($chkIP);
+    use NetAddr::IP;
+    my $AWSsubnets = timed_run( 0, 'curl', '-s', 'https://ip-ranges.amazonaws.com/ip-ranges.json' );
+    my @AWSsubnets = split /\n/, $AWSsubnets;
+    foreach my $awsline (@AWSsubnets) {
+        chomp($awsline);
+        next unless ( $awsline =~ m/ip_prefix/ );
+        my ($aws_ip_range) = ( split( /\s+/, $awsline ) )[2];
+        $aws_ip_range =~ s/\"//g;
+        $aws_ip_range =~ s/,//g;
+        my $network = NetAddr::IP->new($aws_ip_range);
+        my $ip      = NetAddr::IP->new($chkIP);
+        if ( $ip->within($network) ) {
+            return 1;
+        }
+        else { 
+            return 0;
         }
     }
 }
@@ -3854,25 +3677,25 @@ sub check_apache_modules {
     }
 }
 
-sub check_for_stealth_in_ps {
-    return if !-e "/usr/bin/ps";
-    chomp( my @ps_output = qx(ps auxfwww) );
-    foreach my $line (@ps_output) {
-        if ( $line =~ /\[stealth\]/ ) {
-            push @SUMMARY,
-              "> ps output contains '[stealth]' should be investigated";
-            push @SUMMARY, CYAN "\t$line";
-            my ( $stealthUser, $stealthPid ) =
-              ( split( /\s+/, $line ) )[ 0, 1 ];
-            my $stealthExe = qx[ ls -al /proc/$stealthPid/exe ];
-            chomp($stealthExe);
-            push( @SUMMARY,
-                CYAN
-                  "\tPid: $stealthPid | User: $stealthUser | Exe: $stealthExe"
-            );
-        }
-    }
-}
+#sub check_for_stealth_in_ps {
+#    return if !-e "/usr/bin/ps";
+#    chomp( my @ps_output = qx(ps auxfwww) );
+#    foreach my $line (@ps_output) {
+#        if ( $line =~ /\[stealth\]/ ) {
+#            push @SUMMARY,
+#              "> ps output contains '[stealth]' should be investigated";
+#            push @SUMMARY, CYAN "\t$line";
+#            my ( $stealthUser, $stealthPid ) =
+#              ( split( /\s+/, $line ) )[ 0, 1 ];
+#            my $stealthExe = qx[ ls -al /proc/$stealthPid/exe ];
+#            chomp($stealthExe);
+#            push( @SUMMARY,
+#                CYAN
+#                  "\tPid: $stealthPid | User: $stealthUser | Exe: $stealthExe"
+#            );
+#        }
+#    }
+#}
 
 sub check_changepasswd_modules {
     my $dir = '/usr/local/cpanel/Cpanel/ChangePasswd/';

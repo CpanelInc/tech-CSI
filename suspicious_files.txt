@@ -201,6 +201,8 @@
 /lib64/libnano.so.4
 /lib64/libncom.so.4.0.1
 /lib64/libselinux.so.4
+/lib64/libs.so
+/lib64/x86_64-linux-gnu/security/pam_unix.so
 /lib/defs
 /lib/file.h
 /lib/.fx
@@ -213,6 +215,7 @@
 /lib/.libgh-gh
 /lib/.libgh.gh
 /lib/libnano.so.4
+/lib/libgrubd.so
 /lib/libncom.so.4.0.1
 /lib/libproc.a
 /lib/libproc.so.2.0.6
@@ -236,6 +239,8 @@
 /lib/udev/ssd_control/pc
 /lib/udev/ssd_control/t
 /lib/udev/x.modules
+/lib/x86_64-linux-gnu/libc-2.23.so
+/lib/x86_64-linux-gnu/security/pam_unix.so
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
 /opt/yilu/mservice
@@ -329,8 +334,6 @@
 /root/README_DECRYPT.html
 /root/READ_ME.txt
 /root/READ_TO_DECRYPT
-/root/xmrig-6.9.0
-/root/xmrig-6.9.0/xmrig
 /root/.rfyyn
 /root/.rm
 /root/.ronhcje
@@ -365,6 +368,8 @@
 /root/.wcdn
 /root/.wnrxciav
 /root/.xcdf
+/root/xmrig-6.9.0
+/root/xmrig-6.9.0/xmrig
 /root/.xnhsn
 /root/.yjrz
 /root/.yldsg
@@ -377,6 +382,7 @@
 /root/.zmrv
 /root/.zpni
 /root/.zzgtr
+/run/bioset
 /sbin/home
 /sbin/.ifup-local
 /sbin/libselinux
@@ -416,6 +422,7 @@
 /tmp/cpuhp_1
 /tmp/cpuset
 /tmp/.cron
+/tmp/crondpid
 /tmp/crun
 /tmp/crypto
 /tmp/cryptov2.ko
@@ -429,8 +436,10 @@
 /tmp/dr_client
 /tmp/drop
 /tmp/.dump
+/tmp/e3ac24a0bcddfacd010a6c10f4a814bc
 /tmp/emacs.sh
 /tmp/ext4-rsv-conver
+/tmp/.FILE/stak /
 /tmp/flush-199:13000
 /tmp/flush-199:25000
 /tmp/flush-199:30000
@@ -465,6 +474,7 @@
 /tmp/kidd0
 /tmp/kidd0.c
 /tmp/kinsing
+/tmp/kworkerds
 /tmp/libapache
 /tmp/linux.lock
 /tmp/.local/*
@@ -495,8 +505,11 @@
 /tmp/seeintlog
 /tmp/sess.rotat
 /tmp/srv
+/tmp/ssdpid
 /tmp/.ssh
+/tmp/sshins
 /tmp/.stabip
+/tmp/syslogspid
 /tmp/systemdo
 /tmp/systemd-private-afjdhdicjijo473skiosoohxiskl573q-systemd-timesyncc.service-g1g5qf/cred/fghhhh/data
 /tmp/.systemd-salt
@@ -508,6 +521,7 @@
 /tmp/twink
 /tmp/.unlock
 /tmp/up
+/tmp/up.txt
 /tmp./update
 /tmp/.user
 /tmp/.uua
@@ -520,6 +534,9 @@
 /tmp/.X17-unix
 /tmp/.X19-unix
 /tmp/.X19-unix/dota3
+/tmp/.X19-unix/dota3.tar.gz
+/tmp/.X19-unix/.rsync/initall
+/tmp/.X19-unix/.rsync/c/tsm
 /tmp/./xL
 /tmp/./xL.1
 /tmp/./xL.2
@@ -544,6 +561,7 @@
 /usr/bin/iproute.ko
 /usr/bin/ishit
 /usr/bin/jdc
+/usr/bin/[kthrotlds]
 /usr/bin/kauditd
 /usr/bin/kaudited
 /usr/bin/kfl
@@ -823,7 +841,6 @@
 /var/log/xmrig
 /var/opt/power
 /var/run/bioset
-/run/bioset
 /var/run/lvm//lvm.pid
 /var/run/npss.state
 /var/run/nscd/ns.pid
@@ -853,9 +870,8 @@
 /var/tmp/.netscalerd/uuid
 /var/tmp/.pipe.sock
 /var/tmp/salt-store
+/var/tmp/v3
 /var/www/html/Index.php
 /var/.x
 /var/.x/psotnic
 /watchd0g.sh
-/lib/x86_64-linux-gnu/security/pam_unix.so
-/lib64/x86_64-linux-gnu/security/pam_unix.so
