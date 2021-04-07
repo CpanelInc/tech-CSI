@@ -97,7 +97,6 @@ my $help;
 my $userscan;
 my $binscan;
 my $scan;
-our @process_list = get_process_list();
 my %process;
 &get_process_pid_hash( \%process );
 my %ipcs;
@@ -837,15 +836,8 @@ sub bitcoin_chk {
 }
 
 sub get_process_list {
-    # NOTE: On 6.10 ps is at /bin/ps while on 7.x it's in /usr/bin/ps
-    if ( !-s 'bin/bs' && !-s '/usr/bin/ps' ) {
-        push @SUMMARY,
-            '> '
-          . CYAN
-          . '/usr/bin/ps'
-          . YELLOW ' is missing - indicates possible root-level compromise';
-        return;
-    }
+    my $continue = has_ps_command();
+    return unless( $continue );
     return split /\n/, timed_run( 0, 'ps', 'axwwwf', '-o', 'user,pid,cmd' );
 }
 
@@ -865,8 +857,13 @@ sub check_ssh {
     if ( $keyutils_verify ne "" ) {
         push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
         push( @ssh_errors, " $keyutils_verify" );
+        if ( -e '/var/log/prelink/prelink.log' ) { 
+            push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Above might be OK if the RPM was prelinked." );
+            push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
+        }
     }
-    if ( -e "/usr/bin/ps" ) {
+    my $continue = has_ps_command();
+    if ( $continue ) {
         my @sshd_process_found = qx(ps aux | grep "sshd: root@");
         my $sshd_process_found;
         my $showHeaders = 0;
@@ -888,56 +885,22 @@ sub check_ssh {
     my $ssh_error_cnt = 0;
     foreach $SSHRPM (@SSHRPMs) {
         chomp($SSHRPM);
-
         # Vendor
         my $rpmVendor = qx[ rpm -qi $SSHRPM | grep 'Vendor' ];
         chomp($rpmVendor);
-        if ( $rpmVendor =~ (m/CloudLinux|CentOS|Red Hat, Inc./) ) {
-
-            # All good
-        }
-        else {
-            $ssh_error_cnt++;
-        }
-        if ( $rpmVendor =~ (m/none/) ) {
-
-            # Vendor should NEVER be (none)!!!
-            $ssh_error_cnt++;
-        }
-
+        $ssh_error_cnt++ unless( $rpmVendor =~ (m/CloudLinux|CentOS|Red Hat, Inc./) );
+        $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
         # Build Host
         my $rpmBuildHost = qx[ rpm -qi $SSHRPM | grep 'Build Host' ];
         chomp($rpmBuildHost);
-        if ( $rpmBuildHost =~ (m/cloudlinux.com|centos.org|redhat.com/) ) {
-
-            # All good
-        }
-        else {
-            $ssh_error_cnt++;
-        }
-        if ( $rpmBuildHost =~ (m/none/) ) {
-
-            # Build Host should NEVER be (none)!!!
-            $ssh_error_cnt++;
-        }
-
+        $ssh_error_cnt++ unless( $rpmBuildHost =~ (m/cloudlinux.com|centos.org|redhat.com/) );
+        $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) ); 
         # Signature
         my $rpmSignature = qx[ rpm -qi $SSHRPM | grep 'Signature' ];
         chomp($rpmSignature);
-        if ( $rpmSignature =~
-            (m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51/) )
-        {
-
-            # All good
-        }
-        else {
-            $ssh_error_cnt++;
-        }
-        if ( $rpmSignature =~ (m/none/) ) {
-
-            # Signature should NEVER be (none)!!!
-            $ssh_error_cnt++;
-        }
+        $ssh_error_cnt++ unless( $rpmSignature =~
+            (m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/) );
+        $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) ); 
     }
     if ( $ssh_error_cnt > 3 ) {
         push( @ssh_errors,
@@ -960,10 +923,6 @@ sub check_ssh {
             chomp($_);
             push( @SUMMARY, expand( CYAN "\t\\_ " . $_ ) );
         }
-        #if ( -e '/var/log/prelink/prelink.log' ) { 
-            #push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Above might be OK if the RPM was prelinked." );
-            #push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
-        #}
     }
 }
 
@@ -1005,7 +964,8 @@ m{/usr/lib/systemd/system|/lib/modules|/lib/firmware|/usr/lib/vmware-tools|/lib6
 }
 
 sub get_process_pid_hash () {
-    return if !-e "/usr/bin/ps";
+    my $continue = has_ps_command();
+    return unless( $continue );
     my $field_separator = '#^#';
     my $ps_format_opt   = join( $field_separator, qw( %p %P %U %t %n %c %a ) );
     my %hash            = map {
@@ -1329,6 +1289,7 @@ sub check_for_cdorked_A {
     my @apache_bins = ();
     push @apache_bins, $HTTPD_PATH;
 
+    my @process_list = get_process_list();
     for my $process (@process_list) {
         if ( $process =~ m{ \A root \s+ (\d+) [^\d]+ $HTTPD_PATH }xms ) {
             my $pid          = $1;
@@ -2370,7 +2331,7 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         }
     }
 
-# Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
+    # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
     print_status("Checking for malicious WordPress plugins");
     logit("Checking for malicious WordPress plugins");
     if ( -e "$RealHome/public_html/wp-content/plugins/supersociall" ) {
@@ -3053,7 +3014,8 @@ sub vtlink {
 }
 
 sub rpm_yum_running_chk {
-    return if !-e "/usr/bin/ps";
+    my $continue = has_ps_command();
+    return unless( $continue );
     my $lcRunning =
       qx[ ps auxfwww | egrep -i '/usr/bin/rpm|/usr/bin/yum' | egrep -v 'grep|wp-toolkit-cpanel' ];
     if ($lcRunning) {
@@ -3394,7 +3356,7 @@ sub check_sudoers_file {
             chomp($sudoerline);
             next if ( $sudoerline =~ m/^(#|$|root|Defaults|%wheel)/ );
             next if ( $sudoerline =~ m/ec2-user/ && $isAWS_IP );
-            next if ( $sudoerline =~ m/centos|ubuntu|wp-toolkit/ );
+            next if ( $sudoerline =~ m/centos|ubuntu|wp-toolkit|cloud-user/ );
             next unless ( $sudoerline =~ m/ALL$/ );
             push @SUMMARY,"Found non-root users with insecure privileges in a sudoer file." unless($showHeader == 1);
             $showHeader = 1;
@@ -3516,7 +3478,6 @@ sub check_proc_sys_vm {
 sub known_sha256_hashes {
     my $checksum = $_[0];
 
-    #my $URL         = "https://cpaneltech.ninja/cptech/known_256hashes.txt";
     my $URL =
 "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt";
     my @knownhashes = qx[ curl -s $URL ];
@@ -3618,35 +3579,42 @@ qx[ egrep --text -i 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' /usr/local/cpane
 
 sub check_cpupdate_conf {
     return unless my $cpupdate_conf = get_cpupdate_conf();
-
-    push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file...";
-    if ( $cpupdate_conf->{'UPDATES'} eq "daily" ) {
-
-        # Automatic cPanel Updates happening daily!
+    my $showHeader=0;
+    if ( $cpupdate_conf->{'UPDATES'} eq "never" ) {
+        push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..." unless($showHeader);;
+        push @RECOMMENDATIONS,
+          CYAN "\t\\_ Automatic cPanel Updates are disabled";
+        $showHeader=1;
     }
-    else {
-        if ( $cpupdate_conf->{'UPDATES'} eq "never" ) {
-            push @RECOMMENDATIONS,
-              CYAN "\t\\_ Automatic cPanel Updates are disabled";
-        }
-        if ( $cpupdate_conf->{'UPDATES'} eq "manual" ) {
-            push @RECOMMENDATIONS,
-              CYAN "\t\\_ Automatic cPanel Updates are set to manual";
-        }
+    if ( $cpupdate_conf->{'UPDATES'} eq "manual" ) {
+        push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..." unless($showHeader);;
+        push @RECOMMENDATIONS,
+          CYAN "\t\\_ Automatic cPanel Updates are set to manual";
+        $showHeader=1;
     }
-    if ( $cpupdate_conf->{'RPMUP'} eq "daily" ) {
-
-        # Automatic RPM Updates happening daily!
+    if ( $cpupdate_conf->{'RPMUP'} eq "never" ) {
+        push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..." unless($showHeader);;
+        push @RECOMMENDATIONS,
+          CYAN "\t\\_ Automatic RPM Updates are disabled";
+        $showHeader=1;
     }
-    else {
-        if ( $cpupdate_conf->{'RPMUP'} eq "never" ) {
-            push @RECOMMENDATIONS,
-              CYAN "\t\\_ Automatic RPM Updates are disabled";
-        }
-        if ( $cpupdate_conf->{'RPMUP'} eq "manual" ) {
-            push @RECOMMENDATIONS,
-              CYAN "\t\\_ Automatic RPM Updates are set to manual";
-        }
+    if ( $cpupdate_conf->{'RPMUP'} eq "manual" ) {
+        push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..." unless($showHeader);;
+        push @RECOMMENDATIONS,
+          CYAN "\t\\_ Automatic RPM Updates are set to manual";
+        $showHeader=1;
+    }
+    if ( $cpupdate_conf->{'SARULESUP'} eq "never" ) {
+        push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..." unless($showHeader);;
+        push @RECOMMENDATIONS,
+          CYAN "\t\\_ Automatic SARULESUP Updates are disabled - SpamAssassin rules might be outdated";
+        $showHeader=1;
+    }
+    if ( $cpupdate_conf->{'SARULESUP'} eq "manual" ) {
+        push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..." unless($showHeader);;
+        push @RECOMMENDATIONS,
+          CYAN "\t\\_ Automatic SARULESUP Updates are set to manual - SpamAssassin rules might be outdated";
+        $showHeader=1;
     }
 }
 
@@ -3676,26 +3644,6 @@ sub check_apache_modules {
         );
     }
 }
-
-#sub check_for_stealth_in_ps {
-#    return if !-e "/usr/bin/ps";
-#    chomp( my @ps_output = qx(ps auxfwww) );
-#    foreach my $line (@ps_output) {
-#        if ( $line =~ /\[stealth\]/ ) {
-#            push @SUMMARY,
-#              "> ps output contains '[stealth]' should be investigated";
-#            push @SUMMARY, CYAN "\t$line";
-#            my ( $stealthUser, $stealthPid ) =
-#              ( split( /\s+/, $line ) )[ 0, 1 ];
-#            my $stealthExe = qx[ ls -al /proc/$stealthPid/exe ];
-#            chomp($stealthExe);
-#            push( @SUMMARY,
-#                CYAN
-#                  "\tPid: $stealthPid | User: $stealthUser | Exe: $stealthExe"
-#            );
-#        }
-#    }
-#}
 
 sub check_changepasswd_modules {
     my $dir = '/usr/local/cpanel/Cpanel/ChangePasswd/';
@@ -3801,6 +3749,18 @@ sub check_for_ransomwareEXX {
     if ($rwEXX) {
         push( @SUMMARY, "> Found evidence of the EXX ransomware!" );
         push( @SUMMARY, expand("\t\\_ $rwEXX") );
+    }
+}
+
+sub has_ps_command {
+    my $whichPS = timed_run( 4, 'which', 'ps' );
+    chomp($whichPS);
+    if ( !-s $whichPS ) {
+        push @SUMMARY, '> ' . CYAN . 'ps command is missing (checked for /usr/bin/ps and /bin/ps)' . YELLOW ' - Could indicate a possible root-level compromise';
+        return 0;
+    }
+    else {
+        return 1;
     }
 }
 

@@ -42,7 +42,6 @@ ir29xc1
 irqba2anc1
 irqba5xnc1
 irqbalanc1
-irqbalance
 irqbnc1
 JnKihGjn
 jweri
