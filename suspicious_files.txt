@@ -413,6 +413,7 @@
 /tmp/.bugtraq.c
 /tmp/cback
 /tmp/.cheese
+/tmp/cid.php
 /tmp/cifsd
 /tmp/.cinik
 /tmp/config.json

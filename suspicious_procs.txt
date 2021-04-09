@@ -68,7 +68,8 @@ NXLAi
 os.system\("/bin/bash"\)
 os.system\("/bin/sh"\)
 performedl
-perl$
+/usr/local/bin/perl$
+/usr/bin/perl$
 polkitd
 pro.sh
 pty.spawn\("/bin/bash"\)
