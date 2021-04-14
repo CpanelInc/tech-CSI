@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.36";
+my $version = "3.4.37";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -41,8 +41,6 @@ use File::Path;
 use File::stat;
 use DateTime;
 use Cpanel::Exception       ();
-use Cpanel::Sys             ();
-use Cpanel::Sys::OS         ();
 use Cpanel::FindBin         ();
 use Cpanel::Version         ();
 use Cpanel::Kernel          ();
@@ -77,7 +75,6 @@ my $sha256only;
 our $HOMEDIR       = $conf->{'HOMEDIR'};
 our @FILESTOSCAN   = undef;
 our $rootkitsfound = 0;
-my $Last10 = "-10";
 ###################################################
 # Check to see if the calling user is root or not #
 ###################################################
@@ -101,8 +98,24 @@ my %process;
 &get_process_pid_hash( \%process );
 my %ipcs;
 &get_ipcs_hash( \%ipcs );
-my $distro         = Cpanel::Sys::OS::getos();
-my $distro_version = Cpanel::Sys::OS::getreleaseversion();
+my $distro;
+my $distro_version;
+my $distro_major;
+my $distro_minor;
+if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
+    # up to 94
+    eval("use Cpanel::Sys");
+    eval("use Cpanel::Sys::OS");
+    $distro         = Cpanel::Sys::OS::getos();
+    $distro_version = Cpanel::Sys::OS::getreleaseversion();
+}
+if ( -e '/usr/local/cpanel/Cpanel/OS.pm' ) {
+    # 96+
+    $distro         = Cpanel::OS->instance->distro;
+    $distro_major = Cpanel::OS->instance->major;
+    $distro_minor = Cpanel::OS->instance->minor;
+    $distro_version = $distro_major . "." . $distro_minor;
+}
 my $ignoreload;
 our $OS_RELEASE = ucfirst($distro) . " Linux release " . $distro_version;
 our $HTTPD_PATH = get_httpd_path();

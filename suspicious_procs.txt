@@ -45,6 +45,7 @@ irqbalanc1
 irqbnc1
 JnKihGjn
 jweri
+./kswapd0
 kworker34
 \[kworker /u8:7-ev\]
 kw.sh
