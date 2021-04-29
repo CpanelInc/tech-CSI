@@ -505,6 +505,7 @@
 /tmp/salt-minions
 /tmp/seeintlog
 /tmp/sess.rotat
+/tmp/.session-unix
 /tmp/srv
 /tmp/ssdpid
 /tmp/.ssh
