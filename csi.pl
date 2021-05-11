@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.37";
+my $version = "3.4.38";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -2277,6 +2277,9 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         );
     }
 
+    print_status(
+        "Checking for .env file in " . $RealHome . "..." );
+    logit( "Checking for .env file in " . $RealHome );
     if ( -e ("$RealHome/.env") ) {
 
         push( @RECOMMENDATIONS,
@@ -2344,6 +2347,21 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         }
     }
 
+    print_status("Checking for RotaJakiro backdoor");
+    logit("Checking for RotaJakiro backdoor");
+    if ( -e "$RealHome/.gvfsd/.profile/gvfsd-helper" ) {
+        push( @SUMMARY, "> Found possible malicious RotaJakiro backdoor at $RealHome/.gvfsd/.profile/gvfsd-helper");
+    }
+    if ( -e "$RealHome/.dbus/sessions/session-dbus" ) {
+        push( @SUMMARY, "> Found possible malicious RotaJakiro backdoor at $RealHome/.dbus/sessions/session-dbus");
+    }
+    if ( -e "$RealHome/.X11/X0-lock" ) {
+        push( @SUMMARY, "> Found possible malicious RotaJakiro backdoor at $RealHome/.X11/X0-lock");
+    }
+    if ( -e "$RealHome/.X11/.X11-lock" ) {
+        push( @SUMMARY, "> Found possible malicious RotaJakiro backdoor at $RealHome/.X11/.X11-lock");
+    }
+
     # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
     print_status("Checking for malicious WordPress plugins");
     logit("Checking for malicious WordPress plugins");
@@ -2405,7 +2423,7 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
 "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/magecartstrings.txt";
     my @MageCartStrings = qx[ curl -s $URL > "$csidir/magecartstrings.txt" ];
     my @retval =
-qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/ ];
+qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/*.js ];
     my $TotalFound = @retval;
     my $ItemFound;
     my $FileOnly;
@@ -2555,7 +2573,7 @@ qx[ /usr/local/cpanel/3rdparty/bin/clamscan --no-summary --infected --suppress-o
         print
 "Scanning $RealHome/public_html for ($StringCnt) known phrases/strings\n";
         my $retval =
-qx[ LC_ALL=C grep -srIwf $csidir/csi_detections.txt $RealHome/public_html/* ];
+qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/public_html/* ];
         my @retval     = split( /\n/, $retval );
         my $TotalFound = @retval;
         my $ItemFound;

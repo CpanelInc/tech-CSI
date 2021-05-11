@@ -33,6 +33,7 @@
 /bin/squit
 /bin/sysdr
 /bin/syslogd
+/bin/systemd/systemd-daemon
 /bin/.tmpc
 /bin/watchbog
 /bin/watchdog
@@ -148,6 +149,7 @@
 /etc/gshadow--
 /etc/host.ph1
 /etc/httpdns
+/etc/init/systemd-agent.conf
 /etc/init.d/kworker
 /etc/init.d/po1kitd-update
 /etc/init.d/pwnrig
@@ -188,6 +190,7 @@
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
 /etc/systemd/system/ntp.service
+/etc/systemd/system/polkitd.service
 /etc/.tmpc
 /etc/ttyhash
 /etc/.wwwwwwweeeeeeeeeeepaasss
@@ -230,6 +233,7 @@
 /lib/proc.h
 /lib/security/.config
 /lib/.so
+/lib/systemd/system/sys-temd-agent.service
 /lib/udev/ssd_control/cryptov2.ko
 /lib/udev/ssd_control/iproute.ko
 /lib/udev/ssd_control/kauditd
@@ -272,6 +276,8 @@
 /root/.cache/root
 /root/.cache/.sysud
 /root/.cd
+/root/.config/polkitd/polkitd
+/root/.config/.accounts-daemon/accounts-daemon.login.conf
 /root/.configrc/a
 /root/.configrc/a/upd
 /root/.configrc/b
@@ -707,6 +713,7 @@
 /usr/lib/mozilla/extensions/mozzlia.ini
 /usr/lib/pt07
 /usr/lib/rpm/rpm.cx
+/usr/lib/systemd/systemd-daemon
 /usr/lib/.sshd.h
 /usr/lib/tcl5.3
 /usr/lib/updated
@@ -785,6 +792,7 @@
 /usr/sbin/netdns
 /usr/sbin/ntp
 /usr/sbin/xntps
+/usr/share/accounts-daemon/accounts-daemon.so
 /usr/share/.aPa
 /usr/share/boot.sync
 /usr/share/core.h
@@ -877,3 +885,5 @@
 /var/.x
 /var/.x/psotnic
 /watchd0g.sh
+/usr/lib32/.X11/X0-lock
+/bin/lib32/.X11/X0-lock
