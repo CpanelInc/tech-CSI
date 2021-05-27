@@ -109,3 +109,6 @@ zcash
 zigw
 .gvfsd/.profile/gvfsd-helper
 .dbus/sessions/session-dbus
+YespowerSugar
+.FLYING --no-longpoll
+./icon.ico
