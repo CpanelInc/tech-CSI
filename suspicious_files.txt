@@ -398,6 +398,7 @@
 /sbin/vobiscum
 /sbin/xc
 /sbin/xlogin
+/tmp/EB93A6/996E.elf
 /tmp/2t3ik
 /tmp/4004.db
 /tmp/.a
@@ -604,6 +605,7 @@
 /usr/bin/ssd
 /usr/bin/.sshd
 /usr/bin/sshfile
+/usr/bin/sshins
 /usr/bin/t
 /usr/bin/util
 /usr/bin/vadim
@@ -752,6 +754,7 @@
 /usr/local/cpanel/backup/mkpasswd
 /usr/local/cpanel/backup/run
 /usr/local/cpanel/backup/xh
+/usr/local/cwpsrv
 /usr/local/include/uconf.h
 /usr/local/lib/libjdk.so
 /usr/local/sbin/bin/bash.pid
