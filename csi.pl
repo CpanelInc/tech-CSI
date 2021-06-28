@@ -551,15 +551,17 @@ sub scan {
                     chomp($file);
                     my $loadavg = get_loadavg();
                     print_status( "\t\t\\_ Yara file: $file [ Load: $loadavg ]");
-                    $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNsr', "$file", "$dir" );
+                    $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$dir" );
                 }
                 my @results = split /\n/, $results;
                 my $resultcnt=@results;
                 if ( $resultcnt > 0 ) {
-                    push @SUMMARY, "> A Yara scan found some suspicious files...";
+                    my $showHeader = 0;
                     foreach my $yara_result(@results) {
                         chomp($yara_result);
                         my ( $triggered_rule, $triggered_file ) = (split( '\s+', $yara_result ) );
+                        push @SUMMARY, "> A Yara scan found some suspicious files..." unless( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ or $showHeader );
+                        $showHeader = 1;
                         push @SUMMARY, "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file unless( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
                     }
                 }
