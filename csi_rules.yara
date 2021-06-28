@@ -1,7 +1,7 @@
 rule kobalos {
     meta:
         description = “Kobalos malware”
-        author = “Marc-Etienne M.Léveillé”
+        author = "Marc-Etienne M.Léveillé"
         date = “2020-11-02”
         reference = “http://www.welivesecurity.com”
         source = “https://github.com/eset/malware-ioc/”
@@ -24,7 +24,7 @@ rule kobalos {
 rule kobalos_ssh_credential_stealer {
     meta:
         description = “Kobalos SSH credential stealer seen in OpenSSH client”
-        author = “Marc-Etienne M.Léveillé”
+        author = "Marc-Etienne M.Léveillé"
         date = “2020-11-02”
         reference = “http://www.welivesecurity.com”
         source = “https://github.com/eset/malware-ioc/”
