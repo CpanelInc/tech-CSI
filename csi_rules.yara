@@ -1,12 +1,12 @@
 rule kobalos {
     meta:
-        description = “Kobalos malware”
+        description = "Kobalos malware"
         author = "Marc-Etienne M.Léveillé"
-        date = “2020-11-02”
-        reference = “http://www.welivesecurity.com”
-        source = “https://github.com/eset/malware-ioc/”
-        license = “BSD 2-Clause”
-        version = “1”
+        date = "2020-11-02"
+        reference = "http://www.welivesecurity.com"
+        source = "https://github.com/eset/malware-ioc/"
+        license = "BSD 2-Clause"
+        version = "1"
     strings:
         $encrypted_strings_sizes = {
         05 00 00 00 09 00 00 00 04 00 00 00 06 00 00 00
@@ -23,15 +23,15 @@ rule kobalos {
 
 rule kobalos_ssh_credential_stealer {
     meta:
-        description = “Kobalos SSH credential stealer seen in OpenSSH client”
+        description = "Kobalos SSH credential stealer seen in OpenSSH client"
         author = "Marc-Etienne M.Léveillé"
-        date = “2020-11-02”
-        reference = “http://www.welivesecurity.com”
-        source = “https://github.com/eset/malware-ioc/”
-        license = “BSD 2-Clause”
-        version = “1”
+        date = "2020-11-02"
+        reference = "http://www.welivesecurity.com"
+        source = "https://github.com/eset/malware-ioc/"
+        license = "BSD 2-Clause"
+        version = "1"
     strings:
-        $ = “user: %.128s host: %.128s port %05d user: %.128s password: %.128s”
+        $ = "user: %.128s host: %.128s port %05d user: %.128s password: %.128s"
     condition:
         any of them
 }
