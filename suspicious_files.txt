@@ -888,5 +888,14 @@
 /var/.x
 /var/.x/psotnic
 /watchd0g.sh
+/usr/bin/execute
+/usr/bin/where
 /usr/lib32/.X11/X0-lock
 /bin/lib32/.X11/X0-lock
+/etc/audisp/plugins.d/6hsnefbp
+/etc/X11/xorg.conf.d/6hsnefbp
+/etc/X11/fontpath.d/6hsnefbp
+/etc/systemd/system/griphon.service
+/usr/share/man/man8/mon.8.gz
+/tmp/.ccw
+/root/.configrc/a/kswapd0

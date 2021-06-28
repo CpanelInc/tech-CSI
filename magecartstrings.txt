@@ -20,3 +20,6 @@ mcdnn.net
 facelook.no
 imags.pw
 consoler.in
+jquery-cdn.top/mage.js
+angular.dub/js/everlast.js
+sj-syst.link/sj-syst/ocart.js

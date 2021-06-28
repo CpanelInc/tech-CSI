@@ -46,6 +46,7 @@ irqbnc1
 JnKihGjn
 jweri
 ./kswapd0
+/root/.configrc/a/kswapd0
 kworker34
 \[kworker /u8:7-ev\]
 kw.sh
@@ -113,3 +114,6 @@ zigw
 YespowerSugar
 .FLYING --no-longpoll
 ./icon.ico
+/usr/bin/execute
+/usr/bin/where
+/root/-bash (deleted)

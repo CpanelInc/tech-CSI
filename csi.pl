@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.38";
+my $version = "3.4.40";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -39,7 +39,9 @@ $tabstop = 4;
 use File::Basename;
 use File::Path;
 use File::stat;
+use IO::Prompt;
 use DateTime;
+use HTTP::Tiny;
 use Cpanel::Exception       ();
 use Cpanel::FindBin         ();
 use Cpanel::Version         ();
@@ -48,7 +50,7 @@ use Cpanel::KernelCare      ();
 use Cpanel::IONice          ();
 use Cpanel::PwCache         ();
 use Cpanel::PwCache::Get    ();
-use Cpanel::SafeRun::Object ();
+use Cpanel::SafeRun::Timed  ();
 use List::MoreUtils qw(uniq);
 use Math::Round;
 use File::Find::Rule;
@@ -86,22 +88,9 @@ if ( $> != 0 ) {
 # Parse positional parameters for flags and set variables #
 ###########################################################
 # Set defaults for positional parameters
-my $full;
-my $shadow;
-my $symlink;
-my $secadv;
-my $help;
-my $userscan;
-my $binscan;
-my $scan;
-my %process;
+my ( $full, $shadow, $symlink, $yarascan, $secadv, $help, $userscan, $binscan, $scan, %process, %ipcs, $distro, $distro_version, $distro_major, $distro_minor, $ignoreload );
 &get_process_pid_hash( \%process );
-my %ipcs;
 &get_ipcs_hash( \%ipcs );
-my $distro;
-my $distro_version;
-my $distro_major;
-my $distro_minor;
 if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
     # up to 94
     eval("use Cpanel::Sys");
@@ -116,7 +105,6 @@ if ( -e '/usr/local/cpanel/Cpanel/OS.pm' ) {
     $distro_minor = Cpanel::OS->instance->minor;
     $distro_version = $distro_major . "." . $distro_minor;
 }
-my $ignoreload;
 our $OS_RELEASE = ucfirst($distro) . " Linux release " . $distro_version;
 our $HTTPD_PATH = get_httpd_path();
 our $LIBKEYUTILS_FILES_REF = build_libkeyutils_file_list();
@@ -131,6 +119,7 @@ GetOptions(
     'full'       => \$full,
     'shadow'     => \$shadow,
     'symlink'    => \$symlink,
+    'yarascan'   => \$yarascan,
     'secadv'     => \$secadv,
     'ignoreload' => \$ignoreload,
     'help'       => \$help,
@@ -161,11 +150,16 @@ if ($help) {
 check_previous_scans();
 logit("=== STARTING CSI ===");
 
-# Add load average check.
+sub get_loadavg {
+    my ($load_avg) = (split(/\s+/,qx[ cat /proc/loadavg ]))[0];
+    chomp($load_avg);
+    return $load_avg;
+}
+
 my $corecnt = qx[ nproc ];
 chomp($corecnt);
-my ($loadavg) = (split(/\s+/,qx[ cat /proc/loadavg ]))[0];
-chomp($loadavg);
+my $loadavg = get_loadavg();
+
 if ($loadavg > ($corecnt * 3) && !$ignoreload ) {
     print RED "Load Average is too high ($loadavg) which is > than 3 times the number of cores\n";
     print WHITE "If you really want to continue, pass --ignoreload\n";
@@ -188,7 +182,7 @@ if (
     setpriority( 0, 0, 19 );
 }
 my $scanstarttime = Time::Piece->new;
-print_header("Scan started on $scanstarttime");
+print_header( YELLOW "Scan started on $scanstarttime");
 logit("Scan started on $scanstarttime");
 logit("Showing disclaimer");
 print_info("Usage: /root/csi.pl [functions] [options]");
@@ -215,7 +209,7 @@ if ($userscan) {
 logit("Running default scan");
 scan();
 my $scanendtime = Time::Piece->new;
-print_header("\nScan completed on $scanendtime");
+print_header( YELLOW "\nScan completed on $scanendtime");
 logit("Scan completed on $scanendtime");
 my $scantimediff = ( $scanendtime - $scanstarttime );
 my $scanTotTime  = $scantimediff->pretty;
@@ -242,7 +236,7 @@ sub show_help {
     );
     print_normal(" ");
     print_status(
-"--userscan cPanelUser  Performs YARA scan [using clamscan if ClamAV is installed] for a single cPanel User.."
+"--userscan cPanelUser  Asks to install Yara if not already installed and performs a Yara scan for a single cPanel User.."
     );
     print_normal(" ");
     print_header("Additional scan options available");
@@ -252,6 +246,7 @@ sub show_help {
     );
     print_header("--symlink	Performs a symlink hack check for all accounts.");
     print_header("--secadv	Runs Security Advisor");
+    print_header("--yarascan	Performs a yara scan. CAUTION - Can cause very high load and take a very long time!");
     print_header(
         "--full		Performs all of the above checks - very time consuming.");
     print_normal(" ");
@@ -259,6 +254,8 @@ sub show_help {
     print_header("=================");
     print_status("            /root/csi.pl [DEFAULT] quick scan");
     print_status("            /root/csi.pl --symlink");
+    print_status("            /root/csi.pl --secadv");
+    print_status("            /root/csi.pl --yarascan");
     print_status("            /root/csi.pl --full");
     print_status("Bincheck: ");
     print_status("            /root/csi.pl --bincheck");
@@ -404,6 +401,12 @@ sub scan {
     print_header('[ Checking for bad UIDs ]');
     logit("Checking for bad UIDs");
     check_uids();
+    print_header('[ Checking /etc/passwd file for suspicious users ]');
+    logit("Checking /etc/passwd for suspicious users");
+    check_for_suspicious_user('ferrum');
+    print_header('[ Checking /etc/hosts file for suspicious entries ]');
+    logit("Checking /etc/hosts for suspicious entries");
+    check_hosts_file();
     print_header('[ Checking for known Indicators of Compromise (IoC) ]');
     logit("Checking for known IoC's");
     all_malware_checks();
@@ -508,6 +511,65 @@ sub scan {
         chk_shadow_hack();
     }
 
+    if ( $full or $yarascan ) {
+        print_header( YELLOW "Checking for and downloading Yara and additional Yara Rules!" );
+        my $yara_available = check_for_yara();
+        if ( $yara_available ) {
+            print_warn( "This process can cause very high loads and take a long time!!!\nWaiting 10 seconds [Press CTRL+C To Abort]" );
+            sleep(10);
+            my @yara_urls = qw( 
+                https://raw.githubusercontent.com/reversinglabs/reversinglabs-yara-rules/develop/yara/ransomware/Linux.Ransomware.LuckyJoe.yara 
+                https://raw.githubusercontent.com/reversinglabs/reversinglabs-yara-rules/develop/yara/virus/Linux.Virus.Vit.yara 
+                https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara 
+            );
+
+            print_header("Downloading additional yara rules to $csidir");
+
+            my @data;
+            for my $URL(@yara_urls) {
+                chomp($URL);
+                my $response = HTTP::Tiny->new->get( $URL );
+                if ( $response->{success} ) {
+                    my $yara_filename = basename($URL);
+                    chomp($yara_filename);
+                    open(YARAFILE, ">$csidir/$yara_filename" );
+                    print YARAFILE $response->{content};
+                    close(YARAFILE);
+                    push @data, "$csidir/$yara_filename" if ( -e "$csidir/$yara_filename" );
+                }
+                else {
+                    print_status( "Failed to download $URL" );
+                }
+            }
+            my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /var /usr /tmp );
+            my (@results, $results);
+            for my $dir(@dirs) { 
+                chomp($dir);
+                next unless -d $dir;
+                print_status("\tScanning $dir directory");
+                foreach my $file(@data) {
+                    chomp($file);
+                    my $loadavg = get_loadavg();
+                    print_status( "\t\t\\_ Yara file: $file [ Load: $loadavg ]");
+                    $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNsr', "$file", "$dir" );
+                }
+                my @results = split /\n/, $results;
+                my $resultcnt=@results;
+                if ( $resultcnt > 0 ) {
+                    push @SUMMARY, "> A Yara scan found some suspicious files...";
+                    foreach my $yara_result(@results) {
+                        chomp($yara_result);
+                        my ( $triggered_rule, $triggered_file ) = (split( '\s+', $yara_result ) );
+                        push @SUMMARY, "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file unless( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+                    }
+                }
+            }
+        }
+    }
+
+    print_normal( ' ' );
+    print_header( GREEN 'Looking for recommendations' );
+    print_normal( ' ' );
     # Checking for recommendations
     print_header('[ Checking if updates are enabled ]');
     logit("Checking if updates are enabled");
@@ -521,6 +583,12 @@ sub scan {
     print_header('[ Checking for accesshash ]');
     logit("Checking for accesshash");
     check_for_accesshash();
+    print_header('[ Checking setting of Cookie IP Validation ]');
+    logit("Checking setting of Cookie IP Validation");
+    check_cookieipvalidation();
+    print_header('[ Checking setting of X-Frame/X-Content Type headers with cpsrvd ]');
+    logit("Checking setting of X-Frame/X-Content Type headers with cpsrvd");
+    check_xframe_content_headers();
     print_header('[ Checking for deprecated plugins/modules ]');
     logit("Checking for deprecated plugins");
     check_for_deprecated();
@@ -702,6 +770,7 @@ sub check_history {
 }
 
 sub check_modsecurity {
+    # RIGHT HERE
     my $result =
       qx[ /usr/sbin/whmapi1 modsec_is_installed | grep 'installed: 1' ];
     if ( !$result ) {
@@ -859,7 +928,6 @@ sub check_ssh {
     my $ssh_verify;
     foreach my $rpm (qx(rpm -qa openssh*)) {
         chomp($rpm);
-        #$ssh_verify = qx(rpm -V $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
         $ssh_verify = qx(rpm --verify $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
         if ( $ssh_verify ne '' ) {
             push( @ssh_errors, " RPM verification on $rpm failed:\n" );
@@ -871,7 +939,7 @@ sub check_ssh {
         push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
         push( @ssh_errors, " $keyutils_verify" );
         if ( -e '/var/log/prelink/prelink.log' ) { 
-            push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Above might be OK if the RPM was prelinked." );
+            push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Might be OK if the keyutils-libs RPM was prelinked." );
             push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
         }
     }
@@ -942,8 +1010,8 @@ sub check_ssh {
 sub check_lib {
     my @dirs = qw( /lib /lib64 /usr/lib /usr/lib64 /usr/local/include );
     my $dir;
-    my @RPMOwned;
-    my $RPMOwned;
+    my @notRPMOwned;
+    my $notRPMOwned;
     my $filename;
     foreach $dir (@dirs) {
         chomp($dir);
@@ -956,18 +1024,18 @@ sub check_lib {
             next if $filename eq "." or $filename eq "..";
             lstat "$dir/$filename";
             next if -d _ or -l _;
-            my $RPMOwned = qx[ rpm -qf "$dir/$filename" | grep 'not owned' ];
-            if ($RPMOwned) {
-                push @RPMOwned, "$dir/$filename";
+            my $notRPMOwned = qx[ rpm -qf "$dir/$filename" | grep 'not owned' ];
+            if ($notRPMOwned) {
+                push @notRPMOwned, "$dir/$filename" unless( $filename eq "yara.h" );
             }
         }
     }
-    my $rpmcnt = @RPMOwned;
+    my $rpmcnt = @notRPMOwned;
     if ( $rpmcnt > 0 ) {
         push @SUMMARY, "> Found library files not owned by an RPM";
     }
     my $file;
-    foreach $file (@RPMOwned) {
+    foreach $file (@notRPMOwned) {
         chomp($file);
         next
           if $file =~
@@ -1202,14 +1270,14 @@ sub dump_summary {
             print BOLD YELLOW $_ . "\n";
         }
         print_normal('');
-        print_separator(
-'If you believe there are negative items, you should consult with your system administrator or a security professional.'
+        print_normal(
+'Any negative items should be investigated by your system administrator or a security professional.'
         );
-        print_separator(
+        print_normal(
 'If you need a system administrator, one can probably be found by going to https://go.cpanel.net/sysadmin'
         );
-        print_separator(
-'Note: cPanel Support cannot assist you with any negative issues found.'
+        print_normal(
+'Note: cPanel, L.L.C. Support cannot assist you with any negative issues found.'
         );
         print_normal('');
     }
@@ -1271,7 +1339,7 @@ sub print_info {
 
 sub print_warn {
     my $text = shift;
-    print BOLD RED "[WARNINGS]: $text\n";
+    print BOLD RED "[WARNING]: $text\n";
 }
 
 sub print_recommendations {
@@ -2005,8 +2073,8 @@ sub all_malware_checks {
     check_for_exim_vuln();
     check_for_hiddenwasp();
     check_for_ngioweb();
-    check_for_dirtycow_passwd();
-    check_for_dirtycow_kernel();
+#    check_for_dirtycow_passwd();
+#    check_for_dirtycow_kernel();
     check_for_lilocked_ransomware();
     check_for_junglesec();
 }
@@ -2412,42 +2480,6 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         }
     }
 
-    # MageCart Hack checks
-    print_status( "Checking for MageCart hacks in any JavaScript files under "
-          . $RealHome
-          . "/public_html/" );
-    logit("Checking for for MageCart hacks");
-    my $headerPrinted = 0;
-
-    my $URL =
-"https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/magecartstrings.txt";
-    my @MageCartStrings = qx[ curl -s $URL > "$csidir/magecartstrings.txt" ];
-    my @retval =
-qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/*.js ];
-    my $TotalFound = @retval;
-    my $ItemFound;
-    my $FileOnly;
-    my $MageCartString;
-    my @MAGECARTHACKS;
-    my $MageCartFound;
-
-    if ( $TotalFound > 0 ) {
-        push( @SUMMARY, "> Found possible MageCart Hacks" );
-        foreach $ItemFound (@retval) {
-            chomp($ItemFound);
-            ( $FileOnly, $MageCartString ) = ( split( /: /, $ItemFound ) );
-            push(
-                @SUMMARY,
-                expand(
-                        CYAN "\t\\_ The file "
-                      . WHITE $FileOnly
-                      . CYAN " contains "
-                      . MAGENTA $MageCartString
-                )
-            );
-        }
-    }
-
 # Check if Exiftool is installed and if so, use it to check for any favicon.ico files.
 # See https://www.bleepingcomputer.com/news/security/hackers-hide-credit-card-stealing-scripts-in-favicon-exif-data/
     my $isExifInstalled =
@@ -2470,6 +2502,7 @@ qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/*.js 
         }
     }
     else {
+        # On Ubuntu it's: apt install libimage-exiftool-perl [ https://linoxide.com/install-use-exiftool-linux-ubuntu-centos/ ]
         push @RECOMMENDATIONS,
             "> ExifTool not installed, please consider running "
           . MAGENTA "yum install perl-Image-ExifTool"
@@ -2478,93 +2511,62 @@ qx[ LC_ALL=C grep -srIwf $csidir/magecartstrings.txt $RealHome/public_html/*.js 
     }
 
     logit("Running a user scan for $lcUserToScan");
-    unlink("$csidir/csi_detections.txt")
-      unless ( !-e "$csidir/csi_detections" );
-    unlink("$csidir/suspicious_strings.yara")
-      unless ( !-e "$csidir/suspicious_strings.yara" );
-    if ( -e "/usr/local/cpanel/3rdparty/bin/clamscan" ) {
-        my $URL =
-"https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara";
-        my @DEFINITIONS =
-          qx[ curl -s $URL > "$csidir/suspicious_strings.yara" ];
+    my $yara_available = check_for_yara();
+    if ( $yara_available ) {
+        my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara );
+        print_header("Downloading yara rules to $csidir");
+        my @data;
+        for my $URL(@yara_urls) {
+            chomp($URL);
+            my $response = HTTP::Tiny->new->get( $URL );
+            if ( $response->{success} ) {
+                my $yara_filename = basename($URL);
+                chomp($yara_filename);
+                open(YARAFILE, ">$csidir/$yara_filename" );
+                print YARAFILE $response->{content};
+                close(YARAFILE);
+                push @data, "$csidir/$yara_filename" if ( -e "$csidir/$yara_filename" );
+            }
+            else {
+                print_status( "Failed to download $URL" );
+            }
+        }
+        push @data, "/usr/local/maldetect/sigs/rfxn.yara" if ( -e "/usr/local/maldetect/sigs/rfxn.yara" );
+        push @data, "/usr/local/cpanel/3rdparty/share/clamav/rfxn.yara" if ( -e "/usr/local/cpanel/3rdparty/share/clamav/rfxn.yara" );
+
         print CYAN "Scanning "
           . WHITE $RealHome
-          . "/public_html... (Using YARA rules)\n";
-        open( RULES, "$csidir/suspicious_strings.yara" );
-        my @RULEDATA = <RULES>;
-        close(RULES);
-        my $resultLine;
-        my @FOUND = undef;
-        my @results =
-qx[ /usr/local/cpanel/3rdparty/bin/clamscan --no-summary --infected --suppress-ok-results --log=$csidir/suspicious_strings_scan_results.log --recursive --exclude="(.ttf|.pem|.txt|.js|.gz|.jpeg|.jpg|.psd|.dat|.bz2|.crt|.mp3|.mp4|.zip|.webm|.json|.pdf|.png|.css|.svg|.swf|Thumbs.db)" --include="(.php|.*htm*|.t*t|.pl|.cgi)" --database $csidir/suspicious_strings.yara "$RealHome/public_html" ];
+          . "/public_html... (Using the following YARA rules)\n";
 
-        if ( @results > 0 ) {
-            push( @SUMMARY,
-"> A general scan of the $lcUserToScan account found the following suspicous items"
-            );
+        my (@results, $results);
+        foreach my $file(@data) {
+            chomp($file);
+            print BOLD BLUE "\tYara File: $file\n";
+            $results .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$RealHome/public_html" );
         }
-        foreach $resultLine (@results) {
-            chomp($resultLine);
-            my ( $scannedFile, $foundRule ) =
-              ( split( /\s+/, $resultLine ) )[ 0, 1 ];
-            chomp($scannedFile);
-            chomp($foundRule);
-            $scannedFile =~ s/://g;
-            $foundRule   =~ s/YARA.//g;
-            $foundRule   =~ s/.UNOFFICIAL//g;
-            my $resultCnt = 1;
-            my $ruleData;
-
-            foreach $ruleData (@RULEDATA) {
-                chomp($ruleData);
-                $resultCnt++;
-                spin();
-                if ( $ruleData eq "rule $foundRule {" ) {
-                    $ruleData = $RULEDATA[$resultCnt];
-                    my ($string) = ( split( /\"/, $ruleData ) )[1];
-                    my $ChangeDate =
-                      timed_run( 3, "stat $scannedFile | grep -i change" );
-                    ($ChangeDate) = ( split( /\./, $ChangeDate ) );
-                    $ChangeDate =~ s/Change: //;
-                    push(
-                        @FOUND,
-                        expand(
-                                CYAN "\t \\_ File: "
-                              . MAGENTA $scannedFile
-                              . YELLOW " contains the string: "
-                              . WHITE $string
-                              . BOLD MAGENTA
-                              . " [ Modified: "
-                              . BOLD BLUE $ChangeDate
-                              . MAGENTA " ]"
-                        )
-                    );
-                    last;
+        my @results = split /\n/, $results;
+        my $resultcnt=@results;
+        if ( $resultcnt > 0 ) {
+            push @SUMMARY, "> A general Yara scan of the $lcUserToScan account found the following suspicious items...";
+            foreach my $yara_result(@results) {
+                my ( $triggered_rule, $triggered_file, $triggered_string );
+                chomp($yara_result);
+                if ( substr( $yara_result, 0, 2 ) eq "0x" ) {
+                    ( $triggered_string ) = ( split( /: /, $yara_result ) )[1];
                 }
+                else {
+                    ( $triggered_rule, $triggered_file ) = (split( '\s+', $yara_result ) );
+                    $triggered_rule =~ s/_triggered//g;
+                }
+                my $ChangeDate = timed_run( 3, "stat $triggered_file | grep -i change" );
+                ($ChangeDate) = ( split( /\./, $ChangeDate ) );
+                $ChangeDate =~ s/Change: //;
+                push @SUMMARY, "\t\\_ File: " . MAGENTA $triggered_file . YELLOW " looks suspicious. " . GREEN "Changed on [" . $ChangeDate . "] " . CYAN "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string" unless( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
             }
         }
-        splice( @FOUND, 0, 1 );
-        my $cntFOUND = @FOUND;
-        my $foundLine;
-        if ( $cntFOUND == 0 ) {
 
-            # Nothing suspicious found
-        }
-        else {
-            foreach $foundLine (@FOUND) {
-                chomp($foundLine);
-                push( @SUMMARY, "$foundLine" );
-            }
-            push( @SUMMARY,
-                    RED "Result: "
-                  . WHITE $cntFOUND
-                  . RED " suspicious items found. " );
-            push( @SUMMARY, YELLOW "These should be investigated.\n" );
-        }
     }
-    else {
-        print YELLOW
-"ClamAV is not installed - skipping suspicious strings YARA scan...\n";
+    else {          ## grep scan (not Yara) a bit slower but should catch the same things.
         my $URL =
 "https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
         my @DEFINITIONS = qx[ curl -s $URL > "$csidir/csi_detections.txt" ];
@@ -2618,10 +2620,6 @@ qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $Real
             push( @SUMMARY, YELLOW "These should be investigated.\n" );
         }
     }
-    unlink("$csidir/csi_detections.txt")
-      unless ( !-e "$csidir/csi_detections" );
-    unlink("$csidir/suspicious_strings.yara")
-      unless ( !-e "$csidir/suspicious_strings.yara" );
 
     print_header('[ cPanel Security Investigator (UserScan) Complete! ]');
     logit('[ cPanel Security Investigator (UserScan) Complete! ]');
@@ -2720,6 +2718,28 @@ sub check_for_accesshash {
     }
 }
 
+sub check_cookieipvalidation {
+    my $result =
+qx[ /usr/sbin/whmapi1 get_tweaksetting key='cookieipvalidation' | grep 'value: strict' ];
+    if ( !$result ) {
+
+        push @RECOMMENDATIONS,
+"> Cookie IP Validation isn't set to strict - Consider changins this in Tweak Settings.";
+        return;
+    }
+}
+
+sub check_xframe_content_headers {
+    my $result =
+qx[ /usr/sbin/whmapi1 get_tweaksetting key='xframecpsrvd' | grep 'value: 1' ];
+    if ( !$result ) {
+
+        push @RECOMMENDATIONS,
+"> X-Frame-Options and X-Content-Type-Options not enabled for cpsrvd - Consider enabling this in Tweak Settings.";
+        return;
+    }
+}
+
 sub installClamAV {
     my $isClamAVInstalled =
       qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
@@ -2759,19 +2779,15 @@ sub security_advisor {
     my $SecAdvLine;
     my @SecAdvisor =
 qx[ /usr/local/cpanel/scripts/check_security_advice_changes | egrep -v 'High|Info|Advice|Type|Module' 2>/dev/null  ];
-    push( @SUMMARY,
+    push( @RECOMMENDATIONS,
             YELLOW "> "
           . MAGENTA
-          "\t============== BEGIN SECURITY ADVISOR RESULTS ===============" );
+          "\t============== SECURITY ADVISOR RESULTS ===============" );
     foreach $SecAdvLine (@SecAdvisor) {
         chomp($SecAdvLine);
-        push( @SUMMARY, BOLD CYAN $SecAdvLine . "\n" )
+        push( @RECOMMENDATIONS, BOLD CYAN $SecAdvLine . "\n" )
           unless ( $SecAdvLine eq "" );
     }
-    push( @SUMMARY,
-            YELLOW "> "
-          . MAGENTA
-          "\t============== END SECURITY ADVISOR RESULTS ===============\n" );
 }
 
 sub check_for_deprecated {
@@ -2926,16 +2942,24 @@ sub misc_checks {
     my @cronContains = undef;
     my $isImmutable  = "";
     for my $cron (@crons_aref) {
-        if ( $cron eq "/var/spool/cron/root" and -z $cron ) {
+        if ( $cron eq "/var/spool/cron/root" ) {
+            my $rootscron = Cpanel::SafeRun::Timed::timedsaferun( 5, 'crontab', '-u', 'root', '-l' );
+            my @rootscron = split( /\n/, $rootscron );
+            my $croncnt = @rootscron;
+            if ( $croncnt < 15 ) {
+                push @SUMMARY, "Root's crontab contains less than 15 lines (not normal for cPanel servers), could indicate a root compromise";
+            }
+        }
+        if ( $cron eq "/var/spool/cron/root" and ( -z $cron ) ) {
             push @SUMMARY,
-"> Root's crontab (/var/spool/cron/root) is empty!\n\t\\_ Should never happen on a cPanel server\n\t\\_ indicates possible root compromise";
+"> Root's crontab is empty!\n\t\\_ Should never happen on a cPanel server\n\t\\_ indicates possible root compromise";
         }
         $isImmutable = isImmutable($cron);
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
                 if ( $_ =~
-/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]/
+/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp/
                   )
                 {
                     $isImmutable = "";
@@ -3087,28 +3111,27 @@ sub check_for_exim_vuln {
 }
 
 sub spamscriptchk {
+    #  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
     opendir my $dh, "/tmp";
-    my $totaltmpfiles = () = readdir($dh);
+    my @tmpdirfiles = readdir($dh);
     closedir $dh;
+    my $totaltmpfiles = @tmpdirfiles;
     return if $totaltmpfiles > 1000;
-
-#  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
-    my @string     = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/* ];
-    my $stringCnt  = @string;
-    my $stringLine = "";
-    if ( $stringCnt > 0 ) {
-        my $ExistsinTmp = "";
-        push @SUMMARY,
-          "> Found evidence of user spamming script in /tmp directory";
-        foreach $stringLine (@string) {
-            chomp($stringLine);
-            if ( -e $stringLine ) {
-                my $FileU = qx[ stat -c "%U" $stringLine ];
-                chomp($FileU);
-                $ExistsinTmp =
-                  " [ Exists and is owned by: " . CYAN $FileU . YELLOW " ]";
-            }
-            push @SUMMARY, "\t\\_ $stringLine $ExistsinTmp";
+    my $showHeader=0;
+    foreach my $file_in_tmp(@tmpdirfiles) {
+        chomp($file_in_tmp);
+        next if ( $file_in_tmp eq "." || $file_in_tmp eq ".." );
+        my $isASCII = qx[ file /tmp/$file_in_tmp | grep 'ASCII' ];
+        chomp( $isASCII );
+        next unless( $isASCII );
+        my $suspicious_string_found = qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/$file_in_tmp ]; 
+        if ($suspicious_string_found) {
+            push @SUMMARY, "> Found evidence of user spamming script in /tmp directory" unless($showHeader);
+            $showHeader=1;
+            my $FileU = qx[ stat -c "%U" /tmp/$file_in_tmp ];
+            chomp($FileU);
+            my $ExistsinTmp = " [ Exists and is owned by: " . CYAN $FileU . YELLOW " ]";
+            push @SUMMARY, "\t\\_ /tmp/" . $file_in_tmp . " " . $ExistsinTmp . "\n";
         }
     }
 }
@@ -3723,6 +3746,7 @@ sub ignoreHashes {
     my $HashToIgnore  = $_[0];
     my @hashes2ignore = qw(
       c9dd336748b4fc2ab4bac2cb5a4690e13e03eb64d51cd000584e6da253145d11
+      0290562d8299414dfb276d534000d122dbc1c514f49ca7ca0757ddd519880636
     );
     if ( grep { /$HashToIgnore/ } @hashes2ignore ) {
         return 1;
@@ -3792,6 +3816,97 @@ sub has_ps_command {
     }
     else {
         return 1;
+    }
+}
+
+sub check_for_yara {
+    return 1 if ( -e "/usr/local/bin/yara" );
+    my $continue_yara_install = "Yara engine not installed, OK to install?";
+    if ( !IO::Prompt::prompt( $continue_yara_install . " [y/N]: ", -default => 'n', -yes_no ) ) {
+        print_status("User opted to NOT install Yara!");
+        logit("User aborted Yara install");
+        return 0;
+    }
+    my $yara_headers = Cpanel::SafeRun::Timed::timedsaferun( 30, 'curl', '-sL', '--head', 'https://github.com/VirusTotal/yara/releases/latest' );
+    my @yara_headers = split /\n/, $yara_headers;
+    my $yara_version;
+    foreach my $line(@yara_headers) {
+        chomp($line);
+        next unless( $line =~ m/Location:/ );
+        my ($yara_url) = (split(/\s+/,$line))[1];
+        $yara_version = (split(/\//, $yara_url))[-1];
+        last;
+    }
+    if (! $yara_version ) {
+        print_status( "Could not obtain latest Yara version - Installation failed!");
+        logit("Couldn't obtain lastest Yara version");
+        return 0;
+    }
+    chomp($yara_version);
+    print_status( "Downloading latest version of Yara [$yara_version]...");
+    logit("Downloading latest Yara tarball");
+    chdir("$csidir");
+    my $download_yara = Cpanel::SafeRun::Timed::timedsaferun( 30, 'wget', '-q', "https://github.com/VirusTotal/yara/archive/$yara_version.tar.gz" );
+    if ( -e "$csidir/$yara_version.tar.gz" ) {
+        print_status( "Extracting Yara tarball...");
+        logit("Extracting Yara tarball");
+        my $extract_tarball = Cpanel::SafeRun::Timed::timedsaferun( 20, 'tar', 'xzf', "$csidir/$yara_version.tar.gz" );
+        $yara_version =~ s/v//g;
+        if ( -d "$csidir/yara-$yara_version" ) {
+            chdir("$csidir/yara-$yara_version");
+            print_status( "Installing Yara - patience is a virtue...");
+            logit("Installing Yara");
+            spin();
+            my $install_yara = Cpanel::SafeRun::Timed::timedsaferun( 60, "./bootstrap.sh 2>&1 > /dev/null" );
+            spin();
+            my $install_yara = Cpanel::SafeRun::Timed::timedsaferun( 60, "./configure 2>&1 > /dev/null" );
+            spin();
+            my $install_yara = Cpanel::SafeRun::Timed::timedsaferun( 60, "make 2>&1 > /dev/null" );
+            spin();
+            my $install_yara = Cpanel::SafeRun::Timed::timedsaferun( 60, "make install 2>&1 > /dev/null" );
+            spin();
+            my $install_yara = Cpanel::SafeRun::Timed::timedsaferun( 60, "make check 2>&1 > /dev/null" );
+            spin();
+            if ( -e "/usr/local/bin/yara" ) {
+                print_header( "Yara successfully installed!" );
+                logit("Yara install successful");
+                return 1;
+            }
+            else {
+                print_header( "Yara install failed!" );
+                logit("Yara install failed");
+            }
+        }
+        else {
+            print_header( "Extraction failed!" );
+            logit("Yara extraction failed");
+            return 0;
+        }
+    }
+    else {
+        print_header( "Download failed!" );
+        logit("Yara download failed");
+        return 0;
+    }
+}
+
+sub check_for_suspicious_user {
+    my $susp_user = shift;
+    chomp($susp_user);
+    return unless( Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', "$susp_user", '/etc/passwd' ) );
+    push @SUMMARY, "> Found suspicious user " . CYAN $susp_user . YELLOW " in /etc/passwd file, indicates possible DarkRadiation ransomware";
+}
+
+sub check_hosts_file {
+    return unless( -e "/etc/hosts" );
+    if ( open( my $fh, '<', '/etc/hosts' ) ) {
+        my $showHeader=0;
+        while (<$fh>) {
+            if ( $_ =~ m/localhost blockchain.info|localhost 100.100.25.3 jsrv.aegis.aliyun.com|localhost 100.100.25.4 update.aegis.aliyun.co|localhost 185.164.72.119|localhost pinto.mamointernet.icu|localhost lsd.systemten.org|localhost ix.io|fuck you "sic"/ ) {
+                push @SUMMARY, "> Possible crypto malware on this server (suspicious entries found in /etc/hosts file" unless( $showHeader);
+                $showHeader=1;
+            }
+        }
     }
 }
 
