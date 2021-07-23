@@ -46,9 +46,19 @@ irqbnc1
 JnKihGjn
 jweri
 ./kswapd0
+.93joshua
+.k4m310t
+.purrple
+.sherifu
+.zte_error
+.jack1992
+masscan
+.juanito
+.b87kamelot
 /root/.configrc/a/kswapd0
 kworker34
 \[kworker /u8:7-ev\]
+.5p4rk3l5
 kw.sh
 kxjd
 libapache
