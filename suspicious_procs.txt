@@ -59,6 +59,7 @@ masscan
 kworker34
 \[kworker /u8:7-ev\]
 .5p4rk3l5
+.k93
 kw.sh
 kxjd
 libapache
@@ -82,7 +83,6 @@ os.system\("/bin/sh"\)
 performedl
 /usr/local/bin/perl$
 /usr/bin/perl$
-polkitd
 pro.sh
 pty.spawn\("/bin/bash"\)
 pty.spawn\("/bin/ssh"\)
