@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.41";
+my $version = "3.4.42";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -648,7 +648,14 @@ sub check_previous_scans {
 sub check_kernel_updates {
     return if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.68'));
     my $CanModify             = Cpanel::Kernel::can_modify_kernel();
-    my $boot_kernelversion    = Cpanel::Kernel::get_default_boot_version();
+    my $boot_kernelversion;
+    if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '>', '11.96')) {
+        use Cpanel::Kernel::GetDefault;
+        $boot_kernelversion = Cpanel::Kernel::GetDefault::get();
+    }
+    else {
+        $boot_kernelversion    = Cpanel::Kernel::get_default_boot_version();
+    }
     my $running_kernelversion = Cpanel::Kernel::get_running_version();
     my $custom_kernel         = 0;
     if ( $running_kernelversion !~ m/\.(?:noarch|x86_64|i[3-6]86)$/ ) {
