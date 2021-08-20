@@ -64,6 +64,24 @@ use Term::ANSIColor qw(:constants);
 use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
+our $RUN_STATE;
+
+_init_run_state();
+if ( exists $ENV{'PACHA_AUTOFIXER'} ) {
+    _set_run_type('cptech');
+}
+elsif ( defined $ENV{'HISTFILE'} and index( $ENV{'HISTFILE'}, 'cpanel_ticket' ) != -1 ) {
+    _set_run_type('cptech');
+}
+else {
+    foreach ( @ENV{ 'SSH_CLIENT', 'SSH_CONNECTION' } ) {
+        next unless defined $_;
+
+        next unless m{\A (184\.94\.197\.[2-6]|208\.74\.123\.98)}xms;
+        _set_run_type('cptech');
+        last;
+    }
+}
 
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
@@ -1000,55 +1018,55 @@ sub check_ssh {
             push( @ssh_errors, " $sshd_process_found" );
         }
     }
-	my @SSHRPMs;
-	if ($distro eq "ubuntu") {
-    	@SSHRPMs = qw( openssh-server openssh-clients );
-	}
-	else {
-    	@SSHRPMs = qw( openssh-server openssh-clients openssh );
-	}
+    my @SSHRPMs;
+    if ($distro eq "ubuntu") {
+        @SSHRPMs = qw( openssh-server openssh-clients );
+    }
+    else {
+        @SSHRPMs = qw( openssh-server openssh-clients openssh );
+    }
     my $SSHRPM;
     my $ssh_error_cnt = 0;
-	my ($rpmVendor, $rpmBuildHost, $rpmSignature);
+    my ($rpmVendor, $rpmBuildHost, $rpmSignature);
     foreach $SSHRPM (@SSHRPMs) {
         chomp($SSHRPM);
-		if ($distro eq "ubuntu" ) {
-        	# Vendor/Maintainer
-			my $Maintainer;
-        	$rpmVendor = qx[ dpkg-query -W -f='${Maintainer}\n' | grep $SSHRPM ];
-        	chomp($rpmVendor);
-        	$ssh_error_cnt++ unless( $rpmVendor =~ (m/ubuntu|Ubuntu Developers/) );
-        	$ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-			# dpkg-query on Ubuntu does not store Build Host
-        	# Signature
-			open( my $fh, "<", "/varlib/dpkg/info/$SSHRPM.md5sums");
-			while (<$fh>) {
-				next unless($_ =~ m/\/bin\// );
-				my ($md5hash,$filename1)=(split(/\s+/,$_));
-				my $filename = "/" . $filename1;
-				my ($md5syshash) = (split(/\s+/,qx[ md5sum $filename ]))[0];
-				next unless( $md5syshash ne $md5hash );
-				$ssh_error_cnt++;
-			}
-		}
-		else {
-        	# Vendor/Maintainer
-        	$rpmVendor = qx[ rpm -qi $SSHRPM | grep 'Vendor' ];
-        	# Build Host
-        	$rpmBuildHost = qx[ rpm -qi $SSHRPM | grep 'Build Host' ];
-        	# Signature
-        	$rpmSignature = qx[ rpm -qi $SSHRPM | grep 'Signature' ];
-        	chomp($rpmVendor);
-        	chomp($rpmBuildHost);
-        	chomp($rpmSignature);
-        	$ssh_error_cnt++ unless( $rpmVendor =~ (m/CloudLinux|CentOS|Red Hat, Inc./) );
-        	$ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-        	$ssh_error_cnt++ unless( $rpmBuildHost =~ (m/cloudlinux.com|centos.org|redhat.com/) );
-        	$ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) ); 
-        	$ssh_error_cnt++ unless( $rpmSignature =~
-            	(m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/) );
-        	$ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) ); 
-		}
+        if ($distro eq "ubuntu" ) {
+            # Vendor/Maintainer
+            my $Maintainer;
+            $rpmVendor = qx[ dpkg-query -W -f='${Maintainer}\n' | grep $SSHRPM ];
+            chomp($rpmVendor);
+            $ssh_error_cnt++ unless( $rpmVendor =~ (m/ubuntu|Ubuntu Developers/) );
+            $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
+            # dpkg-query on Ubuntu does not store Build Host
+            # Signature
+            open( my $fh, "<", "/varlib/dpkg/info/$SSHRPM.md5sums");
+            while (<$fh>) {
+                next unless($_ =~ m/\/bin\// );
+                my ($md5hash,$filename1)=(split(/\s+/,$_));
+                my $filename = "/" . $filename1;
+                my ($md5syshash) = (split(/\s+/,qx[ md5sum $filename ]))[0];
+                next unless( $md5syshash ne $md5hash );
+                $ssh_error_cnt++;
+            }
+        }
+        else {
+            # Vendor/Maintainer
+            $rpmVendor = qx[ rpm -qi $SSHRPM | grep 'Vendor' ];
+            # Build Host
+            $rpmBuildHost = qx[ rpm -qi $SSHRPM | grep 'Build Host' ];
+            # Signature
+            $rpmSignature = qx[ rpm -qi $SSHRPM | grep 'Signature' ];
+            chomp($rpmVendor);
+            chomp($rpmBuildHost);
+            chomp($rpmSignature);
+            $ssh_error_cnt++ unless( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc./) );
+            $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
+            $ssh_error_cnt++ unless( $rpmBuildHost =~ (m/cloudlinux.com|buildfarm02|centos.org|redhat.com/) );
+            $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) ); 
+            $ssh_error_cnt++ unless( $rpmSignature =~
+                (m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/) );
+            $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) ); 
+        }
     }
     if ( $ssh_error_cnt > 3 ) {
         push( @ssh_errors,
@@ -1350,6 +1368,8 @@ sub dump_summary {
 
     create_summary();
     if (@SUMMARY) {
+        my @UniqSummary = uniq(@SUMMARY);
+        @SUMMARY = @UniqSummary;
         print_warn('The following negative items were found:');
         foreach (@SUMMARY) {
             print BOLD YELLOW $_ . "\n";
@@ -3133,7 +3153,7 @@ sub vtlink {
             ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
             my $ignoreHash = ignoreHashes($sha256only);
             my $knownHash  = known_sha256_hashes($sha256only);
-            if ( $sha256only && $ipaddr && $ticketnum ) {
+            if ( $sha256only && $ipaddr && $ticketnum && iam( 'cptech' ) ) {
                 my $vtdata = qx[ curl -s "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" ];
                 my $output = decode_json($vtdata);
                 my $URL=$output->{data}->{links}->{self};
@@ -4090,6 +4110,34 @@ sub check_etc_group {
             push @SUMMARY, "> Found suspicious user in /etc/group file - $found";
         }
     }
+}
+
+sub _init_run_state {
+    return if defined $RUN_STATE;
+    $RUN_STATE = {
+        STATE => 0,
+        type  => {
+            cptech  => 1 << 0,
+        },
+    };
+    return 1;
+}
+
+sub _set_run_type {
+    my ($type) = @_;
+    print STDERR "Runtime type ${type} doesn't exist\n" and return unless exists $RUN_STATE->{type}->{$type};
+    return $RUN_STATE->{STATE} |= $RUN_STATE->{type}->{$type};
+}
+
+sub iam {    ## no critic (RequireArgUnpacking)
+    my $want = 0;
+    grep { return 0 unless exists $RUN_STATE->{type}->{$_}; $want |= $RUN_STATE->{type}->{$_} } @_;
+    return $want == ( $want & $RUN_STATE->{STATE} );
+}
+
+sub uniq {
+    my %seen;
+    grep !$seen{$_}++, @_;
 }
 
 # EOF
