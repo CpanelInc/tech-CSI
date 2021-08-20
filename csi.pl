@@ -1061,7 +1061,7 @@ sub check_ssh {
             chomp($rpmSignature);
             $ssh_error_cnt++ unless( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc./) );
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-            $ssh_error_cnt++ unless( $rpmBuildHost =~ (m/cloudlinux.com|buildfarm02|centos.org|redhat.com/) );
+            $ssh_error_cnt++ unless( $rpmBuildHost =~ (m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com/) );
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) ); 
             $ssh_error_cnt++ unless( $rpmSignature =~
                 (m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/) );
