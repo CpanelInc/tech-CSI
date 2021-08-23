@@ -668,7 +668,7 @@ sub check_kernel_updates {
     my $CanModify             = Cpanel::Kernel::can_modify_kernel();
     my $boot_kernelversion;
     if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '>', '11.96')) {
-        use Cpanel::Kernel::GetDefault;
+        eval("use Cpanel::Kernel::GetDefault");
         $boot_kernelversion = Cpanel::Kernel::GetDefault::get();
     }
     else {
@@ -4133,11 +4133,6 @@ sub iam {    ## no critic (RequireArgUnpacking)
     my $want = 0;
     grep { return 0 unless exists $RUN_STATE->{type}->{$_}; $want |= $RUN_STATE->{type}->{$_} } @_;
     return $want == ( $want & $RUN_STATE->{STATE} );
-}
-
-sub uniq {
-    my %seen;
-    grep !$seen{$_}++, @_;
 }
 
 # EOF
