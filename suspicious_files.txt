@@ -213,6 +213,7 @@
 /lib64/libselinux.so.4
 /lib64/libs.so
 /lib64/libtsr.so
+/lib64/libkeystats.so
 /lib/defs
 /lib/file.h
 /lib/.fx

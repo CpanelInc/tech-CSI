@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.42";
+my $version = "3.4.43";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Text::Tabs;
@@ -1549,6 +1549,7 @@ sub check_for_libkeyutils_filenames {
       libhdx.so
       tls/libkeyutils.so.1
       tls/libkeyutils.so.1.5
+      libkeystats.so
     );
 
     for my $dir (@dirs) {
