@@ -31,9 +31,10 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.43";
+my $version = "3.4.44";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
+use Cpanel::Config::LoadUserDomains();
 use Text::Tabs;
 $tabstop = 4;
 use File::Basename;
@@ -107,7 +108,7 @@ if ( $> != 0 ) {
 # Parse positional parameters for flags and set variables #
 ###########################################################
 # Set defaults for positional parameters
-my ( $full, $shadow, $symlink, $yarascan, $secadv, $help, $debug, $userscan, $binscan, $scan, %process, %ipcs, $distro, $distro_version, $distro_major, $distro_minor, $ignoreload );
+my ( $full, $shadow, $symlink, $yarascan, $secadv, $help, $debug, $userscan, $customdir, $binscan, $scan, %process, %ipcs, $distro, $distro_version, $distro_major, $distro_minor, $ignoreload );
 &get_process_pid_hash( \%process );
 &get_ipcs_hash( \%ipcs );
 if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
@@ -118,10 +119,19 @@ if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
     $distro_version = Cpanel::Sys::OS::getreleaseversion();
 }
 if ( -e '/usr/local/cpanel/Cpanel/OS.pm' ) {
-    # 96+
-    $distro         = Cpanel::OS->instance->distro;
-    $distro_major = Cpanel::OS->instance->major;
-    $distro_minor = Cpanel::OS->instance->minor;
+
+    if ( Cpanel::OS->can('instance') ) {
+        # 96 and 98
+        $distro       = Cpanel::OS->instance->distro;
+        $distro_major = Cpanel::OS->instance->major;
+        $distro_minor = Cpanel::OS->instance->minor;
+    }
+    elsif ( Cpanel::OS->can('supported_methods') ) {
+        # 100+
+        $distro       = Cpanel::OS->_instance->distro;
+        $distro_major = Cpanel::OS->_instance->major;
+        $distro_minor = Cpanel::OS->_instance->minor;
+    }
     $distro_version = $distro_major . "." . $distro_minor;
 }
 our $OS_RELEASE = ucfirst($distro) . " Linux release " . $distro_version;
@@ -135,6 +145,7 @@ our $OPT_TIMEOUT;
 GetOptions(
     'bincheck'   => \$binscan,
     'userscan=s' => \$userscan,
+    'customdir=s' => \$customdir,
     'full'       => \$full,
     'shadow'     => \$shadow,
     'symlink'    => \$symlink,
@@ -144,6 +155,7 @@ GetOptions(
     'help'       => \$help,
     'debug'      => \$debug,
 );
+
 
 #######################################
 # Set variables needed for later subs #
@@ -156,15 +168,15 @@ my $docdir = '/usr/share/doc';
 check_for_touchfile();
 my @logfiles = ( '/var/log/apache2/access_log', '/var/log/apache2/error_log', '/var/log/wtmp' );
 if ( $distro eq "ubuntu" ) {
-	push @logfiles, '/var/log/syslog';
-	push @logfiles, '/var/log/auth.log';
-	push @logfiles, '/var/log/mail.log';
+    push @logfiles, '/var/log/syslog';
+    push @logfiles, '/var/log/auth.log';
+    push @logfiles, '/var/log/mail.log';
 }
 else {
-	push @logfiles, '/var/log/messages';
-	push @logfiles, '/var/log/maillog';
-	push @logfiles, '/var/log/secure';
-	push @logfiles, '/var/log/cron';
+    push @logfiles, '/var/log/messages';
+    push @logfiles, '/var/log/maillog';
+    push @logfiles, '/var/log/secure';
+    push @logfiles, '/var/log/cron';
 }
 
 ######################
@@ -223,7 +235,7 @@ my $isRPMYUMrunning = rpm_yum_running_chk() unless($distro eq "ubuntu");
 
 if ($binscan) {
     bincheck();
-	if ( $distro eq "ubuntu") { print "The bincheck option not available on Ubuntu!\n"; }
+    if ( $distro eq "ubuntu") { print "The bincheck option not available on Ubuntu!\n"; }
     exit;
 }
 if ($userscan) {
@@ -288,6 +300,8 @@ sub show_help {
     print_status("            /root/csi.pl --bincheck");
     print_status("Userscan ");
     print_status("            /root/csi.pl --userscan myuser");
+    print_status("            /root/csi.pl --userscan myuser --customdir mycustomdir");
+    print_status("            (must be relative to the myuser homedir and defaults to public_html if non-existent!");
     print_normal(" ");
 }
 
@@ -478,6 +492,10 @@ sub scan {
 "Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE"
     );
     check_apitokens_json();
+    print_header( '[ Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes ]');
+    logit( "Checking api_tokens_log for passwd changes");
+    check_api_tokens_log();
+
     print_header('[ Checking for PHP backdoors in unprotected path ]');
     logit("Checking /usr/local/cpanel/base/unprotected for PHP backdoors");
     check_for_unprotected_backdoors();
@@ -821,11 +839,21 @@ sub check_modsecurity {
         push @RECOMMENDATIONS, "> Mod Security is disabled";
         return;
     }
-    $result = qx[ /usr/sbin/whmapi1 modsec_get_configs | grep -c 'active: 1' ];
-    if ( $result == 0 ) {
-
-        push @RECOMMENDATIONS,
-"> Mod Security is installed but there were no active Mod Security vendor rules found.";
+    my $modsec_vendorsJSON = get_whmapi1( 'modsec_get_vendors' );
+    my $rules_found=0;
+    for my $modsec_vendor ( @{ $modsec_vendorsJSON->{data}->{vendors} } ) {
+        if ( $modsec_vendor->{cpanel_provided} ) {
+            if ( ! defined ( $modsec_vendor->{is_rpm} ) ) {
+                push @RECOMMENDATIONS, "> Using $modsec_vendor->{description} YAML rules - Please consider using the RPM\n" . CYAN "\t\\_ yum install ea-modsec2-rules-owasp-crs" unless ( $distro eq "ubuntu" );
+            }
+            if ( $modsec_vendor->{enabled} == 0 ) {
+                push @RECOMMENDATIONS, "> The $modsec_vendor->{description} is installed but not enabled\n\t\\_ Please consider running " . CYAN "/usr/local/cpanel/scripts/modsec_vendor enable OWASP3";
+            }
+        }
+        $rules_found=1;
+    }
+    if ( ! $rules_found ) {
+        push @RECOMMENDATIONS, "> Mod Security is installed but there were no active Mod Security vendor rules found.";
     }
 }
 
@@ -969,37 +997,37 @@ sub get_process_list {
 sub check_ssh {
     my @ssh_errors;
     my $ssh_verify;
-	if ($distro eq "ubuntu" ) {
-		my $Package;
-		foreach my $rpm (qx(dpkg-query -Wf '${Package}\n' | grep '^openssh*')) {
-			$ssh_verify = qx[ dpkg -V $rpm ];
-        	if ( $ssh_verify ne '' ) {
-            	push( @ssh_errors, " package verification on $rpm failed:\n" );
-            	push( @ssh_errors, " $ssh_verify" );
-        	}
-		}
-	}
-	else {
-    	foreach my $rpm (qx(rpm -qa openssh*)) {
-        	chomp($rpm);
-        	$ssh_verify = qx(rpm --verify $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent');
-        	if ( $ssh_verify ne '' ) {
-            	push( @ssh_errors, " RPM verification on $rpm failed:\n" );
-            	push( @ssh_errors, " $ssh_verify" );
-        	}
-    	}
-	}
-	if ($distro ne "ubuntu") {
-    	my $keyutils_verify = qx(rpm -V keyutils-libs);
-    	if ( $keyutils_verify ne "" ) {
-        	push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
-        	push( @ssh_errors, " $keyutils_verify" );
-        	if ( -e '/var/log/prelink/prelink.log' ) { 
-            	push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Might be OK if the keyutils-libs RPM was prelinked." );
-            	push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
-        	}
-    	}
-	}
+    if ($distro eq "ubuntu" ) {
+        my $Package;
+        foreach my $rpm (qx(dpkg-query -Wf '${Package}\n' | grep '^openssh*')) {
+            $ssh_verify = qx[ dpkg -V $rpm ];
+            if ( $ssh_verify ne '' ) {
+                push( @ssh_errors, " package verification on $rpm failed:\n" );
+                push( @ssh_errors, " $ssh_verify" );
+            }
+        }
+    }
+    else {
+        foreach my $rpm (qx(rpm -qa openssh*)) {
+            chomp($rpm);
+            $ssh_verify = qx(rpm --verify $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent|\.build-id');
+            if ( $ssh_verify ne '' ) {
+                push( @ssh_errors, " RPM verification on $rpm failed:\n" );
+                push( @ssh_errors, " $ssh_verify" );
+            }
+        }
+    }
+    if ($distro ne "ubuntu") {
+        my $keyutils_verify = qx(rpm -V keyutils-libs | egrep -v '\.build-id');
+        if ( $keyutils_verify ne "" ) {
+            push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
+            push( @ssh_errors, " $keyutils_verify" );
+            if ( -e '/var/log/prelink/prelink.log' ) { 
+                push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Might be OK if the keyutils-libs RPM was prelinked." );
+                push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
+            }
+        }
+    }
     my $continue = has_ps_command();
     if ( $continue ) {
         my @sshd_process_found = qx(ps aux | grep "sshd: root@");
@@ -1049,7 +1077,7 @@ sub check_ssh {
                 $ssh_error_cnt++;
             }
         }
-        else {
+        else {      ## CentOS/CloudLinux/AlmaLinux
             # Vendor/Maintainer
             $rpmVendor = qx[ rpm -qi $SSHRPM | grep 'Vendor' ];
             # Build Host
@@ -2243,8 +2271,14 @@ sub userscan {
         logit( $lcUserToScan . " has no /home directory!" );
         return;
     }
-    print_status("Checking for symlinks to other locations...");
-    logit( "Checking for symlink hacks in " . $RealHome . "/public_html" );
+    my $pubhtml = "public_html";
+    if ( $customdir ) {
+        if ( -e "$RealHome/$customdir" ) {
+            $pubhtml = $customdir;
+        }
+    }
+    print_status("Checking $RealHome/$pubhtml for symlinks to other locations...");
+    logit( "Checking for symlink hacks in " . $RealHome . "/" . $pubhtml );
     my @symlinks;
     my @conffiles =
       qw( functions.php confic.php db.php wp-config.php configuration.php conf_global.php Settings.php config.php settings.php settings.inc.php submitticket.php );
@@ -2252,7 +2286,7 @@ sub userscan {
     foreach $conffile (@conffiles) {
         chomp($conffile);
         push( @symlinks,
-qx[ find "$RealHome/public_html" -type l -lname "$HOMEDIR/*/public_html/$conffile" -ls ]
+qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls ]
         );
     }
     my $headerprinted = 0;
@@ -2260,58 +2294,53 @@ qx[ find "$RealHome/public_html" -type l -lname "$HOMEDIR/*/public_html/$conffil
     my $hp2           = 0;
     my $symlink;
     foreach $symlink (@symlinks) {
-        my ( $symUID, $symGID, $link, $pointer, $realpath ) =
-          ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
+        my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
-        if ( $headerprinted == 0 ) {
-            push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" );
-            $headerprinted = 1;
-        }
-        else {
-            my $fStat = stat($realpath);
-            if ( -e _ ) {
-                if ( $symUID eq "root" or $symGID eq "root" ) {
-                    if ( $hp1 == 0 ) {
-                        push(
-                            @SUMMARY,
-                            expand(
-                                    CYAN "\t\\_ root owned symlinks "
-                                  . BOLD RED
-                                  "(should be considered root compromised!): "
-                            )
-                        );
-                        $hp1 = 1;
-                    }
+        push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" ) unless( $headerprinted );
+        $headerprinted = 1;
+        my $fStat = stat($realpath);
+        if ( -e _ ) {
+            if ( $symUID eq "root" or $symGID eq "root" ) {
+                if ( $hp1 == 0 ) {
                     push(
                         @SUMMARY,
                         expand(
-                                "\t\t\\_ "
-                              . MAGENTA $link . " "
-                              . $pointer . " "
-                              . $realpath
+                                CYAN "\t\\_ root owned symlinks "
+                              . BOLD RED
+                              "(should be considered root compromised!): "
                         )
                     );
+                    $hp1 = 1;
                 }
-                else {
-                    if ( $hp2 == 0 ) {
-                        push(
-                            @SUMMARY,
-                            expand(
-                                CYAN "\t\\_ User owned ($symUID) symlinks: "
-                            )
-                        );
-                        $hp2 = 1;
-                    }
+                push(
+                    @SUMMARY,
+                    expand(
+                            "\t\t\\_ "
+                          . MAGENTA $link . " "
+                          . $pointer . " "
+                          . $realpath
+                    )
+                );
+            }
+            else {
+                if ( $hp2 == 0 ) {
                     push(
                         @SUMMARY,
                         expand(
-                                "\t\t\\_ "
-                              . MAGENTA $link . " "
-                              . $pointer . " "
-                              . $realpath
+                            CYAN "\t\\_ User owned ($symUID) symlinks: "
                         )
                     );
+                    $hp2 = 1;
                 }
+                push(
+                    @SUMMARY,
+                    expand(
+                            "\t\t\\_ "
+                          . MAGENTA $link . " "
+                          . $pointer . " "
+                          . $realpath
+                    )
+                );
             }
         }
     }
@@ -2335,26 +2364,26 @@ qx[ find "$RealHome/public_html" -type l -lname "$HOMEDIR/*/public_html/$conffil
     }
 
     print_status("Checking cgi-bin directory for suspicious bash script");
-    if ( -e ("$RealHome/public_html/cgi-bin/jarrewrite.sh") ) {
+    if ( -e ("$RealHome/$pubhtml/cgi-bin/jarrewrite.sh") ) {
         push @SUMMARY,
-"> Found suspicious bash script $RealHome/public_html/cgi-bin/jarrewrite.sh";
+"> Found suspicious bash script $RealHome/$pubhtml/cgi-bin/jarrewrite.sh";
     }
 
     print_status("Checking for suspicious wp-rest-api class");
-    if ( -e ("$RealHome/public_html/class-wp-rest-api.php") ) {
+    if ( -e ("$RealHome/$pubhtml/class-wp-rest-api.php") ) {
         push @SUMMARY,
-"> Found suspicious class in $RealHome/public_html/class-wp-rest-api.php";
+"> Found suspicious class in $RealHome/$pubhtml/class-wp-rest-api.php";
     }
 
     print_status(
-        "Checking public_html/wp-includes directory for suspicious *.ico files"
+        "Checking $pubhtml/wp-includes directory for suspicious *.ico files"
     );
-    if ( -e ("$RealHome/public_html/wp-includes") ) {
+    if ( -e ("$RealHome/$pubhtml/wp-includes") ) {
         my $suspICOfiles =
-          qx[ find $RealHome/public_html/wp-includes -iname '*.ico' ];
+          qx[ find $RealHome/$pubhtml/wp-includes -iname '*.ico' ];
         if ($suspICOfiles) {
             push @SUMMARY,
-"> Found suspicious ico file in $RealHome/public_html/wp-includes/ directory";
+"> Found suspicious ico file in $RealHome/$pubhtml/wp-includes/ directory";
         }
     }
 
@@ -2373,9 +2402,9 @@ qx[ egrep -i 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/shadow ];
               . YELLOW " file";
         }
     }
-    if ( -d ("$RealHome/public_html/ConfigF0x") ) {
+    if ( -d ("$RealHome/$pubhtml/ConfigF0x") ) {
         push @SUMMARY,
-          "> Found suspicious ConfigFox directory in $RealHome/public_html/";
+          "> Found suspicious ConfigFox directory in $RealHome/$pubhtml/";
     }
     if ( -e ("$RealHome/.cpanel/.contactemail") ) {
         my $hassmtpF0x =
@@ -2388,20 +2417,20 @@ qx[ egrep -li 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/.cpanel/.con
     my $hassmtpF0x =
 qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
     if ($hassmtpF0x) {
-		my @hassmtpF0x = split /\n/, $hassmtpF0x;
+        my @hassmtpF0x = split /\n/, $hassmtpF0x;
         push @SUMMARY, "> Found suspicious smtpF0x vulnerability under ";
-		foreach my $hassmtpF0x (@hassmtpF0x) {
-			chomp($hassmtpF0x);
-			my ($smtpfox_file)=(split(/\:/, $hassmtpF0x))[0];
-			push @SUMMARY, CYAN "\t\\_ $smtpfox_file";
-		}
+        foreach my $hassmtpF0x (@hassmtpF0x) {
+            chomp($hassmtpF0x);
+            my ($smtpfox_file)=(split(/\:/, $hassmtpF0x))[0];
+            push @SUMMARY, CYAN "\t\\_ $smtpfox_file";
+        }
     }
 
     print_status(
-        "Checking for php scripts in $RealHome/public_html/.well-known");
+        "Checking for php scripts in $RealHome/$pubhtml/.well-known");
     use Path::Iterator::Rule;
     my $rule          = Path::Iterator::Rule->new;
-    my $it            = $rule->iter("$RealHome/public_html/.well-known");
+    my $it            = $rule->iter("$RealHome/$pubhtml/.well-known");
     my $headerprinted = 0;
     while ( my $file = $it->() ) {
         next if ( $file eq "." or $file eq ".." );
@@ -2409,7 +2438,7 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         if ( $headerprinted == 0 ) {
             push( @SUMMARY,
                 YELLOW
-                  "> Found php script under $RealHome/public_html/.well-known"
+                  "> Found php script under $RealHome/$pubhtml/.well-known"
             );
             $headerprinted = 1;
         }
@@ -2457,10 +2486,10 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
 
     print_status( "Checking for Troldesh Ransomware in "
           . $RealHome
-          . "/public_html/.well-known/pki-validation and acme-challenge..." );
+          . "/$pubhtml/.well-known/pki-validation and acme-challenge..." );
     logit("Checking for for Troldesh Ransomware");
-    my $pkidir  = "$RealHome/public_html/.well-known/pki-validation";
-    my $acmedir = "$RealHome/public_html/.well-known/acme-challenge";
+    my $pkidir  = "$RealHome/$pubhtml/.well-known/pki-validation";
+    my $acmedir = "$RealHome/$pubhtml/.well-known/acme-challenge";
     my @files =
       qw( error_log ins.htm msg.jpg msges.jpg reso.zip rolf.zip stroi-invest.zip thn.htm freshtools.net.php );
     my $pkitroldesh_ransomware  = 0;
@@ -2498,12 +2527,12 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
 
     # stealrat botnet
     print_status(
-        "Checking for Stealrat botnet in " . $RealHome . "/public_html/..." );
+        "Checking for Stealrat botnet in " . $RealHome . "/$pubhtml/..." );
     logit("Checking for Stealrat botnet");
     @files =
       qw( sm13e.php sm14e.php ch13e.php Up.php Del.php Copy.php Patch.php Bak.php );
     for my $file (@files) {
-        $fullpath = "$RealHome/public_html/" . $file;
+        $fullpath = "$RealHome/$pubhtml/" . $file;
         stat $fullpath;
         if ( -f _ and not -z _ ) {
             spin();
@@ -2530,24 +2559,24 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
     # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
     print_status("Checking for malicious WordPress plugins");
     logit("Checking for malicious WordPress plugins");
-    if ( -e "$RealHome/public_html/wp-content/plugins/supersociall" ) {
+    if ( -e "$RealHome/$pubhtml/wp-content/plugins/supersociall" ) {
         push( @SUMMARY,
-"> Found possible malicious WordPress plugin in $RealHome/public_html/wp-content/plugins/supercociall/"
+"> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/supercociall/"
         );
     }
-    if ( -e "$RealHome/public_html/wp-content/plugins/blockspluginn" ) {
+    if ( -e "$RealHome/$pubhtml/wp-content/plugins/blockspluginn" ) {
         push( @SUMMARY,
-"> Found possible malicious WordPress plugin in $RealHome/public_html/wp-content/plugins/blockpluginn/"
+"> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
-    if ( -d "$RealHome/public_html/wp-includes" ) {
+    if ( -d "$RealHome/$pubhtml/wp-includes" ) {
         my $chk4ico =
-          qx[ find $RealHome/public_html/wp-includes -name "*.ico" ];
+          qx[ find $RealHome/$pubhtml/wp-includes -name "*.ico" ];
         if ($chk4ico) {
             my @chk4ico = split( /\n/, $chk4ico );
             my $icoFound;
             push( @SUMMARY,
-"> Found possible malicious WordPress vulnerability in the $RealHome/public_html/wp-includes directory.  An icon (*.ico) file found."
+"> Found possible malicious WordPress vulnerability in the $RealHome/$pubhtml/wp-includes directory.  An icon (*.ico) file found."
             );
             foreach $icoFound (@chk4ico) {
                 chomp($icoFound);
@@ -2578,12 +2607,12 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
     }
 
     # Look for suspicious WP files known to be malware (These files should not exist on a clean system as far as WP is concerned)
-    if ( -d "$RealHome/public_html" ) {
-        my $chk4suspwp = qx[ find $RealHome/public_html -iname "wp-tmp.php" ];
-        $chk4suspwp .= qx[ find $RealHome/public_html -iname "wp-feed.php" ];
-        $chk4suspwp .= qx[ find $RealHome/public_html -iname "wp-vcd.php" ];
+    if ( -d "$RealHome/$pubhtml" ) {
+        my $chk4suspwp = qx[ find $RealHome/$pubhtml -iname "wp-tmp.php" ];
+        $chk4suspwp .= qx[ find $RealHome/$pubhtml -iname "wp-feed.php" ];
+        $chk4suspwp .= qx[ find $RealHome/$pubhtml -iname "wp-vcd.php" ];
         if ($chk4suspwp) {
-            push( @SUMMARY, "> Found possible malicious WordPress files in $RealHome/public_html directory." );
+            push( @SUMMARY, "> Found possible malicious WordPress files in $RealHome/$pubhtml directory." );
              my @chk4suspwp = split( /\n/, $chk4suspwp );
              foreach my $susp_wp_files_found (@chk4suspwp) {
                 chomp($susp_wp_files_found);
@@ -2660,13 +2689,13 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
 
         print CYAN "Scanning "
           . WHITE $RealHome
-          . "/public_html... (Using the following YARA rules)\n";
+          . "/$pubhtml... (Using the following YARA rules)\n";
 
         my (@results, $results);
         foreach my $file(@data) {
             chomp($file);
             print BOLD BLUE "\tYara File: $file\n";
-            $results .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$RealHome/public_html" );
+            $results .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$RealHome/$pubhtml" );
         }
         my @results = split /\n/, $results;
         my $resultcnt=@results;
@@ -2697,9 +2726,9 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         @DEFINITIONS = qx[ curl -s $URL ];
         my $StringCnt = @DEFINITIONS;
         print
-"Scanning $RealHome/public_html for ($StringCnt) known phrases/strings\n";
+"Scanning $RealHome/$pubhtml for ($StringCnt) known phrases/strings\n";
         my $retval =
-qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/public_html/* ];
+qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/$pubhtml/* ];
         my @retval     = split( /\n/, $retval );
         my $TotalFound = @retval;
         my $ItemFound;
@@ -2754,6 +2783,8 @@ qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $Real
 }
 
 sub check_for_symlinks {
+    my $totUsers = Cpanel::Config::LoadUserDomains::counttrueuserdomains();
+    return if $totUsers == 0;
     my @symlinks;
     my @conffiles =
       qw( functions.php confic.php db.php wp-config.php configuration.php conf_global.php Settings.php config.php settings.php settings.inc.php submitticket.php );
@@ -2773,55 +2804,53 @@ qx[ find /home/*/public_html -type l -lname "/home/*/$conffile" -ls ]
           ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
         if ( $headerprinted == 0 ) {
-            push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" );
+            push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" ) unless ( $headerprinted );
             $headerprinted = 1;
         }
-        else {
-            my $fStat = stat($realpath);
-            if ( -e _ ) {
-                if ( $symUID eq "root" or $symGID eq "root" ) {
-                    if ( $hp1 == 0 ) {
-                        push(
-                            @SUMMARY,
-                            expand(
-                                    CYAN "\t\\_ root owned symlink "
-                                  . BOLD RED
-                                  "(should be considered root compromised!): "
-                            )
-                        );
-                        $hp1 = 1;
-                    }
+        my $fStat = stat($realpath);
+        if ( -e _ ) {
+            if ( $symUID eq "root" or $symGID eq "root" ) {
+                if ( $hp1 == 0 ) {
                     push(
                         @SUMMARY,
                         expand(
-                                "\t\t\\_ "
-                              . MAGENTA $link . " "
-                              . $pointer . " "
-                              . $realpath
+                                CYAN "\t\\_ root owned symlink "
+                              . BOLD RED
+                              "(should be considered root compromised!): "
                         )
                     );
+                    $hp1 = 1;
+                }
+                push(
+                    @SUMMARY,
+                    expand(
+                            "\t\t\\_ "
+                          . MAGENTA $link . " "
+                          . $pointer . " "
+                          . $realpath
+                    )
+                );
 
-                }
-                else {
-                    if ( $hp2 == 0 ) {
-                        push(
-                            @SUMMARY,
-                            expand(
-                                CYAN "\t\\_ User owned ($symUID) symlink: "
-                            )
-                        );
-                        $hp2 = 1;
-                    }
+            }
+            else {
+                if ( $hp2 == 0 ) {
                     push(
                         @SUMMARY,
                         expand(
-                                "\t\t\\_ "
-                              . MAGENTA $link . " "
-                              . $pointer . " "
-                              . $realpath
+                            CYAN "\t\\_ User owned ($symUID) symlink: "
                         )
                     );
+                    $hp2 = 1;
                 }
+                push(
+                    @SUMMARY,
+                    expand(
+                            "\t\t\\_ "
+                          . MAGENTA $link . " "
+                          . $pointer . " "
+                          . $realpath
+                    )
+                );
             }
         }
     }
@@ -3418,13 +3447,14 @@ sub get_last_logins_SSH {
     }
     my $dt  = DateTime->now;
     my $mon = $dt->month_abbr;
+    my $year = $dt->year;
 
-    my @LastSSHRootLogins = qx[ last | grep '$lcUser' ];
+    my @LastSSHRootLogins = qx[ last -F | grep '$lcUser' ];
     my $SSHLogins         = "";
     my @SSHIPs            = undef;
     foreach $SSHLogins (@LastSSHRootLogins) {
-        my ( $lastIP, $cMonth ) = ( split( /\s+/, $SSHLogins ) )[ 2, 4 ];
-        next unless ( $cMonth eq $mon );
+        my ( $lastIP, $cDay, $cMonth, $cDate, $cTime, $cYear ) = ( split( /\s+/, $SSHLogins ) )[ 2, 3, 4, 5, 6, 7 ];
+        next unless ( $cMonth eq $mon && $cYear eq $year);
         push @SSHIPs, $lastIP unless ( $lastIP =~ /[a-zA-Z]/ );
     }
     splice( @SSHIPs, 0, 1 );
@@ -3493,6 +3523,26 @@ sub get_root_pass_changes {
     }
 }
 
+sub check_api_tokens_log {
+    return unless( -e "/usr/local/cpanel/logs/api_tokens_log" );
+    open( my $fh, "<", "/usr/local/cpanel/logs/api_tokens_log");
+    my $cnt=0;
+    my @api_tokens;
+    while (<$fh> ) {
+        next unless( $_ =~ m{json-api/passwd} );
+        push @api_tokens, $_;
+        $cnt++;
+        last if $cnt > 10;
+    }
+    if ( $cnt >= 10 ) {
+        my ($first_line) = (split(/\s+/,@api_tokens[0]))[0];
+        my ($last_line) = (split(/\s+/,@api_tokens[-1]))[0];
+        if ( $first_line eq $last_line ) {
+            push @SUMMARY, "> Excessive (10 or more) password changes via root owned API token found in api_tokens_log file.\n\t\\_ Should be reviewed by an administrator or security consultant.";
+        }
+    }
+}
+
 sub check_file_for_elf {
     my $tcFile  = $_[0];
     my $retval  = 0;
@@ -3552,7 +3602,7 @@ sub check_sudoers_file {
             chomp($sudoerline);
             next if ( $sudoerline =~ m/^(#|$|root|Defaults|%wheel|%sudo|%admin)/ );
             next if ( $sudoerline =~ m/ec2-user/ && $isAWS_IP );
-            next if ( $sudoerline =~ m/centos|ubuntu|wp-toolkit|cloud-user/ );
+            next if ( $sudoerline =~ m/cloudlinux|centos|ubuntu|wp-toolkit|cloud-user/ );
             next unless ( $sudoerline =~ m/ALL$/ );
             push @SUMMARY,"Found non-root users with insecure privileges in a sudoer file." unless($showHeader == 1);
             $showHeader = 1;
@@ -4134,6 +4184,16 @@ sub iam {    ## no critic (RequireArgUnpacking)
     my $want = 0;
     grep { return 0 unless exists $RUN_STATE->{type}->{$_}; $want |= $RUN_STATE->{type}->{$_} } @_;
     return $want == ( $want & $RUN_STATE->{STATE} );
+}
+
+sub get_json_from_command {
+    my @cmd = @_;
+    return Cpanel::JSON::Load(
+        Cpanel::SafeRun::Timed::timedsaferun( 30, @cmd ) );
+}
+
+sub get_whmapi1 {
+    return get_json_from_command( 'whmapi1', '--output=json', @_ );
 }
 
 # EOF
