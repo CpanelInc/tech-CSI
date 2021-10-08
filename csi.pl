@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.44";
+my $version = "3.4.45";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2034,7 +2034,7 @@ sub check_for_linux_lady {
 
 sub check_for_twink {
     my $TwinkSSHPort = qx[ lsof -i tcp:322 | grep sshd ];
-    my $InRootsCron  = qx[ grep '/tmp/twink' /var/spool/cron/root ]
+    my $InRootsCron  = qx[ egrep '/tmp/twink' /var/spool/cron/root ]
       unless ( !-e "/var/spool/cron/root" );
     if ( $TwinkSSHPort and $InRootsCron ) {
         push @SUMMARY,
@@ -3112,7 +3112,7 @@ sub misc_checks {
             while (<$cron_fh>) {
                 chomp($_);
                 if ( $_ =~
-/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp/
+/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|185\.191\.32\.198\/unk.sh|195\.19\.192\.28\/ap.sh/
                   )
                 {
                     $isImmutable = "";
@@ -3203,12 +3203,17 @@ sub vtlink {
                     . CYAN $FileU . "/"
                     . $FileG );
                 if ( !$ignoreHash ) {
-                    push @SUMMARY, expand(
-                        YELLOW "\t \\_ 256hash: " . CYAN $output->{data}->{attributes}->{sha256}
-                        . YELLOW "\n\t\\_ Classification: " . CYAN $output->{data}->{attributes}->{popular_threat_classification}->{suggested_threat_label}
-                        . YELLOW "\n\t\\_ " . $output->{data}->{attributes}->{last_analysis_stats}->{malicious} . CYAN " anti-virus engines detected this as malicious at VirusTotal.com"
-                        . YELLOW "\n\t\\_ First Seen: " . CYAN scalar localtime($output->{data}->{attributes}->{first_submission_date}) . YELLOW . " / Last Analyzed: " . CYAN scalar localtime($output->{data}->{attributes}->{last_analysis_date})
-                        . YELLOW "\n\t\\_ URL: " . $URL );
+                    if ( defined $output->{data}->{attributes}->{sha256} ) {
+                        push @SUMMARY, expand(
+                            YELLOW "\t \\_ 256hash: " . CYAN $output->{data}->{attributes}->{sha256}
+                            . YELLOW "\n\t\\_ Classification: " . CYAN $output->{data}->{attributes}->{popular_threat_classification}->{suggested_threat_label}
+                            . YELLOW "\n\t\\_ " . $output->{data}->{attributes}->{last_analysis_stats}->{malicious} . CYAN " anti-virus engines detected this as malicious at VirusTotal.com"
+                            . YELLOW "\n\t\\_ First Seen: " . CYAN scalar localtime($output->{data}->{attributes}->{first_submission_date}) . YELLOW . " / Last Analyzed: " . CYAN scalar localtime($output->{data}->{attributes}->{last_analysis_date})
+                            . YELLOW "\n\t\\_ URL: " . $URL );
+                    }
+                    else { 
+                        push @SUMMARY, expand ( YELLOW "\t \\_ No matches found at VirusTotal.com" );
+                    }
                 }
             }
             else {

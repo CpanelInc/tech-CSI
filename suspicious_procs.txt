@@ -60,6 +60,8 @@ kworker34
 \[kworker /u8:7-ev\]
 .5p4rk3l5
 .k93
+kdevtmpfsi
+kinsing
 kw.sh
 kxjd
 libapache

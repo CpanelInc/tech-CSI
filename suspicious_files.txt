@@ -161,6 +161,7 @@
 /etc/.ip
 /etc/kworkerds
 /etc/ld.so.hash
+/etc/ld.so.preload/libsystem.so
 /etc/libdns.so
 /etc/listpr
 /etc/my.conf
@@ -263,6 +264,7 @@
 /proc/kset
 /proc/rtkit
 /rescue/mount_fs
+/root/ap.sh
 /root/.a
 /root/.asmon
 /root/.bde
@@ -490,9 +492,11 @@
 /tmp/kauditd
 /tmp/KCtbBo
 /tmp/kdevtmpfsi
+/dev/kdevtmpfsi
 /tmp/kidd0
 /tmp/kidd0.c
 /tmp/kinsing
+/dev/kinsing
 /tmp/kworkerds
 /tmp/libapache
 /tmp/linux.lock
