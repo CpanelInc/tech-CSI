@@ -260,6 +260,7 @@
 /opt/yilu/work/xige
 /opt/yilu/work/xige/xige
 /opt/yilu/work/xig/xig
+/proc/.inl
 /proc/knark
 /proc/kset
 /proc/rtkit
@@ -541,6 +542,7 @@
 /tmp/thisxxs
 /tmp/.tmpcelse
 /tmp/.tmpcfi
+/tmp/.tmp_XXXXXX
 /tmp/.tmpdropoff
 /tmp/twink
 /tmp/.unlock

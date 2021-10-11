@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.45";
+my $version = "3.4.46";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1778,6 +1778,16 @@ sub check_for_hiddenwasp {
     if ($HWSocket) {
         push @SUMMARY,
 "> Found socket listening on port 61061. Could indicate HiddenWasp Rootkit";
+    }
+    my $HWSocket = qx[ lsof -i tcp:65130 ];
+    if ($HWSocket) {
+        push @SUMMARY,
+"> Found socket listening on port 65130. Could indicate Sutsersu Rootkit";
+    }
+    my $HWSocket = qx[ lsof -i tcp:65439 ];
+    if ($HWSocket) {
+        push @SUMMARY,
+"> Found socket listening on port 65439. Could indicate Sutsersu Rootkit";
     }
 }
 
