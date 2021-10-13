@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.46";
+my $version = "3.4.47";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -3028,6 +3028,8 @@ sub misc_checks {
     my @files    = undef;
     my $fullpath = "";
     my $cron     = "";
+    my $XBash_Table;
+    my $RansomwareNote;
 
     # Xbash ransomware
     my ($mysqldatadir) = ( split( /=/, qx[ grep 'datadir' /etc/my.cnf ] ) )[1];
@@ -3035,13 +3037,24 @@ sub misc_checks {
     chomp($mysql_datadir);
     if ( -d $mysql_datadir ) {
         opendir( my $dh, $mysql_datadir );
-        my ($HasXbash) = grep { /PLEASE_READ/i } readdir $dh;
+        my @mysql_databases = readdir( $dh );
         closedir $dh;
-        if ($HasXbash) {
+        foreach my $database(@mysql_databases) {
+            chomp $database;
+            next unless( $database =~ m/PLEASE_READ|README_TO_RECOVER/ );
             push( @SUMMARY,
-"> Possible Xbash ransomware detected. Database's missing? Database "
-                  . CYAN $HasXbash
+"> Possible Xbash variant ransomware detected. Database's missing? Database "
+                  . CYAN $database
                   . YELLOW " exists!" );
+            $XBash_Table = qx[ mysql -BNe "SHOW TABLES FROM $database;" ];
+            chomp($XBash_Table);
+            if ( $XBash_Table ) {
+                $RansomwareNote = qx[ mysql -BNe "SELECT * FROM $database.$XBash_Table;" ];
+                if ( $RansomwareNote ) {
+                    chomp($RansomwareNote);
+                    push( @SUMMARY, CYAN "\t\\_ Ransomeware Note: $RansomwareNote" );
+                }
+            }
         }
     }
 
