@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.47";
+my $version = "3.4.48";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -86,6 +86,7 @@ else {
 
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
+my $susp_cron_string = "tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh";
 our @HISTORY;
 our $KernelChk;
 our $spincounter;
@@ -2297,7 +2298,7 @@ sub userscan {
         chomp($conffile);
         push( @symlinks,
 qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls ]
-        );
+        ) unless( ! -d "$RealHome/$pubhtml" );
     }
     my $headerprinted = 0;
     my $hp1           = 0;
@@ -2355,9 +2356,19 @@ qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls
         }
     }
 
+    # Check users crontab for suspicious files.
+    my @usercrontabs = qx[ crontab -l -u $lcUserToScan ];
+    foreach my $crontab(@usercrontabs) {
+        chomp($crontab);
+        if ( $crontab =~ m/$susp_cron_string/ ) {
+            push @SUMMARY, "> $lcUserToScan crontab contains a suspicious entry that should be investigated";
+            push @SUMMARY, "\t\\_ $crontab";
+        }
+    }
+
     print_status("Checking for shadow.roottn.bak hack variants...");
     my $shadow_roottn_baks =
-      qx[ find $RealHome/etc/* -name 'shadow\.*' -print ];
+      qx[ find $RealHome/etc/* -name 'shadow\.*' -print ] unless( ! -d "$RealHome/etc" );
     if ($shadow_roottn_baks) {
         my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
         push @SUMMARY,
@@ -2397,7 +2408,7 @@ qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls
         }
     }
 
-	# SMTPF0x/AnonymousF0x checks
+    # SMTPF0x/AnonymousF0x checks
     if ( -e ("$RealHome/.anonymousFox") ) {
         push @SUMMARY, "> Found suspicious file $RealHome/.anonymousFox";
     }
@@ -2673,117 +2684,117 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         }
     }
 
-    logit("Running a user scan for $lcUserToScan");
-    my $yara_available = check_for_yara();
-    if ( $yara_available ) {
-        my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara );
-        print_header("Downloading yara rules to $csidir");
-        my @data;
-        for my $URL(@yara_urls) {
-            chomp($URL);
-            my $response = HTTP::Tiny->new->get( $URL );
-            if ( $response->{success} ) {
-                my $yara_filename = basename($URL);
-                chomp($yara_filename);
-                open(YARAFILE, ">$csidir/$yara_filename" );
-                print YARAFILE $response->{content};
-                close(YARAFILE);
-                push @data, "$csidir/$yara_filename" if ( -e "$csidir/$yara_filename" );
-            }
-            else {
-                print_status( "Failed to download $URL" );
-            }
-        }
-        push @data, "/usr/local/maldetect/sigs/rfxn.yara" if ( -e "/usr/local/maldetect/sigs/rfxn.yara" );
-        push @data, "/usr/local/cpanel/3rdparty/share/clamav/rfxn.yara" if ( -e "/usr/local/cpanel/3rdparty/share/clamav/rfxn.yara" );
-
-        print CYAN "Scanning "
-          . WHITE $RealHome
-          . "/$pubhtml... (Using the following YARA rules)\n";
-
-        my (@results, $results);
-        foreach my $file(@data) {
-            chomp($file);
-            print BOLD BLUE "\tYara File: $file\n";
-            $results .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$RealHome/$pubhtml" );
-        }
-        my @results = split /\n/, $results;
-        my $resultcnt=@results;
-        if ( $resultcnt > 0 ) {
-            push @SUMMARY, "> A general Yara scan of the $lcUserToScan account found the following suspicious items...";
-            foreach my $yara_result(@results) {
-                my ( $triggered_rule, $triggered_file, $triggered_string );
-                chomp($yara_result);
-                if ( substr( $yara_result, 0, 2 ) eq "0x" ) {
-                    ( $triggered_string ) = ( split( /: /, $yara_result ) )[1];
+    if ( -d "$RealHome/$pubhtml" ) {
+        logit("Running a user scan for $lcUserToScan");
+        my $yara_available = check_for_yara();
+        if ( $yara_available ) {
+            my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara );
+            print_header("Downloading yara rules to $csidir");
+            my @data;
+            for my $URL(@yara_urls) {
+                chomp($URL);
+                my $response = HTTP::Tiny->new->get( $URL );
+                if ( $response->{success} ) {
+                    my $yara_filename = basename($URL);
+                    chomp($yara_filename);
+                    open(YARAFILE, ">$csidir/$yara_filename" );
+                    print YARAFILE $response->{content};
+                    close(YARAFILE);
+                    push @data, "$csidir/$yara_filename" if ( -e "$csidir/$yara_filename" );
                 }
                 else {
-                    ( $triggered_rule, $triggered_file ) = (split( '\s+', $yara_result ) );
-                    $triggered_rule =~ s/_triggered//g;
+                    print_status( "Failed to download $URL" );
                 }
-                my $ChangeDate = timed_run( 3, "stat $triggered_file | grep -i change" );
-                ($ChangeDate) = ( split( /\./, $ChangeDate ) );
-                $ChangeDate =~ s/Change: //;
-                push @SUMMARY, "\t\\_ File: " . MAGENTA $triggered_file . YELLOW " looks suspicious. " . GREEN "Changed on [" . $ChangeDate . "] " . CYAN "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string" unless( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+            }
+            push @data, "/usr/local/maldetect/sigs/rfxn.yara" if ( -e "/usr/local/maldetect/sigs/rfxn.yara" );
+            push @data, "/usr/local/cpanel/3rdparty/share/clamav/rfxn.yara" if ( -e "/usr/local/cpanel/3rdparty/share/clamav/rfxn.yara" );
+
+            print CYAN "Scanning "
+            . WHITE $RealHome
+            . "/$pubhtml... (Using the following YARA rules)\n";
+
+            my (@results, $results);
+            foreach my $file(@data) {
+                chomp($file);
+                print BOLD BLUE "\tYara File: $file\n";
+                $results .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$RealHome/$pubhtml" );
+            }
+            my @results = split /\n/, $results;
+            my $resultcnt=@results;
+            if ( $resultcnt > 0 ) {
+                push @SUMMARY, "> A general Yara scan of the $lcUserToScan account found the following suspicious items...";
+                foreach my $yara_result(@results) {
+                    my ( $triggered_rule, $triggered_file, $triggered_string );
+                    chomp($yara_result);
+                    if ( substr( $yara_result, 0, 2 ) eq "0x" ) {
+                        ( $triggered_string ) = ( split( /: /, $yara_result ) )[1];
+                    }
+                    else {
+                        ( $triggered_rule, $triggered_file ) = (split( '\s+', $yara_result ) );
+                        $triggered_rule =~ s/_triggered//g;
+                    }
+                    my $ChangeDate = timed_run( 3, "stat $triggered_file | grep -i change" );
+                    ($ChangeDate) = ( split( /\./, $ChangeDate ) );
+                    $ChangeDate =~ s/Change: //;
+                    push @SUMMARY, "\t\\_ File: " . MAGENTA $triggered_file . YELLOW " looks suspicious. " . GREEN "Changed on [" . $ChangeDate . "] " . CYAN "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string" unless( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+                }
             }
         }
+        else {          ## grep scan (not Yara) a bit slower but should catch the same things.
+            my $URL =
+    "https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
+            my @DEFINITIONS = qx[ curl -s $URL > "$csidir/csi_detections.txt" ];
+            @DEFINITIONS = qx[ curl -s $URL ];
+            my $StringCnt = @DEFINITIONS;
+            print
+    "Scanning $RealHome/$pubhtml for ($StringCnt) known phrases/strings\n";
+            my $retval =
+    qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/$pubhtml/* ];
+            my @retval     = split( /\n/, $retval );
+            my $TotalFound = @retval;
+            my $ItemFound;
+            my @FileNamesOnly;
+            my $FileOnly;
 
-    }
-    else {          ## grep scan (not Yara) a bit slower but should catch the same things.
-        my $URL =
-"https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
-        my @DEFINITIONS = qx[ curl -s $URL > "$csidir/csi_detections.txt" ];
-        @DEFINITIONS = qx[ curl -s $URL ];
-        my $StringCnt = @DEFINITIONS;
-        print
-"Scanning $RealHome/$pubhtml for ($StringCnt) known phrases/strings\n";
-        my $retval =
-qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/$pubhtml/* ];
-        my @retval     = split( /\n/, $retval );
-        my $TotalFound = @retval;
-        my $ItemFound;
-        my @FileNamesOnly;
-        my $FileOnly;
-
-        foreach $ItemFound (@retval) {
-            chomp($ItemFound);
-            ($FileOnly) = ( split( /:/, $ItemFound ) );
-            push( @FileNamesOnly, $FileOnly );
+            foreach $ItemFound (@retval) {
+                chomp($ItemFound);
+                ($FileOnly) = ( split( /:/, $ItemFound ) );
+                push( @FileNamesOnly, $FileOnly );
+            }
+            my @newRetVal       = uniq @FileNamesOnly;
+            my $TotalFilesFound = @newRetVal;
+            foreach $FileOnly (@newRetVal) {
+                my $ChangeDate = timed_run( 3, "stat $FileOnly | grep -i change" );
+                ($ChangeDate) = ( split( /\./, $ChangeDate ) );
+                $ChangeDate =~ s/Change: //;
+                push(
+                    @SUMMARY,
+                    expand(
+                            CYAN "\t \\_ File: "
+                        . WHITE "$FileOnly "
+                        . BOLD RED
+                        . "looks suspicious "
+                        . BOLD MAGENTA
+                        . " [ Modified: "
+                        . BOLD BLUE $ChangeDate
+                        . MAGENTA " ]"
+                    )
+                );
+            }
+            if ( $TotalFound == 0 ) {
+                push( @SUMMARY, GREEN "Result: Nothing suspicious found!\n" );
+            }
+            else {
+                push( @SUMMARY,
+                        RED "Result: "
+                    . WHITE $TotalFound
+                    . RED " suspicious items found in "
+                    . WHITE $TotalFilesFound
+                    . RED " files. " );
+                push( @SUMMARY, YELLOW "These should be investigated.\n" );
+            }
         }
-        my @newRetVal       = uniq @FileNamesOnly;
-        my $TotalFilesFound = @newRetVal;
-        foreach $FileOnly (@newRetVal) {
-            my $ChangeDate = timed_run( 3, "stat $FileOnly | grep -i change" );
-            ($ChangeDate) = ( split( /\./, $ChangeDate ) );
-            $ChangeDate =~ s/Change: //;
-            push(
-                @SUMMARY,
-                expand(
-                        CYAN "\t \\_ File: "
-                      . WHITE "$FileOnly "
-                      . BOLD RED
-                      . "looks suspicious "
-                      . BOLD MAGENTA
-                      . " [ Modified: "
-                      . BOLD BLUE $ChangeDate
-                      . MAGENTA " ]"
-                )
-            );
-        }
-        if ( $TotalFound == 0 ) {
-            push( @SUMMARY, GREEN "Result: Nothing suspicious found!\n" );
-        }
-        else {
-            push( @SUMMARY,
-                    RED "Result: "
-                  . WHITE $TotalFound
-                  . RED " suspicious items found in "
-                  . WHITE $TotalFilesFound
-                  . RED " files. " );
-            push( @SUMMARY, YELLOW "These should be investigated.\n" );
-        }
-    }
-
+   }
     print_header('[ cPanel Security Investigator (UserScan) Complete! ]');
     logit('[ cPanel Security Investigator (UserScan) Complete! ]');
     print_normal('');
@@ -3134,10 +3145,8 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                if ( $_ =~
-/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|185\.191\.32\.198\/unk.sh|195\.19\.192\.28\/ap.sh/
-                  )
-                {
+#/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh/
+                if ( $_ =~ m/$susp_cron_string/ ) {
                     $isImmutable = "";
                     my $attr = isImmutable($cron);
                     if ($attr) {
@@ -3146,7 +3155,7 @@ sub misc_checks {
                     push @cronContains,
                         CYAN "\t \\_ "
                       . $cron
-                      . " Contains: [ "
+                      . "\n\t\t \\_ Contains: [ "
                       . RED $_
                       . CYAN " ] $isImmutable";
                 }
@@ -3412,7 +3421,7 @@ sub build_libkeyutils_file_list {
 
 sub get_cron_files {
     my @cronlist = glob(
-q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root }
+q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/* /var/spool/cron/crontabs/* }
     );
 }
 
