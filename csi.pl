@@ -3145,7 +3145,6 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-#/tor2web|onion|yxarsh\.shop|cr2\.sh|82\.146\.53\.166|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh/
                 if ( $_ =~ m/$susp_cron_string/ ) {
                     $isImmutable = "";
                     my $attr = isImmutable($cron);
@@ -3421,7 +3420,7 @@ sub build_libkeyutils_file_list {
 
 sub get_cron_files {
     my @cronlist = glob(
-q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/* /var/spool/cron/crontabs/* }
+q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/crontabs/root }
     );
 }
 
