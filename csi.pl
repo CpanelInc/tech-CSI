@@ -4009,7 +4009,6 @@ sub ignoreHashes {
     else {
         return 0;
     }
-
 }
 
 sub check_for_unprotected_backdoors {

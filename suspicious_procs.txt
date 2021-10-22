@@ -68,6 +68,7 @@ kinsing
 kworker34
 \[kworker /u8:7-ev\]
 kw.sh
+jsextension
 kxjd
 libapache
 Loopback
