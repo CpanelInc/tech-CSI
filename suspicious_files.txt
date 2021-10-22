@@ -45,6 +45,8 @@
 /boot/IptabLes
 /boot/.IptabLes
 /boot/.IptabLex
+/boot/pro
+/boot/proh
 /boot/.stabip
 /chernobyl.sh
 /dev/...
@@ -64,6 +66,8 @@
 /dev/hdx1
 /dev/hdx2
 /dev/ida/.inet
+/dev/kdevtmpfsi
+/dev/kinsing
 /dev/.kork
 /dev/.lib
 /dev/.lib/1iOn.sh
@@ -114,6 +118,8 @@
 /dev/xdf2
 /dev/.xman
 /etc/1ssue.net
+/etc/atdd
+/etc/atddd
 /etc/audisp/plugins.d/6hsnefbp
 /etc/bin/ava
 /etc/.bmbl
@@ -146,7 +152,15 @@
 /etc/cron.hourly/syslogd
 /etc/cron.monthly/pwnrig
 /etc/cron.weekly/pwnrig
+/etc/cupsdd
+/etc/cupsddd
+/etc/dsfrefr
 /etc/.enyelkmHIDE^IT.ko
+/etc/fdsfsfvff
+/etc/ferwfrre
+/etc/gdmorpen
+/etc/gfhddsfew
+/etc/gfhjrtfyhuf
 /etc/gmbpr
 /etc/gpufd
 /etc/gshadow--
@@ -159,7 +173,11 @@
 /etc/init.d/syslogd
 /etc/init/systemd-agent.conf
 /etc/.ip
+/etc/ksapd
+/etc/ksapdd
 /etc/kworkerds
+/etc/kysapd
+/etc/kysapdd
 /etc/ld.so.hash
 /etc/ld.so.preload/libsystem.so
 /etc/libdns.so
@@ -179,14 +197,25 @@
 /etc/rc3.d/S04syslogd
 /etc/rc4.d/S04syslogd
 /etc/rc5.d/S04syslogd
+/etc/rc.d/init.d/DbSecuritySpt
 /etc/rc.d/init.d/IptabLes
 /etc/rc.d/init.d/.IptabLes
 /etc/rc.d/init.d/.IptabLex
 /etc/rc.d/init.d/rc.modules
+/etc/rc.d/init.d/selinux
 /etc/rc.d/init.d/.stabip
 /etc/rc.d/rsha
+/etc/rewgtf3er4t
 /etc/sbin/ava
+/etc/sdmfdsfhjfe
 /etc/security/pam_env
+/etc/sfewfesfs
+/etc/sfewfesfsh
+/etc/sksapd
+/etc/sksapdd
+/etc/skysapd
+/etc/skysapdd
+/etc/smarvtd
 /etc/ssh/notepad++
 /etc/ssh/.sshd_auth
 /etc/ssh/ssh_known_hosts
@@ -194,27 +223,31 @@
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
 /etc/systemd/system/griphon.service
+/etc/systemd/system/myservice.service
 /etc/systemd/system/ntp.service
 /etc/systemd/system/polkitd.service
-/etc/systemd/system/myservice.service
 /etc/.tmpc
 /etc/ttyhash
+/etc/whitptabil
 /etc/.wwwwwwweeeeeeeeeeepaasss
 /etc/X11/fontpath.d/6hsnefbp
 /etc/X11/.pr
 /etc/X11/xorg.conf.d/6hsnefbp
 /etc/xcompile
+/etc/xfsdx
+/etc/xfsdxd
 /etc/xinetd.d/asp
 /etc/xmrig
 /etc/zigw
 /home/.local
+/home/ ./root
 /home//.ssh/authorized_keys
+/lib64/libkeystats.so
 /lib64/libnano.so.4
 /lib64/libncom.so.4.0.1
 /lib64/libselinux.so.4
 /lib64/libs.so
 /lib64/libtsr.so
-/lib64/libkeystats.so
 /lib/defs
 /lib/file.h
 /lib/.fx
@@ -253,6 +286,7 @@
 /lib/udev/ssd_control/t
 /lib/udev/x.modules
 /lib/x86_64-linux-gnu/libc-2.23.so
+/lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
 /opt/yilu/mservice
@@ -265,8 +299,8 @@
 /proc/kset
 /proc/rtkit
 /rescue/mount_fs
-/root/ap.sh
 /root/.a
+/root/ap.sh
 /root/.asmon
 /root/.bde
 /root/.bhk
@@ -423,6 +457,7 @@
 /tmp/bashf
 /tmp/bashg
 /tmp/bc.pl
+/tmp/bill.lock
 /tmp/bioset
 /tmp/.bkp
 /tmp/bnrffa4
@@ -461,6 +496,7 @@
 /tmp/EB93A6/996E.elf
 /tmp/emacs.sh
 /tmp/ext4-rsv-conver
+/tmp/fdsfsfvff
 /tmp/.FILE/stak /
 /tmp/flush-199:13000
 /tmp/flush-199:25000
@@ -473,6 +509,9 @@
 /tmp/flush-253:21
 /tmp/.font-unix/.cinik
 /tmp/fsnotify_mark
+/tmp/gates.lock
+/tmp/gdmorpen
+/tmp/gfhjrtfyhuf
 /tmp/.h
 /tmp/.helpdd
 /tmp/httpd
@@ -493,11 +532,9 @@
 /tmp/kauditd
 /tmp/KCtbBo
 /tmp/kdevtmpfsi
-/dev/kdevtmpfsi
 /tmp/kidd0
 /tmp/kidd0.c
 /tmp/kinsing
-/dev/kinsing
 /tmp/kworkerds
 /tmp/libapache
 /tmp/linux.lock
@@ -508,6 +545,7 @@
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
 /tmp/miner2
+/tmp/moni.lock
 /tmp/.mountfs
 /tmp/mycron
 /tmp/.mysqli/mysqlc
@@ -522,6 +560,7 @@
 /tmp/qW3xT.2
 /tmp/.../r
 /tmp/ramen.tgz
+/tmp/rewgtf3er4t
 /tmp/.rewt
 /tmp/root.sh
 /tmp/.salted
@@ -529,6 +568,8 @@
 /tmp/seeintlog
 /tmp/.session-unix
 /tmp/sess.rotat
+/tmp/sfewfesfs
+/tmp/smarvtd
 /tmp/srv
 /tmp/ssdpid
 /tmp/.ssh
@@ -542,8 +583,8 @@
 /tmp/thisxxs
 /tmp/.tmpcelse
 /tmp/.tmpcfi
-/tmp/.tmp_XXXXXX
 /tmp/.tmpdropoff
+/tmp/.tmp_XXXXXX
 /tmp/twink
 /tmp/.unlock
 /tmp/up
@@ -552,6 +593,7 @@
 /tmp/.user
 /tmp/.uua
 /tmp/watchbog.txt.sh
+/tmp/whitptabil
 /tmp/wnTKYg
 /tmp/.X11-unix/01
 /tmp/.X11-unix/22
@@ -570,6 +612,8 @@
 /tmp/zilog
 /tmp/zolog
 /usr/bin/4004.db
+/usr/bin64/3.so
+/usr/bin64/4.so
 /usr/bin/adore
 /usr/bin/atm
 /usr/bin/bnrffa4
@@ -613,6 +657,7 @@
 /usr/bin/pamdicks.org2
 /usr/bin/pc
 /usr/bin/.pidsclip
+/usr/bin/pojie
 /usr/bin/.ps
 /usr/bin/_-pud
 /usr/bin/ras2xm
@@ -719,6 +764,7 @@
 /usr/lib/ldliblogin.so
 /usr/lib/ldlibns.so
 /usr/lib/ldlibps.so
+/usr/lib/libamplify.so
 /usr/lib/libcurl.a.2.1
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
@@ -877,6 +923,7 @@
 /var/log/.login
 /var/log/utmp
 /var/log/xmrig
+/var/.lug.txt
 /var/opt/power
 /var/run/bioset
 /var/run/lvm//lvm.pid
@@ -918,3 +965,5 @@
 /var/.x
 /var/.x/psotnic
 /watchd0g.sh
+/XxJynx/3.so
+/XxJynx/4.so
