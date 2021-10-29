@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.48";
+my $version = "3.4.49";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -191,12 +191,12 @@ check_previous_scans();
 logit("=== STARTING CSI ===");
 
 sub get_loadavg {
-    my ($load_avg) = (split(/\s+/,qx[ cat /proc/loadavg ]))[0];
+    my ($load_avg) = (split(/\s+/,Cpanel::SafeRun::Timed::timedsaferun( 0, 'cat', '/proc/loadavg' )))[0];
     chomp($load_avg);
     return $load_avg;
 }
 
-my $corecnt = qx[ nproc ];
+my $corecnt = Cpanel::SafeRun::Timed::timedsaferun( 0, 'nproc' );
 chomp($corecnt);
 my $loadavg = get_loadavg();
 
@@ -231,7 +231,8 @@ print_normal('');
 disclaimer();
 print_header(
     "Checking for RPM database corruption and repairing as necessary...") unless($distro eq "ubuntu");
-my $findRPMissues   = qx[ /usr/local/cpanel/scripts/find_and_fix_rpm_issues ] unless($distro eq "ubuntu");
+#my $findRPMissues   = qx[ /usr/local/cpanel/scripts/find_and_fix_rpm_issues ] unless($distro eq "ubuntu");
+my $findRPMissues   = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/find_and_fix_rpm_issues' ) unless($distro eq "ubuntu");
 my $isRPMYUMrunning = rpm_yum_running_chk() unless($distro eq "ubuntu");
 
 if ($binscan) {
@@ -347,10 +348,8 @@ sub bincheck {
 
 # We skip cpanel and ea- provided RPM's since those are checked via /usr/local/cpanel/scripts/check_cpanel_rpms
 # CentOS 6 apparently installs RPM in /bin/rpm (why this hasn't failed on a C6 server before now is a mystery)
-    my $whichRPM = qx[ which rpm ];
-    chomp($whichRPM);
-    my @RPMS =
-qx[ $whichRPM -qa --qf "%{NAME}\n" | egrep -v "^(ea-|cpanel|kernel)" | sort -n | uniq ];
+    my $whichRPM = Cpanel::FindBin::findbin('rpm');
+    my @RPMS = qx[ $whichRPM -qa --qf "%{NAME}\n" | egrep -v "^(ea-|cpanel|kernel)" | sort -n | uniq ];
     my $RPMcnt = @RPMS;
     print_status( 'Done - Found: ' . $RPMcnt . ' RPMs to verify' );
     print_header('[ Verifying RPM binaries - This may take some time... ]');
@@ -453,9 +452,6 @@ sub scan {
     print_header('[ Checking for known Indicators of Compromise (IoC) ]');
     logit("Checking for known IoC's");
     all_malware_checks();
-    print_header('[ Checking Apache configuration ]');
-    logit("Checking Apache configuration");
-    check_httpd_config();
     print_header('[ Checking if Use MD5 passwords with Apache is disabled ]');
     logit("Checking if Use MD5 passwords with Apache is disabled");
     chk_md5_htaccess();
@@ -636,6 +632,9 @@ sub scan {
     print_header('[ Checking for Two-Factor Authentication ]');
     logit("Checking if Two-Factor Authentication is enabled");
     check_2FA_enabled();
+    print_header('[ Checking login_access Tweak Setting ]');
+    logit("Checking login_access Tweak Setting");
+    check_account_login_access();
     print_header('[ Checking for accesshash ]');
     logit("Checking for accesshash");
     check_for_accesshash();
@@ -807,7 +806,8 @@ sub check_suspended {
 sub check_history {
     if ( -e '/root/.bash_history' ) {
         if ( -l '/root/.bash_history' ) {
-            my $result = qx(ls -la /root/.bash_history);
+            #my $result = qx(ls -la /root/.bash_history);
+            my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ls', '-la', '/root/.bash_history' );
             push @SUMMARY, "> /root/.bash_history is a symlink, $result";
         }
 
@@ -833,9 +833,8 @@ sub check_history {
 }
 
 sub check_modsecurity {
-    my $result =
-      qx[ /usr/sbin/whmapi1 modsec_is_installed | grep 'installed: 1' ];
-    if ( !$result ) {
+    my $resultJSON = get_whmapi1( 'modsec_is_installed' );
+    if ( ! $resultJSON->{data}->{data}->{installed} ) {
 
         push @RECOMMENDATIONS, "> Mod Security is disabled";
         return;
@@ -859,9 +858,8 @@ sub check_modsecurity {
 }
 
 sub check_2FA_enabled {
-    my $result =
-qx[ /usr/sbin/whmapi1 twofactorauth_policy_status | grep 'is_enabled: 1' ];
-    if ( !$result ) {
+    my $resultJSON = get_whmapi1( 'twofactorauth_policy_status' );
+    if ( ! $resultJSON->{data}->{is_enabled} ) {
 
         push @RECOMMENDATIONS,
 "> Two-Factor Authentication Policy is disabled - Consider enabling this.";
@@ -870,11 +868,10 @@ qx[ /usr/sbin/whmapi1 twofactorauth_policy_status | grep 'is_enabled: 1' ];
 }
 
 sub check_account_login_access {
-    my $result =
-qx[ /usr/sbin/whmapi1 get_tweaksetting key=account_login_access | grep 'value: ' ];
-    if ( $result =~ m/owner|owner_root/ ) {
+    my $resultJSON = get_whmapi1( 'get_tweaksetting', 'key=account_login_access' );
+    if ( $resultJSON->{data}->{tweaksetting}->{value} =~ m/owner|owner_root/ ) {
         push @RECOMMENDATIONS,
-"> Consider changing Accounts that can access cPanel user account to cPanel User Only.";
+"> Consider changing Accounts that can access cPanel user account to " . CYAN "cPanel User Only.";
     }
 }
 
@@ -938,28 +935,6 @@ m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\
     }
 }
 
-sub check_httpd_config {
-    my $httpd_conf;
-    if ($EA4) {
-        $httpd_conf = '/etc/apache2/conf/httpd.conf';
-    }
-    else {
-        $httpd_conf = '/usr/local/apache/conf/httpd.conf';
-    }
-    if ( -f $httpd_conf ) {
-        my $apache_options = qx(grep -A1 '<Directory "/">' $httpd_conf);
-        if (    $apache_options =~ 'FollowSymLinks'
-            and $apache_options !~ 'SymLinksIfOwnerMatch' )
-        {
-            push @SUMMARY,
-              '> Apache configuration allows symlinks without owner match';
-        }
-    }
-    else {
-        push @SUMMARY, '> Apache configuration file is missing';
-    }
-}
-
 sub check_processes {
     my $URL = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt";
     my $susp_procs = timed_run( 6, 'curl', '-s', "$URL" );
@@ -977,15 +952,21 @@ sub check_processes {
 }
 
 sub bitcoin_chk {
-    my $xmrig_cron = qx[ grep -srl '\.xmr' /var/spool/cron/* ];
-    if ($xmrig_cron) {
-        push @SUMMARY,
-          "> Found evidence of possilbe bitcoin miner: " . CYAN $xmrig_cron;
+    my @cronlist = glob( q{ /var/spool/cron/* /var/spool/cron/crontabs/* });
+    my $xmrig_cron;
+    foreach my $cronfile(@cronlist) {
+        chomp($cronfile);
+        $xmrig_cron = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-srl', '.xmr', $cronfile );
+        chomp($xmrig_cron);
+        if ($xmrig_cron) {
+            push @SUMMARY, "> Found evidence of a possilbe bitcoin miner in: " . CYAN $xmrig_cron;
+        }
     }
-    my $xm2sg_socket = qx[ netstat -plant | grep xm2sg ];
-    if ($xm2sg_socket) {
+    my $xm2sg_socket = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-plant' );
+    my @xm2sg_socket = split /\n/, $xm2sg_socket;
+    if ( grep { /xm2sg/ } @xm2sg_socket ) {
         push @SUMMARY,
-          "> Found evidence of possible bitcoin miner: " . CYAN $xm2sg_socket;
+          "> Found evidence of possible bitcoin miner via " . CYAN "netstat -plant | grep 'xm2sg'";
     }
 }
 
@@ -1822,10 +1803,11 @@ sub check_for_dirtycow_passwd {
 }
 
 sub check_for_dirtycow_kernel {
+    return if ( $distro eq "ubuntu" );
     print_header("[ Checking if kernel is vulnerable to DirtyCow ]");
     logit("DirtyCow Kernel Check");
-    return if ( $distro eq "ubuntu" );
-    if ( ! -e "/usr/bin/rpm" ) {
+    my $whichRPM = Cpanel::FindBin::findbin('rpm');
+    if ( ! -x $whichRPM ) {
         push( @SUMMARY, "RPM not installed - is this a CentOS server?" );
         logit("RPM not installed - is this a CentOS server?");
         return;
