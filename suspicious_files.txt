@@ -29,6 +29,7 @@
 /bin/note
 /bin/.olog
 /bin/pools.txt
+/bin/protect
 /bin/.ps
 /bin/rtty
 /bin/squit
@@ -36,6 +37,7 @@
 /bin/syslogd
 /bin/systemd/systemd-daemon
 /bin/.tmpc
+/bin/tr69c
 /bin/watchbog
 /bin/watchdog
 /bin/.wwwwwwweeeeeeeeeeepaasss
@@ -666,7 +668,6 @@
 /usr/bin/.etc
 /usr/bin/execute
 /usr/bin/gib
-/usr/bin/http
 /usr/bin/iproute.ko
 /usr/bin/ishit
 /usr/bin/jdc
