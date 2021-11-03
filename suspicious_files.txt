@@ -220,7 +220,6 @@
 /etc/smarvtd
 /etc/ssh/notepad++
 /etc/ssh/.sshd_auth
-/etc/ssh/ssh_known_hosts
 /etc/ssh.tar
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
