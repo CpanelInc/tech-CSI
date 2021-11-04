@@ -85,6 +85,9 @@
 /dev/saux
 /dev/.shit/red.tgz
 /dev/shm/.bash
+/dev/shm/.bash/go
+/dev/shm/.bash/i686
+/dev/shm/.bash/x86_64
 /dev/shm/.bin
 /dev/shm/callservice
 /dev/shm/cfgas
@@ -390,7 +393,6 @@
 /root/.hsjz
 /root/.hztlc
 /root/.ils
-/root/.ipa
 /root/.jflyg
 /root/.jqfai
 /root/.jvl
@@ -1005,3 +1007,4 @@
 /watchd0g.sh
 /XxJynx/3.so
 /XxJynx/4.so
+/tmp/angel_bc.c
