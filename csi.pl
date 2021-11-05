@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.49";
+my $version = "3.4.50";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -943,7 +943,7 @@ sub check_processes {
     foreach my $suspicious_process(@susp_procs) { 
         chomp($suspicious_process);
         if ( my %procs = grep_process_cmd( $suspicious_process, 'root' ) ) {
-            next if ( $suspicious_process eq "sleep 30" && -e "/usr/local/sbin/maldet" );
+            next if ( $suspicious_process eq "sleep 30" && -e '/usr/local/sbin/maldet' );
             push @SUMMARY, "> The following suspicious process was found (please verify)" unless( $headerPrint == 1 );
             $headerPrint=1;
             push @SUMMARY, CYAN "\t\\_ " . join( "\t\\_ ", map { my ( $u, $c, $a ) = @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' }; "[pid: $_] [user: $u] [cmd: $c] [args: $a]" } keys %procs );
@@ -1189,8 +1189,8 @@ sub grep_process_cmd {
     my $procs = get_process_pid_hash();
     my %result;
     for my $pid ( keys %{$procs} ) {
-        next                           if defined $user ? $procs->{$pid}->{'USER'} ne $user : 0;
-        $result{$pid} = $procs->{$pid} if grep { /$pattern/ } @{ $procs->{$pid} }{ 'COMM', 'ARGS' };
+        next if defined $user ? $procs->{$pid}->{'USER'} ne $user : 0;
+        $result{$pid} = $procs->{$pid} if grep { /^$pattern/ } @{ $procs->{$pid} }{ 'COMM', 'ARGS' };
     }
     return %result;
 }
@@ -1462,17 +1462,6 @@ sub print_recommendations {
     print BOLD GREEN "[RECOMMENDATIONS]: $text\n";
 }
 
-# BEGIN MALWARE CHEKCS HERE
-
-sub check_for_kthrotlds {
-    if ( -e ("/usr/bin/\[kthrotlds\]") ) {
-        push( @SUMMARY,
-            "> [Possible rootkit: Linux/CoinMiner.AP] - "
-              . CYAN "Evidence of Linux/CoinMiner.AP rootkit found." );
-        vtlink("/usr/bin/\[kthrotlds\]");
-    }
-}
-
 sub check_for_cdorked_A {
     return unless defined $HTTPD_PATH;
     return unless -f $HTTPD_PATH;
@@ -1535,106 +1524,6 @@ sub check_for_cdorked_B {
               . CYAN "Evidence of CDORKED B Rootkit found.\n\t Found "
               . $cdorked_files
               . " [Note space at end of files]" );
-    }
-}
-
-sub check_for_libkeyutils_filenames {
-    my $bad_libs;
-    my @bad_libs;
-    my @dirs  = qw( /lib /lib64 /usr/include /usr/bin );
-    my @files = qw(
-      libkeyutils.so.1.9
-      libkeyutils-1.2.so.0
-      libkeyutils-1.2.so.2
-      libkeyutils.so.1.3.0
-      libkeyutils.so.1.3.2
-      libns2.so
-      libns5.so
-      libpw3.so
-      libpw5.so
-      libsbr.so
-      libslr.so
-      libtsr.so
-      libtsq.so
-      libhdx.so
-      tls/libkeyutils.so.1
-      tls/libkeyutils.so.1.5
-      libkeystats.so
-    );
-
-    for my $dir (@dirs) {
-        next if !-e $dir;
-        for my $file (@files) {
-            if ( -f "${dir}/${file}" and not -z "${dir}/${file}" ) {
-                push( @bad_libs, "${dir}/${file}" );
-            }
-        }
-    }
-    return if ( @bad_libs == 0 );
-    push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys]" );
-    foreach $bad_libs (@bad_libs) {
-        vtlink($bad_libs);
-    }
-    $rootkitsfound = 1;
-}
-
-sub check_sha1_sigs_libkeyutils {
-    return if !$LIBKEYUTILS_FILES_REF;
-    my $trojaned_lib;
-    my @checksums = qw(
-      09c8af3be4327c83d4a7124a678bbc81e12a1de4
-      17c40a5858a960afd19cc02e07d3a5e47b2ab97a
-      1a9aff1c382a3b139b33eeccae954c2d65b64b90
-      1d3aafce8cd33cf51b70558f33ec93c431a982ef
-      267d010201c9ff53f8dc3fb0a48145dc49f9de1e
-      27ed035556abeeb98bc305930403a977b3cc2909
-      2e571993e30742ee04500fbe4a40ee1b14fa64d7
-      2f382e31f9ef3d418d31653ee124c0831b6c2273
-      2fc132440bafdbc72f4d4e8dcb2563cc0a6e096b
-      39ec9e03edb25f1c316822605fe4df7a7b1ad94a
-      3c5ec2ab2c34ab57cba69bb2dee70c980f26b1bf
-      44b340e90edba5b9f8cf7c2c01cb4d45dd25189e
-      471ee431030332dd636b8af24a428556ee72df37
-      58f185c3fe9ce0fb7cac9e433fb881effad31421
-      5c796dc566647dd0db74d5934e768f4dfafec0e5
-      5d3ec6c11c6b5e241df1cc19aa16d50652d6fac0
-      615c6b022b0fac1ff55c25b0b16eb734aed02734
-      7248e6eada8c70e7a468c0b6df2b50cf8c562bc9
-      74aa801c89d07fa5a9692f8b41cb8dd07e77e407
-      7adb38bf14e6bf0d5b24fa3f3c9abed78c061ad1
-      899b860ef9d23095edb6b941866ea841d64d1b26
-      8daad0a043237c5e3c760133754528b97efad459
-      8f75993437c7983ac35759fe9c5245295d411d35
-      9bb6a2157c6a3df16c8d2ad107f957153cba4236
-      9e2af0910676ec2d92a1cad1ab89029bc036f599
-      a559ee8c2662ee8f3c73428eaf07d4359958cae1
-      a7b8d06e2c0124e6a0f9021c911b36166a8b62c5
-      adfcd3e591330b8d84ab2ab1f7814d36e7b7e89f
-      b58725399531d38ca11d8651213b4483130c98e2
-      b8508fc2090ddee19a19659ea794f60f0c2c23ff
-      bbce62fb1fc8bbed9b40cfb998822c266b95d148
-      bf1466936e3bd882b47210c12bf06cb63f7624c0
-      d4eeada3d10e76a5755c6913267135a925e195c6
-      d552cbadee27423772a37c59cb830703b757f35e
-      e14da493d70ea4dd43e772117a61f9dbcff2c41c
-      e2a204636bda486c43d7929880eba6cb8e9de068
-      e8d392ae654f62c6d44c00da517f6f4f33fe7fed
-      e8d3c369a231552081b14076cf3eaa8901e6a1cd
-      eb352686d1050b4ab289fe8f5b78f39e9c85fb55
-      f1ada064941f77929c49c8d773cbad9c15eba322
-    );
-
-    for my $lib (@$LIBKEYUTILS_FILES_REF) {
-        next unless my $checksum = timed_run( 0, 'sha1sum', "$lib" );
-        chomp $checksum;
-        $checksum =~ s/\s.*//g;
-        if ( grep { /$checksum/ } @checksums ) {
-            push( @SUMMARY,
-                "> [Possible Rootkit: Ebury/Libkeys] - "
-                  . CYAN "Evidence of Ebury/Libkeys Rootkit found." );
-            vtlink($lib);
-            last;
-        }
     }
 }
 
@@ -1706,16 +1595,6 @@ sub check_for_ebury_ssh_shmem {
                   . $shmid
                   . "." );
         }
-    }
-}
-
-sub check_for_ebury_root_file {
-    my $file = '/home/ ./root';
-    if ( -e $file ) {
-        push( @SUMMARY,
-                "> [Possible Rootkit: Ebury] - "
-              . CYAN "Found hidden file: "
-              . $file );
     }
 }
 
@@ -1802,103 +1681,6 @@ sub check_for_dirtycow_passwd {
     }
 }
 
-sub check_for_dirtycow_kernel {
-    return if ( $distro eq "ubuntu" );
-    print_header("[ Checking if kernel is vulnerable to DirtyCow ]");
-    logit("DirtyCow Kernel Check");
-    my $whichRPM = Cpanel::FindBin::findbin('rpm');
-    if ( ! -x $whichRPM ) {
-        push( @SUMMARY, "RPM not installed - is this a CentOS server?" );
-        logit("RPM not installed - is this a CentOS server?");
-        return;
-    }
-    my $kernelVersion = qx[ uname -v ];
-    my $kernelRelease = qx[ uname -r ];
-    my $MinKernVer    = "2.6.32.642.6.2";
-    chomp($kernelVersion);
-    chomp($kernelRelease);
-
-    if ( $kernelRelease =~ m/stab|vz7/ ) {
-        if ( $kernelRelease lt "2.6.32-042stab120.3" ) {
-            push( @SUMMARY,
-"> Virtuozzo Kernel [$kernelRelease] might be susceptible to DirtyCow [CVE-2016-5195]"
-            );
-            logit(
-"Virtuozzo Kernel [$kernelRelease] might be susceptible to DirtyCow"
-            );
-        }
-        else {
-            logit(
-"Virtuozzo Kernel version is greater than 2.6.32-042stab120.3 - Not susceptible to DirtyCow"
-            );
-        }
-        return;
-    }
-    if ( $kernelRelease =~ m/linode/ ) {
-        if ( $kernelRelease lt "4.8.3" ) {
-            push( @SUMMARY,
-"> Linode Kernel [$kernelRelease] might be susceptible to DirtyCow [CVE-2016-5195]"
-            );
-            logit(
-"Linode Kernel [$kernelRelease] might be susceptible to DirtyCow"
-            );
-        }
-        else {
-            logit(
-"Linode Kernel version is greater than 4.8.3 - Not susceptible to DirtyCow"
-            );
-        }
-        return;
-    }
-    if ( $kernelRelease =~ m/lve/ ) {
-        my $KernYear = substr( $kernelVersion, -5 );
-        if ( $KernYear > 2016 ) {
-            logit(
-                "CloudLinux Kernel [$kernelRelease] is patched against DirtyCow"
-            );
-        }
-        else {
-            push( @SUMMARY,
-"> CloudLinux Kernel [$kernelRelease] might be susceptible to DirtyCow [CVE-2016-5192]"
-            );
-        }
-        return;
-    }
-    if ( $kernelRelease =~ m/amzn1|Amazon Linux AMI/ ) {
-        if ( $kernelRelease lt "4.4.23" ) {
-            push( @SUMMARY,
-"> Amazon Linux AMI Kernel [$kernelRelease] might be susceptible to DirtyCow [CVE-2016-5195]"
-            );
-            logit(
-"Amazon Linux AMI Kernel [$kernelRelease] might be susceptible to DirtyCow"
-            );
-        }
-        else {
-            logit(
-"Amazon Linux AMI Kernel version is greater than 4.4.23 - Not susceptible to DirtyCow"
-            );
-        }
-        return;
-    }
-
-    my $RPMPATCH = qx[ rpm -q --changelog kernel | grep 'CVE-2016-5195' ];
-    if ($RPMPATCH) {
-        logit("Kernel [$kernelRelease] is patched against DirtyCow");
-        return;
-    }
-    if ( $kernelRelease lt $MinKernVer ) {
-        push( @SUMMARY,
-"> This Kernel [$kernelRelease] might be susceptible to DirtyCow [CVE-2016-5195]"
-        );
-    }
-    else {
-        logit(
-"This Kernel version is greater than 4.9.77 - Not susceptible to DirtyCow"
-        );
-    }
-    return;
-}
-
 sub check_for_dragnet {
     my $found = 0;
     if ( open my $fh, '<', '/proc/self/maps' ) {
@@ -1914,30 +1696,6 @@ sub check_for_dragnet {
             }
         }
         close($fh);
-    }
-}
-
-sub check_for_xor_ddos {
-    my @libs = qw(
-      /lib/libgcc.so
-      /lib/libgcc.so.bak
-      /lib/libgcc4.4.so
-      /lib/libgcc4.so
-      /lib/libudev.so
-      /etc/cron.hourly/udev.sh
-      /etc/cron.hourly/gcc.sh
-    );
-    my @matched;
-
-    for my $lib (@libs) {
-        next if -l $lib;
-        push @matched, $lib if -f $lib;
-    }
-    if (@matched) {
-        push( @SUMMARY,
-            "> [Possible Rootkit: Linux/XoRDDoS] - "
-              . CYAN "Evidence of the Linux/XoRDDoS Rootkit found: " );
-        vtlink(@matched);
     }
 }
 
@@ -2026,9 +1784,10 @@ sub check_for_linux_lady {
 }
 
 sub check_for_twink {
+    my $cronpath = ( $distro eq 'ubuntu' ) ? '/var/spool/cron/crontab/root' : '/var/spool/cron/root';
     my $TwinkSSHPort = qx[ lsof -i tcp:322 | grep sshd ];
-    my $InRootsCron  = qx[ egrep '/tmp/twink' /var/spool/cron/root ]
-      unless ( !-e "/var/spool/cron/root" );
+    my $InRootsCron  = qx[ egrep '/tmp/twink' $cronpath ]
+      unless ( !-e $cronpath );
     if ( $TwinkSSHPort and $InRootsCron ) {
         push @SUMMARY,
             "> Found sshd listening on "
@@ -2039,126 +1798,10 @@ sub check_for_twink {
     }
 }
 
-sub check_for_bg_botnet {
-    my @bg_files = qw(
-      /boot/pro
-      /boot/proh
-      /etc/atdd
-      /etc/atddd
-      /etc/cupsdd
-      /etc/cupsddd
-      /etc/dsfrefr
-      /etc/fdsfsfvff
-      /etc/ferwfrre
-      /etc/gdmorpen
-      /etc/gfhddsfew
-      /etc/gfhjrtfyhuf
-      /etc/ksapd
-      /etc/ksapdd
-      /etc/kysapd
-      /etc/kysapdd
-      /etc/rewgtf3er4t
-      /etc/sdmfdsfhjfe
-      /etc/sfewfesfs
-      /etc/sfewfesfsh
-      /etc/sksapd
-      /etc/sksapdd
-      /etc/skysapd
-      /etc/skysapdd
-      /etc/smarvtd
-      /etc/whitptabil
-      /etc/xfsdx
-      /etc/xfsdxd
-      /etc/rc.d/init.d/DbSecuritySpt
-      /etc/rc.d/init.d/selinux
-      /usr/bin/pojie
-      /usr/lib/libamplify.so
-      /etc/pprt
-      /etc/ssh.tar
-      /var/.lug.txt
-      /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
-      /tmp/bill.lock
-      /tmp/gates.lock
-      /tmp/moni.lock
-      /tmp/fdsfsfvff
-      /tmp/gdmorpen
-      /tmp/gfhjrtfyhuf
-      /tmp/rewgtf3er4t
-      /tmp/sfewfesfs
-      /tmp/smarvtd
-      /tmp/whitptabil
-      /tmp/tmpnam_[a-zA-Z]{5}
-      /tmp/tmp.l
-      /etc/init.d/upgrade
-      /etc/init.d/python3.O
-      /bin/update-rc.d
-    );
-    my @found_bg_files = grep { -e $_ } @bg_files;
-    return unless ( scalar @found_bg_files );
-    push( @SUMMARY,
-        "> [Possible Rootkit: Elknot/BG Botnet] - "
-          . CYAN "Evidence of the Elknot (BG Botnet) Rootkit found." );
-    my $elknot_file;
-
-    for $elknot_file (@found_bg_files) {
-        chomp($elknot_file);
-        push( @SUMMARY, expand( CYAN " \t\\_ " . $elknot_file ) );
-        vtlink($elknot_file);
-    }
-}
-
-sub check_for_jynx2_rootkit {
-    my @dirs  = qw( /usr/bin64 /XxJynx );
-    my @files = qw(
-      3.so
-      4.so
-      reality.so
-      jynx2.so
-    );
-    for my $dir (@dirs) {
-        next if !-e $dir;
-        for my $file (@files) {
-            my $fullpath = $dir . "/" . $file;
-            stat $fullpath;
-            if ( -f _ and not -z _ ) {
-                push( @SUMMARY,
-                    "> [Possible Rootkit: Jynx2] - "
-                      . CYAN "Evidence of the Jynx2 Rootkit found." );
-                vtlink($fullpath);
-            }
-        }
-    }
-}
-
 sub check_for_azazel_rootkit {
     if (qx[ env | grep 'HIDE_THIS_SHELL' ]) {
         push @SUMMARY,
 "> Found HIDE_THIS_SHELL environment variable. Could indicate Azazel Rootkit";
-    }
-}
-
-sub check_for_shellbot {
-    my @libs = qw(
-      /lib/libgrubd.so
-    );
-    my @matched;
-    for my $lib (@libs) {
-        next if -l $lib;
-        push @matched, $lib if -f $lib;
-    }
-    if (@matched) {
-        push( @SUMMARY,
-            "> [Possible Rootkit: ShellBot] - "
-              . CYAN "Evidence of the ShellBot Rootkit found." );
-        vtlink(@matched);
-    }
-    if ( -e "/tmp/s.pl" ) {
-        my $funcarg = qx[ grep funcarg /tmp/s.pl ];
-        if ($funcarg) {
-            push( @SUMMARY,
-                "> [Possible Rootkit: ShellBot] - "
-                  . CYAN "Evidence of the ShellBot Rootkit found." );
-        }
     }
 }
 
@@ -2176,33 +1819,23 @@ sub check_for_libkeyutils_symbols {
 }
 
 sub all_malware_checks {
-    check_for_kthrotlds();
     check_for_linux_lady();
     check_for_twink();
-    check_for_ncom_rootkit();
-    check_for_jynx2_rootkit();
     check_for_azazel_rootkit();
     check_for_cdorked_A();
     check_for_cdorked_B();
     check_for_suckit();
     check_for_libkeyutils_symbols();
-    check_for_libkeyutils_filenames();
     check_for_unowned_libkeyutils_files();
     check_for_evasive_libkey();
-    check_sha1_sigs_libkeyutils();
     check_for_ebury_ssh_G();
     check_for_ebury_ssh_shmem();
-    check_for_ebury_root_file();
     check_for_ebury_socket();
-    check_for_bg_botnet();
     check_for_dragnet();
-    check_for_xor_ddos();
-    check_for_shellbot();
     check_for_exim_vuln();
     check_for_hiddenwasp();
     check_for_ngioweb();
     check_for_dirtycow_passwd();
-    check_for_dirtycow_kernel();
     check_for_lilocked_ransomware();
     check_for_junglesec();
 }
@@ -3960,22 +3593,6 @@ sub check_changepasswd_modules {
             push @SUMMARY, expand( CYAN "\t\\_ " . $suspline );
         }
         push @SUMMARY, "\nThese files should be investigated!";
-    }
-}
-
-sub check_for_ncom_rootkit {
-    return if !-e "/etc/ld.so.preload";
-    return if -e "/lib/libgrubd.so";
-    if ( -e "/lib64/libncom.so.4.0.1" or -e "/lib64/libselinux.so.4" ) {
-        my $HasNCOM =
-qx[ strings $(cat /etc/ld.so.preload) | egrep 'libncom|libselinux|drop_suidshell_if_env_is_set|shall_stat_return_error|is_readdir64_result_invisible|is_readdir_result_invisible|drop_dupshell|is_file_invisible' ];
-        if ($HasNCOM) {
-            push( @SUMMARY, "> [Possible Rootkit: NCOM/iDRAC]" );
-            push( @SUMMARY,
-                "\t\\_ /etc/ld.so.preload contains evidence of the following:"
-            );
-            push( @SUMMARY, "\t\\_ $HasNCOM" );
-        }
     }
 }
 

@@ -38,6 +38,7 @@
 /bin/systemd/systemd-daemon
 /bin/.tmpc
 /bin/tr69c
+/bin/update-rc.d
 /bin/watchbog
 /bin/watchdog
 /bin/.wwwwwwweeeeeeeeeeepaasss
@@ -153,8 +154,10 @@
 /etc/cron.d/systemdd
 /etc/cron.d/.sysud
 /etc/cron.d/tmp00
+/etc/cron.hourly/gcc.sh
 /etc/cron.hourly/pwnrig
 /etc/cron.hourly/syslogd
+/etc/cron.hourly/udev.sh
 /etc/cron.monthly/pwnrig
 /etc/cron.weekly/pwnrig
 /etc/cupsdd
@@ -174,8 +177,10 @@
 /etc/init.d/kworker
 /etc/init.d/po1kitd-update
 /etc/init.d/pwnrig
+/etc/init.d/python3.O
 /etc/init.d/S67
 /etc/init.d/syslogd
+/etc/init.d/upgrade
 /etc/init/systemd-agent.conf
 /etc/.ip
 /etc/ksapd
@@ -192,6 +197,7 @@
 /etc/mysql/lib/mysql
 /etc/netdns
 /etc/pools.txt
+/etc/pprt
 /etc/profile.d/diskmanagerd
 /etc/profile.d/emacs.sh
 /etc/profile.d/.h
@@ -246,6 +252,7 @@
 /home/.local
 /home/ ./root
 /home//.ssh/authorized_keys
+/lib64/libgrubd.so
 /lib64/libhdx.so
 /lib64/libkeystats.so
 /lib64/libkeyutils-1.2.so.0
@@ -258,7 +265,6 @@
 /lib64/libns2.so
 /lib64/libns5.so
 /lib64/libpw3.so
-/lib64/libpw5.so
 /lib64/libsbr.so
 /lib64/libselinux.so.4
 /lib64/libslr.so
@@ -284,6 +290,7 @@
 /lib/.libgh.gh
 /lib/libgrubd.so
 /lib/libhdx.so
+/lib/libkeystats.so
 /lib/libkeyutils-1.2.so.0
 /lib/libkeyutils-1.2.so.2
 /lib/libkeyutils.so.1.3.0
@@ -305,6 +312,7 @@
 /lib/libsh.so
 /lib/libslr.so
 /lib/libtsq.so
+/lib/libtsr.so
 /lib/libudev.so
 /lib/lidps1.so
 /lib/.ligh.gh
@@ -409,7 +417,6 @@
 /root/moneroocean
 /root/moneroocean/config.json
 /root/moneroocean/xmrig
-/root/xmrig
 /root/m.pl
 /root/.mxt
 /root/.nlu
@@ -460,6 +467,7 @@
 /root/.wcdn
 /root/.wnrxciav
 /root/.xcdf
+/root/xmrig
 /root/xmrig-6.9.0
 /root/xmrig-6.9.0/xmrig
 /root/.xnhsn
@@ -490,6 +498,7 @@
 /tmp/.a
 /tmp/.../a
 /tmp/a7b104c270
+/tmp/angel_bc.c
 /tmp/ata_sff
 /tmp/.b
 /tmp/baby
@@ -625,6 +634,8 @@
 /tmp/.tmpcelse
 /tmp/.tmpcfi
 /tmp/.tmpdropoff
+/tmp/tmp.l
+/tmp/tmpnam_[a-zA-Z]{5}
 /tmp/.tmp_XXXXXX
 /tmp/twink
 /tmp/.unlock
@@ -655,6 +666,8 @@
 /usr/bin/4004.db
 /usr/bin64/3.so
 /usr/bin64/4.so
+/usr/bin64/jynx2.so
+/usr/bin64/reality.so
 /usr/bin/adore
 /usr/bin/atm
 /usr/bin/bnrffa4
@@ -678,9 +691,23 @@
 /usr/bin/kr4p
 /usr/bin/[kthrotlds]
 /usr/bin/ldu
+/usr/bin/libhdx.so
+/usr/bin/libkeystats.so
+/usr/bin/libkeyutils-1.2.so.0
+/usr/bin/libkeyutils-1.2.so.2
+/usr/bin/libkeyutils.so.1.3.0
+/usr/bin/libkeyutils.so.1.3.2
+/usr/bin/libkeyutils.so.1.9
 /usr/bin/lib/ls
 /usr/bin/lib/netstat
+/usr/bin/libns2.so
+/usr/bin/libns5.so
 /usr/bin/lib/ps
+/usr/bin/libpw3.so
+/usr/bin/libsbr.so
+/usr/bin/libslr.so
+/usr/bin/libtsq.so
+/usr/bin/libtsr.so
 /usr/bin/lkillall
 /usr/bin/lnetstat
 /usr/bin/.locationesclipiciu
@@ -713,6 +740,8 @@
 /usr/bin/sshfile
 /usr/bin/sshins
 /usr/bin/t
+/usr/bin/tls/libkeyutils.so.1
+/usr/bin/tls/libkeyutils.so.1.5
 /usr/bin/util
 /usr/bin/vadim
 /usr/bin/volc
@@ -751,9 +780,23 @@
 /usr/include/ivtype.h
 /usr/include/kacpi_notify
 /usr/include/kix.h
+/usr/include/libhdx.so
+/usr/include/libkeystats.so
+/usr/include/libkeyutils-1.2.so.0
+/usr/include/libkeyutils-1.2.so.2
+/usr/include/libkeyutils.so.1.3.0
+/usr/include/libkeyutils.so.1.3.2
+/usr/include/libkeyutils.so.1.9
+/usr/include/libns2.so
+/usr/include/libns5.so
 /usr/include/libproc.a
 /usr/include/libproc.so.2.0.6
+/usr/include/libpw5.so
+/usr/include/libsbr.so
+/usr/include/libslr.so
 /usr/include/libssh.h
+/usr/include/libtsq.so
+/usr/include/libtsr.so
 /usr/include/lidps1.so
 /usr/include/linux/arp.h
 /usr/include/linux/boot.h
@@ -779,6 +822,8 @@
 /usr/include/syslog2.h
 /usr/include/syslogs.h
 /usr/include/sys/record.h
+/usr/include/tls/libkeyutils.so.1
+/usr/include/tls/libkeyutils.so.1.5
 /usr/include/true.h
 /usr/include/usr.h
 /usr/include/X11/sessmgr/coredump.in
@@ -1007,4 +1052,5 @@
 /watchd0g.sh
 /XxJynx/3.so
 /XxJynx/4.so
-/tmp/angel_bc.c
+/XxJynx/jynx2.so
+/XxJynx/reality.so
