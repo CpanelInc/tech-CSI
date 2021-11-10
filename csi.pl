@@ -3302,7 +3302,7 @@ sub getAWS_IPs {
 sub look_for_suspicious_files {
     my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt');
     my $ua = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
-    my $res = $ua->get($url1);
+    my $res = $ua->get($url);
     my $content = $res->decoded_content;
     my @files = split /\n/, $content;
     my $fileType;
