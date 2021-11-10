@@ -130,6 +130,8 @@
 /etc/bin/ava
 /etc/.bmbl
 /etc/.bmbl/sk
+/etc/conf.n
+/etc/cmd.n
 /etc/config.json
 /etc/config.txt
 /etc/cpu.txt
@@ -589,8 +591,6 @@
 /tmp/libapache
 /tmp/linux.lock
 /tmp/.local/*
-/tmp/.lock
-/tmp/.lost+found
 /tmp/.main
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
@@ -925,6 +925,7 @@
 /usr/local/sbin/bin/upd
 /usr/local/share/man/man1/Openssh.1
 /usr/local/__UMBREON__
+/usr/local/UMBREON
 /usr/man/.man10
 /usr/man/man1/lib/.lib
 /usr/man/man2/.man8
