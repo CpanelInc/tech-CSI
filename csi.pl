@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.51";
+my $version = "3.4.52";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -563,47 +563,32 @@ sub scan {
     }
 
     if ( $full or $yarascan ) {
-        print_header( YELLOW "Checking for and downloading Yara and additional Yara Rules!" );
         my $yara_available = check_for_yara();
         if ( $yara_available ) {
             print_warn( "This process can cause very high loads and take a long time!!!\nWaiting 10 seconds [Press CTRL+C To Abort]" );
             sleep(10);
-            my @yara_urls = qw( 
-                https://raw.githubusercontent.com/reversinglabs/reversinglabs-yara-rules/develop/yara/ransomware/Linux.Ransomware.LuckyJoe.yara 
-                https://raw.githubusercontent.com/reversinglabs/reversinglabs-yara-rules/develop/yara/virus/Linux.Virus.Vit.yara 
-                https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara 
-            );
+            my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara' );
+            my $ua = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
+            my $res = $ua->get($url);
+            my $yara_data = $res->decoded_content;
+            my @yara_data = split /\n/, $yara_data;
 
-            print_header("Downloading additional yara rules to $csidir");
-
-            my @data;
-            for my $URL(@yara_urls) {
-                chomp($URL);
-                my $response = HTTP::Tiny->new->get( $URL );
-                if ( $response->{success} ) {
-                    my $yara_filename = basename($URL);
-                    chomp($yara_filename);
-                    open(YARAFILE, ">$csidir/$yara_filename" );
-                    print YARAFILE $response->{content};
-                    close(YARAFILE);
-                    push @data, "$csidir/$yara_filename" if ( -e "$csidir/$yara_filename" );
-                }
-                else {
-                    print_status( "Failed to download $URL" );
-                }
+            print_header("Downloading csi_rules.yara file to $csidir");
+            open(YARAFILE, ">$csidir/csi_rules.yara" );
+            foreach my $yara_line(@yara_data) {
+                chomp($yara_line);
+                print YARAFILE $yara_line . "\n";
             }
+            close(YARAFILE);
             my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /var /usr /tmp );
             my (@results, $results);
             for my $dir(@dirs) { 
                 chomp($dir);
                 next unless -d $dir;
                 print_status("\tScanning $dir directory");
-                foreach my $file(@data) {
-                    chomp($file);
-                    my $loadavg = get_loadavg();
-                    print_status( "\t\t\\_ Yara file: $file [ Load: $loadavg ]");
-                    $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$file", "$dir" );
-                }
+                my $loadavg = get_loadavg();
+                print_status( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]");
+                $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
                 my @results = split /\n/, $results;
                 my $resultcnt=@results;
                 if ( $resultcnt > 0 ) {
