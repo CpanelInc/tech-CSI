@@ -301,7 +301,7 @@ rule drovorub_unique_network_comms_strings {
         $s_14 = "net_list_request" wide ascii
         $s_15 = "server finished" wide ascii
         $s_16 = "serverid" wide ascii
-        $s_17 = "tunnel" wide ascii·
+        $s_17 = "tunnel" wide ascii
     condition:
         all of them
 }
