@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.50";
+my $version = "3.4.51";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -41,6 +41,7 @@ use File::Basename;
 use File::Path;
 use File::stat;
 use IO::Prompt;
+use LWP::UserAgent;
 use DateTime;
 use HTTP::Tiny;
 use Cpanel::Exception       ();
@@ -936,8 +937,10 @@ m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\
 }
 
 sub check_processes {
-    my $URL = "https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt";
-    my $susp_procs = timed_run( 6, 'curl', '-s', "$URL" );
+    my $url = URI->new('https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt');
+    my $ua = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
+    my $res = $ua->get($url);
+    my $susp_procs = $res->decoded_content;
     my @susp_procs = split /\n/, $susp_procs;
     my $headerPrint=0;
     foreach my $suspicious_process(@susp_procs) { 
@@ -2356,10 +2359,16 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
             }
         }
         else {          ## grep scan (not Yara) a bit slower but should catch the same things.
-            my $URL =
-    "https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt";
-            my @DEFINITIONS = qx[ curl -s $URL > "$csidir/csi_detections.txt" ];
-            @DEFINITIONS = qx[ curl -s $URL ];
+            my $url = URI->new('https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt');
+            my $ua = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
+            my $res = $ua->get($url);
+            my $definitions = $res->decoded_content;
+            my @DEFINITIONS = split /\n/, $definitions;
+            open ( my $fh, '>', "$csidir/csi_detections.txt" );
+            foreach my $def(@DEFINITIONS) {
+                print $fh $def . '\n';
+            }
+            close($fh);
             my $StringCnt = @DEFINITIONS;
             print
     "Scanning $RealHome/$pubhtml for ($StringCnt) known phrases/strings\n";
@@ -3291,13 +3300,11 @@ sub getAWS_IPs {
 }
 
 sub look_for_suspicious_files {
-    my $URL1 =
-"https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt";
-    my $URL2 = eval unpack u =>
-q{_(FAT='!S.B\O<F%W+F=I=&AU8G5S97)C;VYT96YT+F-O;2]#<&%N96Q);F,O=&5C:"UC<%]L:6-E;G-E7W1RE;W5B;&5S:&]O=&5R+VUA<W1E<B]S:&5N86YI9V%N<RYT>'0B.P};
-    my @files1 = qx[ curl -s $URL1 ];
-    my @files2 = qx[ curl -s $URL2 ];
-    my @files  = ( @files1, @files2 );
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt');
+    my $ua = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
+    my $res = $ua->get($url1);
+    my $content = $res->decoded_content;
+    my @files = split /\n/, $content;
     my $fileType;
     for my $file (@files) {
         chomp($file);
@@ -3379,15 +3386,13 @@ sub check_proc_sys_vm {
 sub known_sha256_hashes {
     my $checksum = $_[0];
 
-    my $URL =
-"https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt";
-    my @knownhashes = qx[ curl -s $URL ];
-    if ( grep { /$checksum/ } @knownhashes ) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt');
+    my $ua = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
+    my $res = $ua->get($url); 
+    my $content = $res->decoded_content;
+    my @knownhashes = split /\n/, $content;
+    return 1 if ( grep { /$checksum/ } @knownhashes );
+    return 0;
 }
 
 sub check_apitokens_json {
