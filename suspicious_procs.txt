@@ -103,8 +103,6 @@ rc.local
 /root/.configrc/a/kswapd0
 rr.sh
 .sherifu
-sleep 30
-sleep 300
 sleep 7200
 sourplum
 sshins
