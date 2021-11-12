@@ -892,7 +892,6 @@
 /usr/local/bin/bin
 /usr/local/bin/.../bktd
 /usr/local/bin/bnrffa4
-/usr/local/bin/curl
 /usr/local/bin/dns
 /usr/local/bin/xmrig
 /usr/local/cpanel/backup/dnsadmin
