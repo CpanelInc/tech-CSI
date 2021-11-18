@@ -71,8 +71,8 @@ kw.sh
 jsextension
 kxjd
 libapache
-linux_avp
 Loopback
+linux_avp
 lx26
 masscan
 mgwsl

@@ -335,6 +335,9 @@
 /lib/udev/ssd_control/t
 /lib/udev/x.modules
 /lib/x86_64-linux-gnu/libc-2.23.so
+/linux_avp
+/xpnjdfx.txt
+/drgjghsaef.txt
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
