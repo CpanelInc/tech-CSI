@@ -606,6 +606,7 @@
 /tmp/.netscalerd
 /tmp/.netscalerd/uuid
 /tmp/pamdicks
+/tmp/passwd.bak
 /tmp/pc
 /tmp/.pfile
 /tmp/pools.txt
