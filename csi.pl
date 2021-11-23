@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.52";
+my $version = "3.4.53";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -476,10 +476,6 @@ sub scan {
     print_header('[ Checking for suspicious bitcoin miners ]');
     logit("Checking for suspicious bitcoin miners");
     bitcoin_chk();
-    print_header(
-        '[ Checking cPanel access_log for anonymousF0x/smtpF0x entries ]');
-    logit("Checking cPanel access_log for smtpF0x");
-    check_for_smtpF0x_access_log();
     print_header('[ Checking reseller ACLs ]');
     logit("Checking reseller ACLs");
     check_resellers_for_all_ACL();
@@ -3457,15 +3453,6 @@ sub get_cpupdate_conf {
         close $conf_fh;
     }
     return \%conf;
-}
-
-sub check_for_smtpF0x_access_log {
-    my $hassmtpF0x =
-qx[ egrep --text -i 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' /usr/local/cpanel/logs/access_log ];
-    if ($hassmtpF0x) {
-        push @SUMMARY,
-"> Found evidence of anonymousF0x/smtpF0x within the /usr/local/cpanel/logs/access_log file";
-    }
 }
 
 sub check_cpupdate_conf {
