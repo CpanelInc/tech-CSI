@@ -493,8 +493,7 @@
 /root/.zzgtr
 /run/bioset
 /run/chernobyl.sh
-/run/user/\d{0,9}+/systemd-user.lock
-/run/user/*/systemd-user.lock
+/run/user/\d/systemd-user.lock
 /run/user/*/php.lock
 /run/user/*/php-fpm.lock
 /run/user/*/www-server.lock
