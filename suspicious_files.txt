@@ -96,7 +96,7 @@
 /dev/shm/devs_mx_cache
 /dev/shm/.kauditd
 /dev/shm/.kauditd/[kauditd]
-/dev/shm/\.linux
+/dev/shm/.linux
 /dev/shm/.lwp
 /dev/shm/.lwp/.out
 /dev/shm/.lwp/.rsync
