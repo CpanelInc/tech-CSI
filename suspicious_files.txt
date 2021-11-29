@@ -106,6 +106,10 @@
 /dev/shm/sud
 /dev/shm/sys.png
 /dev/shm/.systemd/.systemd
+/dev/shm/www-shared
+/dev/shm/server-worker-shared
+/dev/shm/sql-shared
+/dev/shm/php-shared
 /dev/shm/.X99910/
 /dev/shm/.X99910/.rsync/
 /dev/shm/.X99910/.rsync/c
@@ -489,6 +493,10 @@
 /root/.zzgtr
 /run/bioset
 /run/chernobyl.sh
+/run/user/*/systemd-user.lock
+/run/user/*/php.lock
+/run/user/*/php-fpm.lock
+/run/user/*/www-server.lock
 /sbin/home
 /sbin/.ifup-local
 /sbin/libselinux
@@ -1050,6 +1058,8 @@
 /var/tmp/.SQL-Unix/.SQL
 /var/tmp/.SQL-Unix/.SQL/.db
 /var/tmp/v3
+/var/tmp/php_cache
+/var/tmp/worker_cache
 /var/www/html/Index.php
 /var/.x
 /var/.x/psotnic
