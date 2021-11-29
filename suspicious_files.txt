@@ -493,10 +493,10 @@
 /root/.zzgtr
 /run/bioset
 /run/chernobyl.sh
-/run/user/\d{0,9}/systemd-user.lock
-/run/user/\d{0,9}/php.lock
-/run/user/\d{0,9}/php-fpm.lock
-/run/user/\d{0,9}/www-server.lock
+/run/user/\d{0,9}+/systemd-user.lock
+/run/user/*/php.lock
+/run/user/*/php-fpm.lock
+/run/user/*/www-server.lock
 /sbin/home
 /sbin/.ifup-local
 /sbin/libselinux
