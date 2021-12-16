@@ -147,6 +147,7 @@
 /etc/cron.d/apachecat
 /etc/cron.d/.cd
 /etc/cron.d/.editorinfo
+/etc/cron.d/.editorinfo[a-zA-Z0-9]+
 /etc/cron.d/.favicon.ico
 /etc/cron.d/.kswapd
 /etc/cron.d/.ntp
@@ -395,7 +396,6 @@
 /root/.dynki
 /root/.ecwx
 /root/.editorinfo
-/root/.editorinfo*
 /root/.ence
 /root/.etty
 /root/.eztew
@@ -493,10 +493,6 @@
 /root/.zzgtr
 /run/bioset
 /run/chernobyl.sh
-/run/user/\d/systemd-user.lock
-/run/user/*/php.lock
-/run/user/*/php-fpm.lock
-/run/user/*/www-server.lock
 /sbin/home
 /sbin/.ifup-local
 /sbin/libselinux
@@ -601,7 +597,7 @@
 /tmp/kworkerds
 /tmp/libapache
 /tmp/linux.lock
-/tmp/.local/*
+/tmp/.local/[a-zA-Z0-9]+
 /tmp/.main
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
@@ -1060,6 +1056,12 @@
 /var/tmp/v3
 /var/tmp/php_cache
 /var/tmp/worker_cache
+/var/tmp/cb
+/var/tmp/find
+/var/tmp/god*
+/var/tmp/wunder*
+/var/tmp/udev*
+/var/tmp/lib*
 /var/www/html/Index.php
 /var/.x
 /var/.x/psotnic
