@@ -1049,7 +1049,7 @@ sub bitcoin_chk {
             $cronfile );
         chomp($xmrig_cron);
         if ($xmrig_cron) {
-            push @SUMMARY, "> Found evidence of a possilbe bitcoin miner in: "
+            push @SUMMARY, "> Found suspicious data in: "
               . CYAN $xmrig_cron;
         }
     }
