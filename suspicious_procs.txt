@@ -134,3 +134,4 @@ ysaydh
 zcash
 zigw
 .zte_error
+[l]og4j
