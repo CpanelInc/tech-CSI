@@ -90,7 +90,7 @@ else {
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 my $susp_cron_string =
-"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing";
+"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11";
 our @HISTORY;
 our $KernelChk;
 our $spincounter;
