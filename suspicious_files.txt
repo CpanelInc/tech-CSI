@@ -621,6 +621,10 @@
 /tmp/rewgtf3er4t
 /tmp/.rewt
 /tmp/root.sh
+/tmp/gitaly
+/tmp/.x/kworker
+/tmp/.X11-unix/supervise
+/tmp/.ssh/redis.sh
 /tmp/.salted
 /tmp/salt-minions
 /tmp/seeintlog
@@ -655,6 +659,7 @@
 /tmp/watchbog.txt.sh
 /tmp/whitptabil
 /tmp/wnTKYg
+/tmp/wsnbb
 /tmp/.X11-unix/01
 /tmp/.X11-unix/22
 /tmp/.X11-unix/sshd
@@ -1032,6 +1037,7 @@
 /var/run/.tmp
 /var/run/udevd.pid
 /var/run/udev/ud.pid
+/var/sbin/bash
 /var/sftp
 /var/spool/cron/crontabs/rootcat
 /var/spool/cron/root.bak

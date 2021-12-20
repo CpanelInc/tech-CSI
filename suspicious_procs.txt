@@ -80,6 +80,7 @@ mine
 minerd
 minergate
 minexmr
+xmr
 mixnerdx
 monero
 mstxmr
@@ -135,3 +136,16 @@ zcash
 zigw
 .zte_error
 [l]og4j
+./udp
+./oka
+./crun
+slowhttp
+pocosow
+gakeaws
+azulu
+bash.shell
+entrypoint.sh
+/var/sbin/bash
+buster-slim
+hello-
+registry
