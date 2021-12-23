@@ -11,9 +11,9 @@ bashh
 bashx
 BI5zj
 /bin/bash /etc/rc.d/rc.local start
-/bin/bash ./go
+/bin/bash \./go
 /bin/bash -i
-/bin/bash ./tsm
+/bin/bash \./tsm
 /bin/sh -i
 biosetjenkins
 bnrffa4
@@ -23,7 +23,7 @@ checkstatus
 ./checkstatus
 conns
 conn.sh
-./cron
+\./cron
 cryptonight
 crypto-pool
 cspdaemon
@@ -31,11 +31,11 @@ cspdaemon
 cspfwd
 ./cspfwd
 .dbus/sessions/session-dbus
-ddg.2011
+ddg\.2011
 ddgs
 deamon
 dedpma
-/dev/shm/.lwp/.rsync/c/lib/64/tsm
+/dev/shm/\.lwp/\.rsync/c/lib/64/tsm
 disk_genius
 donns
 dovecat
@@ -66,7 +66,7 @@ kdevtmpfsi
 kinsing
 ./kswapd0
 kworker34
-[kworker /u8:7-ev]
+\[kworker /u8:7-ev\]
 kw.sh
 jsextension
 kxjd
@@ -88,13 +88,13 @@ mysql5
 nanoWatch
 nopxi
 NXLAi
-os.system(\"/bin/bash\")
-os.system(\"/bin/sh\")
+os.system\(\"/bin/bash\"\)
+os.system\(\"/bin/sh\"\)
 performedl
 pro.sh
-pty.spawn(\"/bin/bash\")
-pty.spawn(\"/bin/ssh\")
-pty.spwan(\"/bin/sh\")
+pty.spawn\(\"/bin/bash\"\)
+pty.spawn\(\"/bin/ssh\"\)
+pty.spwan\(\"/bin/sh\"\)
 .purrple
 pwndns.pw
 pythno
@@ -108,7 +108,7 @@ rr.sh
 sleep 7200
 sourplum
 sshins
-[stealth]
+\[stealth\]
 stratum
 stratum.f2pool.com
 sustes
