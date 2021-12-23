@@ -801,4 +801,3 @@ rule SUSP_JDNIExploit_Error_Indicators_Dec21_1 {
       1 of them
 }
 
-
