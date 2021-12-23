@@ -278,6 +278,7 @@
 /lib64/libs.so
 /lib64/libtsq.so
 /lib64/libtsr.so
+/lib64/librwctl.so
 /lib64/tls/libkeyutils.so.1
 /lib64/tls/libkeyutils.so.1.5
 /lib/defs
@@ -320,6 +321,7 @@
 /lib/libslr.so
 /lib/libtsq.so
 /lib/libtsr.so
+/lib/librwctl.so
 /lib/libudev.so
 /lib/lidps1.so
 /lib/.ligh.gh
@@ -721,6 +723,7 @@
 /usr/bin/libslr.so
 /usr/bin/libtsq.so
 /usr/bin/libtsr.so
+/usr/bin/librwctl.so
 /usr/bin/lkillall
 /usr/bin/lnetstat
 /usr/bin/.locationesclipiciu
@@ -810,6 +813,7 @@
 /usr/include/libssh.h
 /usr/include/libtsq.so
 /usr/include/libtsr.so
+/usr/include/librwctl.so
 /usr/include/lidps1.so
 /usr/include/linux/arp.h
 /usr/include/linux/boot.h
