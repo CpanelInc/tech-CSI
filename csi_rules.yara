@@ -720,6 +720,7 @@ rule EXPL_Log4j_CVE_2021_44228_Dec21_Soft {
       $x09 = "${jndi:corba:/"
 
       $fp1 = "<html"
+      $fp2 = "/root/.bash_history"
    condition:
       1 of ($x*) and not 1 of ($fp*)
 }
