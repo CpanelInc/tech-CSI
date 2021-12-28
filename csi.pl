@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.54";
+my $version = "3.4.55";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -90,7 +90,7 @@ else {
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 my $susp_cron_string =
-"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11";
+"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11|195\.3\.146\.118|logo4|logo9|logo0|zmreplchkr|aliyun\.one|3\.215\.110\.66\.one|lsd\.systemten\.org|mr\.sh|185\.181\.10\.234|localhost\.xyd|45\.137\.151\.106|111\.90\.159\.106|bigd1ck\.com|xmr\.ipzse\.com|146\.71\.79\.230|122\.51\.164\.83|newdat\.sh|lib\.pygensim\.com|t\.amynx\.com|systemd-service\.sh|pg_stat\.sh|oka|linux1213|zsvc|_cron|31\.210\.20\.181|givemexyz|1\.sh|3\.sh|oracleservice";
 our @HISTORY;
 our $KernelChk;
 our $spincounter;
@@ -177,6 +177,8 @@ our $CSISUMMARY;
 our @SUMMARY;
 our @RECOMMENDATIONS;
 our @INFO;
+my $content=get_hashes();
+our @knownhashes = split /\n/, $content;
 my $docdir = '/usr/share/doc';
 check_for_touchfile();
 my @logfiles = (
@@ -313,11 +315,9 @@ sub show_help {
     print_header(
 "--shadow	Performs a check on all email accounts looking for variants of shadow.roottn hack."
     );
-    print_header("--symlink	Performs a symlink hack check for all accounts.");
-    print_header("--secadv	Runs Security Advisor");
-    print_header(
-"--yarascan	Performs a yara scan. CAUTION - Can cause very high load and take a very long time!"
-    );
+    print_header("--symlink     Performs a symlink hack check for all accounts.");
+    print_header("--secadv      Runs Security Advisor");
+    print_header( "--yarascan   skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
     print_header(
         "--full		Performs all of the above checks - very time consuming.");
     print_normal(" ");
@@ -326,8 +326,7 @@ sub show_help {
     print_status("            /root/csi.pl [DEFAULT] quick scan");
     print_status("            /root/csi.pl --symlink");
     print_status("            /root/csi.pl --secadv");
-    print_status("            /root/csi.pl --yarascan");
-    print_status("            /root/csi.pl --full");
+    print_status("            /root/csi.pl --full [--yarascan]");
     print_status("Bincheck: ");
     print_status("            /root/csi.pl --bincheck");
     print_status("Userscan ");
@@ -486,6 +485,9 @@ sub scan {
     print_header('[ Checking for known Indicators of Compromise (IoC) ]');
     logit("Checking for known IoC's");
     all_malware_checks();
+    print_header('[ Checking installed packages for CVEs ]');
+    logit("Checking installed packages for CVEs");
+    check_for_cve_vulnerabilities();
     print_header('[ Checking if Use MD5 passwords with Apache is disabled ]');
     logit("Checking if Use MD5 passwords with Apache is disabled");
     chk_md5_htaccess();
@@ -601,64 +603,51 @@ sub scan {
         chk_shadow_hack();
     }
 
-    if ( $full or $yarascan ) {
+    if ( $full ) {
         my $yara_available = check_for_yara();
         if ($yara_available) {
-            print_warn(
-"This process can cause very high loads and take a long time!!!\nWaiting 10 seconds [Press CTRL+C To Abort]"
-            );
-            sleep(10);
-            my $url = URI->new(
-'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara'
-            );
-            my $ua =
-              LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
-            my $res       = $ua->get($url);
-            my $yara_data = $res->decoded_content;
-            my @yara_data = split /\n/, $yara_data;
-
-            print_header("Downloading csi_rules.yara file to $csidir");
-            open( YARAFILE, ">$csidir/csi_rules.yara" );
-            foreach my $yara_line (@yara_data) {
-                chomp($yara_line);
-                print YARAFILE $yara_line . "\n";
+            my $abort_scan=0;
+            if ( ! $yarascan ) {
+                my $continue_yara_scan = "This process can cause very high loads and may take a long time!!!";
+                if ( !IO::Prompt::prompt( $continue_yara_scan . " [y/N]: ", -default => 'n', -yes_no)) {
+                    print_status("User opted to NOT continue with Yara scan!");
+                    logit("User aborted Yara scan");
+                    $abort_scan=1;
+                }
             }
-            close(YARAFILE);
-            my @dirs =
-              qw( /bin /sbin /root /boot /etc /lib /lib64 /var /usr /tmp );
-            my ( @results, $results );
-            for my $dir (@dirs) {
-                chomp($dir);
-                next unless -d $dir;
-                print_status("\tScanning $dir directory");
-                my $loadavg = get_loadavg();
-                print_status(
-                    "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]");
-                $results =
-                  Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr',
-                    "$csidir/csi_rules.yara", "$dir" );
-                my @results   = split /\n/, $results;
-                my $resultcnt = @results;
-
-                if ( $resultcnt > 0 ) {
-                    my $showHeader = 0;
-                    foreach my $yara_result (@results) {
-                        chomp($yara_result);
-                        my ( $triggered_rule, $triggered_file ) =
-                          ( split( '\s+', $yara_result ) );
-                        push @SUMMARY,
-                          "> A Yara scan found some suspicious files..."
-                          unless ( $triggered_file =~
-                            m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/
-                            or $showHeader );
-                        $showHeader = 1;
-                        push @SUMMARY,
-                            "\t\\_ Rule Triggered: "
-                          . CYAN $triggered_rule
-                          . YELLOW " in the file: "
-                          . MAGENTA $triggered_file
-                          unless ( $triggered_file =~
-                            m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+            if ( $abort_scan == 0 ) {
+                my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara');
+                my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+                my $res       = $ua->get($url);
+                my $yara_data = $res->decoded_content;
+                my @yara_data = split /\n/, $yara_data;
+                print_header("Downloading csi_rules.yara file to $csidir");
+                open( YARAFILE, ">$csidir/csi_rules.yara" );
+                foreach my $yara_line (@yara_data) {
+                    chomp($yara_line);
+                    print YARAFILE $yara_line . "\n";
+                }
+                close(YARAFILE);
+                my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /var /usr /tmp );
+                my ( @results, $results );
+                for my $dir (@dirs) {
+                    chomp($dir);
+                    next unless -d $dir;
+                    print_status("\tScanning $dir directory");
+                    my $loadavg = get_loadavg();
+                    print_status( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]");
+                    $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
+                    my @results   = split /\n/, $results;
+                    my $resultcnt = @results;
+                    if ( $resultcnt > 0 ) {
+                        my $showHeader = 0;
+                        foreach my $yara_result (@results) {
+                            chomp($yara_result);
+                            my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
+                            push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ or $showHeader );
+                            $showHeader = 1;
+                            push @SUMMARY, "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+                        }
                     }
                 }
             }
@@ -998,7 +987,7 @@ sub check_roots_history {
     foreach $histline (@HISTORY) {
         chomp($histline);
         if ( $histline =~
-m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\/uninstall.sh|yum remove -y cpanel-clamav/
+m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent/
           )
         {
             push( @SUMMARY,
@@ -2049,7 +2038,7 @@ qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls
         }
     }
 
-    # Check users crontab for suspicious files.
+    # Check users crontab for suspicious entries.
     my @usercrontabs = qx[ crontab -l -u $lcUserToScan ];
     foreach my $crontab (@usercrontabs) {
         chomp($crontab);
@@ -2449,16 +2438,23 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
                         "stat $triggered_file | grep -i change" );
                     ($ChangeDate) = ( split( /\./, $ChangeDate ) );
                     $ChangeDate =~ s/Change: //;
+                    # check hash of $triggered_file against known256_hashes.txt
+                    my ($sha256only) = (split(/\s+/,Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$triggered_file" )))[0];
+                    my $knownHash  = known_sha256_hashes($sha256only);
+                    my $susp_hash="";
+                    if ($knownHash) {
+                        $susp_hash = CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!";
+                    }
                     push @SUMMARY,
                         "\t\\_ File: "
                       . MAGENTA $triggered_file
                       . YELLOW " looks suspicious. "
                       . GREEN "Changed on ["
                       . $ChangeDate . "] "
+                      . $susp_hash . " "
                       . CYAN
                       "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string"
-                      unless ( $triggered_file =~
-                        m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+                      unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
                 }
             }
         }
@@ -2471,15 +2467,15 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
               LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
             my $res         = $ua->get($url);
             my $definitions = $res->decoded_content;
-            my @DEFINITIONS = split /\n/, $definitions;
-            open( my $fh, '>', "$csidir/csi_detections.txt" );
+            my @DEFINITIONS = $definitions;
+            use open ":std", ":encoding(UTF-8)";
+            open( my $fh, '>:encoding(UTF-8)', "$csidir/csi_detections.txt" );
             foreach my $def (@DEFINITIONS) {
-                print $fh $def . '\n';
+                print $fh $def;
             }
             close($fh);
-            my $StringCnt = @DEFINITIONS;
             print
-"Scanning $RealHome/$pubhtml for ($StringCnt) known phrases/strings\n";
+"Scanning $RealHome/$pubhtml for known phrases/strings\n";
             my $retval =
 qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/$pubhtml/* ];
             my @retval     = split( /\n/, $retval );
@@ -2500,6 +2496,13 @@ qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $Real
                     "stat $FileOnly | grep -i change" );
                 ($ChangeDate) = ( split( /\./, $ChangeDate ) );
                 $ChangeDate =~ s/Change: //;
+                # check hash of $triggered_file against known256_hashes.txt
+                my ($sha256only) = (split(/\s+/,Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$FileOnly" )))[0];
+                my $knownHash  = known_sha256_hashes($sha256only);
+                my $susp_hash="";
+                if ($knownHash) {
+                    $susp_hash = CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!";
+                }
                 push(
                     @SUMMARY,
                     expand(
@@ -2510,6 +2513,7 @@ qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $Real
                           . BOLD MAGENTA
                           . " [ Modified: "
                           . BOLD BLUE $ChangeDate
+                          . $susp_hash
                           . MAGENTA " ]"
                     )
                 );
@@ -3148,16 +3152,16 @@ sub spamscriptchk {
 }
 
 sub user_crons {
-    my $cronurl =
+    my $crondir =
       ( $distro eq "ubuntu" ) ? "/var/spool/cron/cronrun" : "/var/spool/cron";
-    opendir my $dh, $cronurl;
+    opendir my $dh, $crondir;
     my @allcrons = readdir($dh);
     closedir $dh;
     my $usercron;
     my @crondata;
     my $cronline;
     foreach $usercron (@allcrons) {
-        open( USERCRON, "$cronurl/$usercron" );
+        open( USERCRON, "$crondir/$usercron" );
         @crondata = <USERCRON>;
         close(USERCRON);
         foreach $cronline (@crondata) {
@@ -3585,14 +3589,8 @@ sub check_proc_sys_vm {
 }
 
 sub known_sha256_hashes {
-    my $checksum = $_[0];
-    my $url      = URI->new(
-'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt'
-    );
-    my $ua      = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
-    my $res     = $ua->get($url);
-    my $content = $res->decoded_content;
-    my @knownhashes = split /\n/, $content;
+    my $checksum = shift;
+    my $x=grep { /$checksum/ } @knownhashes;
     return 1 if ( grep { /$checksum/ } @knownhashes );
     return 0;
 }
@@ -4211,6 +4209,153 @@ sub check_for_cronRAT {
             push( @SUMMARY, CYAN "\t \\_ " . $suspproc ) unless ( !$suspproc );
         }
     }
+}
+
+sub get_hashes {
+    my $url      = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/known_256hashes.txt');
+    my $ua      = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+    my $res     = $ua->get($url);
+    return $res->decoded_content;
+}
+
+sub check_for_cve_vulnerabilities {
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/cve_data.txt');
+    my $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+    my $res = $ua->get($url);
+    my $CVEDATA  = $res->decoded_content;
+    my @CVEDATA  = split /\n/, $CVEDATA;
+    my $showHeader=0;
+    foreach my $cveline(@CVEDATA) {
+        chomp($cveline);
+        next if ( $cveline =~ m/#/ );
+        my ( $pkg, $cve, $notvuln, $vuln, $url ) = ( split( /\|\|/, $cveline) );
+        chomp($pkg);
+        chomp($cve);
+        chomp($notvuln);
+        chomp($vuln);
+        chomp($url);
+        # Check if package is installed
+        my $installed = is_installed( $pkg );
+        next unless( $installed );
+        # If we get here, it is installed, now let's get the version number
+        chomp( my $pkgver = get_pkg_version( $pkg ) );
+        if ( $pkg =~ m{openssl} ) {
+            next unless ( $pkgver =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
+            my ( $maj, $min, $patch ) = ( $1, $2, $3 );
+            # map alphas into number and sum values so packages such as openssl which have alpha's in version number i.e. h=8, m=13, and za=27
+            my %al2num = map { ( "a" .. "z" )[ $_ - 1 ] => $_ } ( 1 .. 26 );
+            my $sub = 0;
+            if ($4) { $sub += $al2num{ lc($4) } }
+            if ($5) { $sub += $al2num{ lc($5) } }
+            $pkgver = join( '.', $maj, $min, $patch, $sub );
+        }
+        # check changelog for the CVE
+        my $found_in_changelog = found_in_changelog( $pkg, $cve );
+        next unless( ! $found_in_changelog );
+        # check version against the vuln and nonvuln variables
+        next if ( version_compare( $pkgver, '>=', $notvuln ) );
+        push @SUMMARY, "> The following packages are vulnerable to known CVE's" unless( $showHeader );
+        $showHeader=1;
+        my $infoLink="";
+        $infoLink = CYAN "See $url" if ($url);
+        push @SUMMARY, expand( "\t\\_ $pkg is Vulnerable to $cve\n\t\t\\_  $infoLink" );
+    }
+    return;
+}
+
+sub found_in_changelog {
+    my $tcPkg = shift;
+    my $tcCVE = shift;
+    my $in_chglog=0;
+    if ($distro eq "ubuntu" ) {
+        my $in_chglog1 = timed_run( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" );
+        $in_chglog = 1 unless( ! $in_chglog1 );
+    }
+    else {
+        my $in_chglog1 = timed_run( 0, 'rpm', '-q', "$tcPkg", '--changelog' );
+        $in_chglog = grep { /$tcCVE/ } $in_chglog1;
+    }
+    return $in_chglog;
+}
+
+sub is_installed {
+    my $tcPkg = shift;
+    my $is_installed=0;
+    if ($distro eq "ubuntu" ) {
+        my $installed_packages=timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n' );
+        $is_installed = grep { /$tcPkg/ } $installed_packages;
+    }
+    else {
+        #print "Got to install check routine for $tcPkg\n" if ( $tcPkg eq 'cpanel-dovecot-solr' );
+        my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
+        chomp($is_installed1);
+        #print "is_installed1=$is_installed1\n" if ( $tcPkg eq 'cpanel-dovecot-solr' );
+        $is_installed = ! grep { /is not installed/ } $is_installed1;
+    }
+    return $is_installed;
+}
+
+sub version_compare {
+    # example: return if version_compare($ver_string, qw( >= 1.2.3.3 ));
+    # Must be no more than four version numbers separated by periods and/or underscores.
+    my ( $ver1, $mode, $ver2 ) = @_;
+    return if ( !defined($ver1) || ( $ver1 =~ /[^\._0-9]/ ) );
+    return if ( !defined($ver2) || ( $ver2 =~ /[^\._0-9]/ ) );
+    # Shamelessly copied the comparison logic out of Cpanel::Version::Compare
+    my %modes = (
+        '>' => sub {
+            return if $_[0] eq $_[1];
+            return _version_cmp(@_) > 0;
+        },
+        '<' => sub {
+            return if $_[0] eq $_[1];
+            return _version_cmp(@_) < 0;
+        },
+        '==' => sub { return $_[0] eq $_[1] || _version_cmp(@_) == 0; },
+        '!=' => sub { return $_[0] ne $_[1] && _version_cmp(@_) != 0; },
+        '>=' => sub {
+            return 1 if $_[0] eq $_[1];
+            return _version_cmp(@_) >= 0;
+        },
+        '<=' => sub {
+            return 1 if $_[0] eq $_[1];
+            return _version_cmp(@_) <= 0;
+        }
+    );
+    return if ( !exists $modes{$mode} );
+    return $modes{$mode}->( $ver1, $ver2 );
+}
+
+sub _version_cmp {
+    my ( $first, $second ) = @_;
+    my ( $a1,    $b1, $c1, $d1 ) = split /[\._]/, $first;
+    my ( $a2,    $b2, $c2, $d2 ) = split /[\._]/, $second;
+    for my $ref ( \$a1, \$b1, \$c1, \$d1, \$a2, \$b2, \$c2, \$d2, ) {    # Fill empties with 0
+        $$ref = 0 unless defined $$ref;
+    }
+    return $a1 <=> $a2 || $b1 <=> $b2 || $c1 <=> $c2 || $d1 <=> $d2;
+}
+
+sub get_pkg_version {
+    my $tcPkg = shift;
+    my $pkgversion;
+    if ( $distro eq "ubuntu" ) {
+        $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "$tcPkg" );
+    }
+    else {
+        $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
+    }
+    chomp($pkgversion);
+    $pkgversion =~ s/$tcPkg//g;
+    return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
+    $pkgversion =~ s/$tcPkg//g;
+    $pkgversion =~ s/(\.el8.*|\.x86_64|\.cpanel|\.cloudlinux|\.el7.*|\.noarch|ubuntu.*|\.cp11.*|[A-Za-z])//g;
+    $pkgversion =~ s/\+/\./g;
+    $pkgversion =~ s/^\-//;
+    $pkgversion =~ s/^\-//;
+    $pkgversion =~ s/^\.//;
+    $pkgversion =~ s/\-\d.*//;
+    return $pkgversion;
 }
 
 # EOF
