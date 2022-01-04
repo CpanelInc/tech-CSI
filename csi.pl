@@ -2437,6 +2437,9 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
                           ( split( '\s+', $yara_result ) );
                         $triggered_rule =~ s/_triggered//g;
                     }
+					if ( $triggered_rule =~ m/Rule_/ ) {
+						$triggered_string = YELLOW "See: " . BOLD BLUE "https://cpaneltech.ninja/cgi-bin/triggered.cgi?$triggered_rule";
+					}
                     my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3,
                         "stat $triggered_file | grep -i change" );
                     ($ChangeDate) = ( split( /\./, $ChangeDate ) );
@@ -2455,7 +2458,7 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
                       . GREEN "Changed on ["
                       . $ChangeDate . "] "
                       . $susp_hash . " "
-                      . CYAN
+                      . BOLD CYAN
                       "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string"
                       unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
                 }
