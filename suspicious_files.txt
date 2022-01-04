@@ -239,6 +239,7 @@
 /etc/ssh.tar
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
+/etc/systemb
 /etc/systemd/system/griphon.service
 /etc/systemd/system/myservice.service
 /etc/systemd/system/ntp.service
@@ -783,7 +784,6 @@
 /usr/include/diskmanagerd
 /usr/include/emacs.sh
 /usr/include/filearch.h
-/usr/include/file.h
 /usr/include/gpm2.h
 /usr/include/.h
 /usr/include/.helpdd
@@ -820,7 +820,6 @@
 /usr/include/linux/byteorder/ssh.h
 /usr/include/linux/netfilter/ssh.h
 /usr/include/linux/sys/sysp2.h
-/usr/include/log.h
 /usr/include/lwpin.h
 /usr/include/mbstring.h
 /usr/include/ncurse.h

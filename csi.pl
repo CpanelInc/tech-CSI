@@ -1,5 +1,5 @@
 #!/usr/local/cpanel/3rdparty/bin/perl
-# Copyright 2021, cPanel, L.L.C.
+# Copyright 2022, cPanel, L.L.C.
 # All rights reserved.
 # http://cpanel.net
 #
@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.55";
+my $version = "3.4.56";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2381,7 +2381,10 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         my $yara_available = check_for_yara();
         if ($yara_available) {
             my @yara_urls =
-              qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara );
+              qw( 
+	      	https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara 
+		https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara
+	      );
             print_header("Downloading yara rules to $csidir");
             my @data;
             for my $URL (@yara_urls) {

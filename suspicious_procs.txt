@@ -112,6 +112,7 @@ sshins
 stratum
 stratum.f2pool.com
 sustes
+systemb
 systemdo
 t00ls.ru
 /usr/bin/execute
