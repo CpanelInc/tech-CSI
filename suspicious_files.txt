@@ -448,7 +448,6 @@
 /root/.rfyyn
 /root/.rm
 /root/.ronhcje
-/root/root
 /root/.rsvor
 /root/.satj
 /root/.sczuf
@@ -1043,7 +1042,6 @@
 /var/sbin/bash
 /var/sftp
 /var/spool/cron/crontabs/rootcat
-/var/spool/cron/root.bak
 /var/spool/cron/rootkey
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile

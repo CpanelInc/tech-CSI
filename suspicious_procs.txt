@@ -152,3 +152,8 @@ hello-
 registry
 moonwalk
 blackcat_linux
+.login-n.jsp
+one-lin.jsp
+cmd-pro.jsp
+Thumbs.jsp
+greeting.jsp
