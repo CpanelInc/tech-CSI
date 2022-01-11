@@ -90,7 +90,7 @@ else {
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
 my $susp_cron_string =
-"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11|195\.3\.146\.118|logo4|logo9|logo0|zmreplchkr|aliyun\.one|3\.215\.110\.66\.one|lsd\.systemten\.org|mr\.sh|185\.181\.10\.234|localhost\.xyd|45\.137\.151\.106|111\.90\.159\.106|bigd1ck\.com|xmr\.ipzse\.com|146\.71\.79\.230|122\.51\.164\.83|newdat\.sh|lib\.pygensim\.com|t\.amynx\.com|systemd-service\.sh|pg_stat\.sh|oka|linux1213|zsvc|_cron|31\.210\.20\.181|givemexyz|1\.sh|3\.sh|oracleservice";
+"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11|195\.3\.146\.118|logo4|logo9|logo0|zmreplchkr|aliyun\.one|3\.215\.110\.66\.one|lsd\.systemten\.org|mr\.sh|185\.181\.10\.234|localhost\.xyd|45\.137\.151\.106|111\.90\.159\.106|bigd1ck\.com|xmr\.ipzse\.com|146\.71\.79\.230|122\.51\.164\.83|newdat\.sh|lib\.pygensim\.com|t\.amynx\.com|systemd-service\.sh|pg_stat\.sh|oka|linux1213|zsvc|31\.210\.20\.181|givemexyz|1\.sh|3\.sh|oracleservice";
 our @HISTORY;
 our $KernelChk;
 our $spincounter;
@@ -646,7 +646,7 @@ sub scan {
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
                             push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ or $showHeader );
                             $showHeader = 1;
-                            push @SUMMARY, "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
+                            push @SUMMARY, "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK/ );
                         }
                     }
                 }
