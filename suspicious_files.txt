@@ -5,6 +5,7 @@
 /bin/config.txt
 /bin/cpu.txt
 /bin/crondr
+/bin/dockerlogger
 /bin/ftpsdns
 /bin/gmbpr
 /bin/home
@@ -189,6 +190,7 @@
 /etc/init.d/syslogd
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
+/etc/iptablesupdate
 /etc/.ip
 /etc/ksapd
 /etc/ksapdd
@@ -260,6 +262,9 @@
 /home/.local
 /home/ ./root
 /home//.ssh/authorized_keys
+/.Library/SystemServices/updateSystem
+/.Library/SystemNetwork
+/.Library/log.txt
 /lib64/libgrubd.so
 /lib64/libhdx.so
 /lib64/libkeystats.so
@@ -360,6 +365,7 @@
 /proc/rtkit
 /rescue/mount_fs
 /root/.a
+/root/aaa.log
 /root/ap.sh
 /root/.asmon
 /root/.bde
@@ -532,6 +538,7 @@
 /tmp/cid.php
 /tmp/cifsd
 /tmp/.cinik
+/tmp/configUpdate.tar.gz
 /tmp/config.json
 /tmp/conn
 /tmp/conns
@@ -598,7 +605,9 @@
 /tmp/kinsing
 /tmp/kworkerds
 /tmp/libapache
+/tmp/libselinux.0
 /tmp/linux.lock
+/tmp/Linux64-shell
 /tmp/.local/[a-zA-Z0-9]+
 /tmp/.main
 /tmp/mcliZokhb
@@ -689,6 +698,7 @@
 /usr/bin/bsd-port
 /usr/bin/bsd-port/getty
 /usr/bin/bsd-port/knerl
+/usr/bin/cdt
 /usr/bin/chsh2
 /usr/bin/cleaner
 /usr/bin/_-config
@@ -696,6 +706,7 @@
 /usr/bin/ddc
 /usr/bin/.etc
 /usr/bin/execute
+/usr/bin/dockerlogger
 /usr/bin/gib
 /usr/bin/iproute.ko
 /usr/bin/ishit
@@ -761,6 +772,7 @@
 /usr/bin/util
 /usr/bin/vadim
 /usr/bin/volc
+/usr/bin/wdt
 /usr/bin/where
 /usr/bin/xchk
 /usr/bin/xsf
@@ -925,6 +937,7 @@
 /usr/local/cwpsrv
 /usr/local/include/uconf.h
 /usr/local/lib/libjdk.so
+/usr/local/lib/libprocesshider.so
 /usr/local/sbin/bin/bash.pid
 /usr/local/sbin/bin/config.json
 /usr/local/sbin/bin/cron.d
@@ -938,6 +951,7 @@
 /usr/local/sbin/bin/t
 /usr/local/sbin/bin/upd
 /usr/local/share/man/man1/Openssh.1
+/usr/local/src/services
 /usr/local/__UMBREON__
 /usr/local/UMBREON
 /usr/man/.man10
