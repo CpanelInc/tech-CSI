@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.56";
+my $version = "3.4.57";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -47,8 +47,7 @@ use HTTP::Tiny;
 use Cpanel::Exception      ();
 use Cpanel::FindBin        ();
 use Cpanel::Version        ();
-use Cpanel::Kernel         ();
-use Cpanel::KernelCare     ();
+use Cpanel::Kernel::Status ();
 use Cpanel::IONice         ();
 use Cpanel::PwCache        ();
 use Cpanel::PwCache::Get   ();
@@ -89,10 +88,9 @@ else {
 
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
-my $susp_cron_string =
-"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11|195\.3\.146\.118|logo4|logo9|logo0|zmreplchkr|aliyun\.one|3\.215\.110\.66\.one|lsd\.systemten\.org|mr\.sh|185\.181\.10\.234|localhost\.xyd|45\.137\.151\.106|111\.90\.159\.106|bigd1ck\.com|xmr\.ipzse\.com|146\.71\.79\.230|122\.51\.164\.83|newdat\.sh|lib\.pygensim\.com|t\.amynx\.com|systemd-service\.sh|pg_stat\.sh|oka|linux1213|zsvc|31\.210\.20\.181|givemexyz|1\.sh|3\.sh|oracleservice";
+#my $susp_cron_string =
+#"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11|195\.3\.146\.118|logo4|logo9|logo0|zmreplchkr|aliyun\.one|3\.215\.110\.66\.one|lsd\.systemten\.org|mr\.sh|185\.181\.10\.234|localhost\.xyd|45\.137\.151\.106|111\.90\.159\.106|bigd1ck\.com|xmr\.ipzse\.com|146\.71\.79\.230|122\.51\.164\.83|newdat\.sh|lib\.pygensim\.com|t\.amynx\.com|systemd-service\.sh|pg_stat\.sh|oka|linux1213|zsvc|31\.210\.20\.181|givemexyz|1\.sh|3\.sh|oracleservice|.Library/SystemServices/updateSystem|fczyo-cron";
 our @HISTORY;
-our $KernelChk;
 our $spincounter;
 our $CPANEL_CONFIG_FILE = q{/var/cpanel/cpanel.config};
 my $conf             = Cpanel::Config::LoadWwwAcctConf::loadwwwacctconf();
@@ -462,7 +460,7 @@ sub scan {
     print_normal('');
     print_header("[ Available flags when running csi.pl scan ]");
     print_header(
-        MAGENTA '[     --full Performs a more compreshensive scan ]' );
+        MAGENTA '[     --full Performs a more compreshensive scan (includes the options below)]' );
     print_header( MAGENTA
 '[     --shadow Scans all accounts for variants of shadow.roottn email hack ]'
     );
@@ -478,7 +476,7 @@ sub scan {
     check_uids();
     print_header('[ Checking /etc/passwd file for suspicious users ]');
     logit("Checking /etc/passwd for suspicious users");
-    check_for_suspicious_user('ferrum');
+    check_for_suspicious_user();
     print_header('[ Checking /etc/hosts file for suspicious entries ]');
     logit("Checking /etc/hosts for suspicious entries");
     check_hosts_file();
@@ -568,11 +566,11 @@ sub scan {
     logit("Checking for ransomwareEXX");
     check_for_ransomwareEXX();
 
-    if ( -e "/etc/grub.conf" ) {
+#    if ( -e "/etc/grub.conf" ) {
         print_header('[ Checking kernel status ]');
         logit("Checking kernel status");
         check_kernel_updates();
-    }
+#    }
     print_header(
         '[ Checking for suspicious MySQL users (Including Super privileges) ]');
     logit("Checking for suspicious MySQL users including Super privileges");
@@ -719,90 +717,20 @@ sub check_previous_scans {
 }
 
 sub check_kernel_updates {
-    return
-      if (
-        Cpanel::Version::compare(
-            Cpanel::Version::getversionnumber(),
-            '<', '11.68'
-        )
-      );
-    my $CanModify = Cpanel::Kernel::can_modify_kernel();
-    my $boot_kernelversion;
-    if (
-        Cpanel::Version::compare(
-            Cpanel::Version::getversionnumber(),
-            '>', '11.96'
-        )
-      )
-    {
-        eval("use Cpanel::Kernel::GetDefault");
-        $boot_kernelversion = Cpanel::Kernel::GetDefault::get();
-    }
-    else {
-        $boot_kernelversion = Cpanel::Kernel::get_default_boot_version();
-    }
-    my $running_kernelversion = Cpanel::Kernel::get_running_version();
-    my $custom_kernel         = 0;
-    if ( $running_kernelversion !~ m/\.(?:noarch|x86_64|i[3-6]86)$/ ) {
-        $custom_kernel = 1;
-    }
-    my $has_kernelcare = 0;
-    if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates()
-      )
-    {
-        $has_kernelcare = 1;
-    }
-    my $reboot_required = 0;
-    if ( $running_kernelversion ne $boot_kernelversion ) {
-        $reboot_required = 1;
-    }
-    if ($custom_kernel) {
-        push @SUMMARY,
-          "> You have a custom kernel installed [ $running_kernelversion ]";
-        return;
-    }
-    if ($has_kernelcare) {
-        if ($reboot_required) {
-            if ($CanModify) {
-                push @SUMMARY,
-"> KernelCare installed but running kernel version does not match boot version (run kcarectl --update or reboot):";
-                push @SUMMARY, CYAN "\t \\_ Running Version: [ "
-                  . $running_kernelversion . " ]";
-                push @SUMMARY,
-                  CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
-            }
-            else {
-                push @SUMMARY,
-"> KernelCare installed but running kernel version does not match boot version (contact provider):";
-                push @SUMMARY, CYAN "\t \\_ Running Version: [ "
-                  . $running_kernelversion . " ]";
-                push @SUMMARY,
-                  CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
-                push @SUMMARY,
-                  CYAN "\t \\_ Please check with your VM provider.";
-            }
+    return if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.68'));
+    my $KernelStatus = Cpanel::Kernel::Status::kernel_status();
+    if ( $KernelStatus->{has_kernelcare} ) {
+        if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
+            push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
+            push @SUMMARY, CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]";
+            push @SUMMARY, CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]";
         }
     }
     else {
-        if ($reboot_required) {
-            if ($CanModify) {
-                push @SUMMARY,
-"> KernelCare not installed and running kernel version does not match boot version (reboot required):";
-                push @SUMMARY, CYAN "\t \\_ Running Version: [ "
-                  . $running_kernelversion . " ]";
-                push @SUMMARY,
-                  CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
-            }
-            else {
-                push @SUMMARY,
-"> KernelCare not installed and running kernel version does not match boot version (contact provider):";
-                push @SUMMARY, CYAN "\t \\_ Running Version: [ "
-                  . $running_kernelversion . " ]";
-                push @SUMMARY,
-                  CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]";
-                push @SUMMARY,
-                  CYAN "\t \\_ Please check with your VM provider.";
-            }
+        if ( $KernelStatus->{reboot_required} ) {
+            push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
+            push @RECOMMENDATIONS, CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]";
+            push @RECOMMENDATIONS, CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]";
         }
     }
     logit("Kernel status check completed.");
@@ -1008,24 +936,18 @@ sub check_processes {
     my $headerPrint = 0;
     foreach my $suspicious_process (@susp_procs) {
         chomp($suspicious_process);
-        if ( my %procs = grep_process_cmd( $suspicious_process, 'root' ) ) {
-            next
-              if ( $suspicious_process eq "sleep 30"
-                && -e '/usr/local/sbin/maldet' );
-            push @SUMMARY,
-              "> The following suspicious process was found (please verify)"
-              unless ( $headerPrint == 1 );
-            $headerPrint = 1;
-            push @SUMMARY, CYAN "\t\\_ " . join(
-                "\t\\_ ",
-                map {
-                    my ( $u, $c, $a ) =
-                      @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' };
-                    "[pid: $_] [user: $u] [cmd: $c] [args: $a]"
-                } keys %procs
-            );
-        }
+        next if ( my %procs = grep_process_cmd( $suspicious_process, 'root' ) );
+        next unless ( _ignore_susp_proc( $suspicious_process ) );
+        push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
+        $headerPrint = 1;
+        push @SUMMARY, CYAN "\t\\_ " . join( "\t\\_ ", map { my ( $u, $c, $a ) = @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' }; "[pid: $_] [user: $u] [cmd: $c] [args: $a]" } keys %procs);
     }
+}
+
+sub _ignore_susp_proc {
+    my $tcProc = shift;
+    return 1 if ( $tcProc =~ m{log4j} && -e '/usr/bin/log4j-cve-2021-44228-hotpatch' );
+    return 0;
 }
 
 sub bitcoin_chk {
@@ -2039,13 +1961,15 @@ qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls
     }
 
     # Check users crontab for suspicious entries.
-    my @usercrontabs = qx[ crontab -l -u $lcUserToScan ];
-    foreach my $crontab (@usercrontabs) {
-        chomp($crontab);
-        if ( $crontab =~ m/$susp_cron_string/ ) {
-            push @SUMMARY,
-"> $lcUserToScan crontab contains a suspicious entry that should be investigated";
-            push @SUMMARY, "\t\\_ $crontab";
+    my @susp_cron_strings;
+    my $susp_crons_ref = get_suspicious_cron_strings();
+    push @susp_cron_strings, @$susp_crons_ref;
+    my @usercrontab = Cpanel::SafeRun::Timed::timedsaferun( 3, 'crontab', '-l', '-u', "$lcUserToScan" );
+    foreach my $susp_cron_string (@susp_cron_strings) {
+        chomp($susp_cron_string);
+        if ( grep { /$susp_cron_string/ } @usercrontab ) {
+            push @SUMMARY, "> $lcUserToScan crontab contains a suspicious entry that should be investigated";
+            push @SUMMARY, expand( CYAN "\t\\_ $susp_cron_string" );
         }
     }
 
@@ -2842,40 +2766,45 @@ sub misc_checks {
     }
 
     return unless my @crons_aref = get_cron_files();
+    my @susp_cron_strings;
+    my $susp_crons_ref = get_suspicious_cron_strings();
+    push @susp_cron_strings, @$susp_crons_ref;
     my @cronContains = undef;
     my $isImmutable  = "";
+    my ( $roots_crontab_file ) = ( $distro ne "ubuntu" ) ? '/var/spool/cron/root' : '/var/spool/cron/crontabs/root';
     for my $cron (@crons_aref) {
-        if ( $cron eq "/var/spool/cron/root" ) {
-            my $rootscron =
-              Cpanel::SafeRun::Timed::timedsaferun( 5, 'crontab', '-u', 'root',
-                '-l' );
+        if ( $cron eq $roots_crontab_file ) {
+            my $rootscron = Cpanel::SafeRun::Timed::timedsaferun( 5, 'crontab', '-l' );
             my @rootscron = split( /\n/, $rootscron );
             my $croncnt   = @rootscron;
             if ( $croncnt < 15 ) {
-                push @SUMMARY,
-"Root's crontab contains less than 15 lines (not normal for cPanel servers), could indicate a root compromise";
+                push @SUMMARY, "> Root's crontab contains less than 15 lines (not normal for cPanel servers), could indicate a root compromise";
+            }
+            if ( -z $cron ) {
+                push @SUMMARY, "> Root's crontab is empty!\n\t\\_ Should never happen on a cPanel server and indicates a possible root compromise";
             }
         }
-        if ( $cron eq "/var/spool/cron/root" and ( -z $cron ) ) {
-            push @SUMMARY,
-"> Root's crontab is empty!\n\t\\_ Should never happen on a cPanel server\n\t\\_ indicates possible root compromise";
-        }
         $isImmutable = isImmutable($cron);
+        my $attr = isImmutable($cron);
+        if ($attr) {
+            $isImmutable = MAGENTA "[IMMUTABLE]";
+        }
+        else { 
+            $isImmutable = "";
+        }
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                if ( $_ =~ m/$susp_cron_string/ ) {
-                    $isImmutable = "";
-                    my $attr = isImmutable($cron);
-                    if ($attr) {
-                        $isImmutable = MAGENTA " [IMMUTABLE]";
+                foreach my $susp_cron_string (@susp_cron_strings) {
+                    chomp($susp_cron_string);
+                    if ( $_ =~ m{$susp_cron_string} ) {
+                        push @cronContains,
+                            CYAN "\t \\_ "
+                        . $cron
+                        . "\n\t\t \\_ Contains: [ "
+                        . RED $_
+                        . CYAN " ] $isImmutable";
                     }
-                    push @cronContains,
-                        CYAN "\t \\_ "
-                      . $cron
-                      . "\n\t\t \\_ Contains: [ "
-                      . RED $_
-                      . CYAN " ] $isImmutable";
                 }
             }
             close $cron_fh;
@@ -3158,14 +3087,16 @@ sub spamscriptchk {
 }
 
 sub user_crons {
-    my $crondir =
-      ( $distro eq "ubuntu" ) ? "/var/spool/cron/cronrun" : "/var/spool/cron";
+    my $crondir = ( $distro eq "ubuntu" ) ? "/var/spool/cron/crontabs" : "/var/spool/cron";
     opendir my $dh, $crondir;
     my @allcrons = readdir($dh);
     closedir $dh;
     my $usercron;
     my @crondata;
     my $cronline;
+    my @susp_cron_strings;
+    my $susp_crons_ref = get_suspicious_cron_strings();
+    push @susp_cron_strings, @$susp_crons_ref;
     foreach $usercron (@allcrons) {
         open( USERCRON, "$crondir/$usercron" );
         @crondata = <USERCRON>;
@@ -3179,12 +3110,15 @@ sub user_crons {
                   . CYAN " user account:"
                   . YELLOW "\n\t\\_ $cronline";
             }
-            if ( $cronline =~ m/$susp_cron_string/ ) {
-                push @SUMMARY,
-                    CYAN "> Found suspicious cron entry in the "
-                  . MAGENTA $usercron
-                  . CYAN " user account:"
-                  . YELLOW "\n\t\\_ $cronline";
+            foreach my $susp_cron_string (@susp_cron_strings) {
+                chomp($susp_cron_string);
+                if ( $cronline =~ m{$susp_cron_string} ) {
+                    push @SUMMARY,
+                        CYAN "> Found suspicious cron entry in the "
+                    . MAGENTA $usercron
+                    . CYAN " user account:"
+                    . YELLOW "\n\t\\_ $cronline";
+                }
             }
         }
     }
@@ -4011,19 +3945,14 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my $susp_user = shift;
-    chomp($susp_user);
-    return
-      unless (
-        Cpanel::SafeRun::Timed::timedsaferun(
-            5, 'grep', "$susp_user", '/etc/passwd'
-        )
-      );
-    push @SUMMARY,
-        "> Found suspicious user "
-      . CYAN $susp_user
-      . YELLOW
-      " in /etc/passwd file, indicates possible DarkRadiation ransomware";
+    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o );
+    foreach my $user(@users_to_lookfor) {
+        chomp($user);
+        my $id_found = Cpanel::SafeRun::Timed::timedsaferun( 5, "id $user 2>/dev/null" );
+        if ( $id_found ) {
+            push @SUMMARY, "> Found suspicious user " . CYAN $user . YELLOW " in /etc/passwd file.";
+        }
+    }
 }
 
 sub check_hosts_file {
@@ -4362,6 +4291,15 @@ sub get_pkg_version {
     $pkgversion =~ s/^\.//;
     $pkgversion =~ s/\-\d.*//;
     return $pkgversion;
+}
+
+sub get_suspicious_cron_strings {
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_cron_strings.txt');
+    my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+    my $res       = $ua->get($url);
+    my $susp_cron_strings = $res->decoded_content;
+    my @susp_cron_strings = split /\n/, $susp_cron_strings;
+    return \@susp_cron_strings;
 }
 
 # EOF
