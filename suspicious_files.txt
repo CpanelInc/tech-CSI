@@ -1051,6 +1051,7 @@
 /var/run/sshd/sshd.pid
 /var/run/.ssh.pid
 /var/run/.tmp
+/var/run/udev.pid
 /var/run/udevd.pid
 /var/run/udev/ud.pid
 /var/sbin/bash
