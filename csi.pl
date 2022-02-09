@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.4.57";
+my $version = "3.5.0";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -39,7 +39,9 @@ use Text::Tabs;
 $tabstop = 4;
 use File::Basename;
 use File::Path;
+use File::Find;
 use File::stat;
+use File::Slurp;
 use IO::Prompt;
 use LWP::UserAgent;
 use DateTime;
@@ -54,7 +56,6 @@ use Cpanel::PwCache::Get   ();
 use Cpanel::SafeRun::Timed ();
 use List::MoreUtils qw(uniq);
 use Math::Round;
-use File::Find::Rule;
 use POSIX;
 use Getopt::Long;
 use Path::Iterator::Rule;
@@ -118,8 +119,8 @@ my (
     %ipcs,         $distro,  $distro_version, $distro_major,
     $distro_minor, $ignoreload
 );
-&get_process_pid_hash( \%process );
-&get_ipcs_hash( \%ipcs );
+get_process_pid_hash( \%process );
+get_ipcs_hash( \%ipcs );
 if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
 
     # up to 94
@@ -254,7 +255,6 @@ print_header(
     "Checking for RPM database corruption and repairing as necessary...")
   unless ( $distro eq "ubuntu" );
 
-#my $findRPMissues   = qx[ /usr/local/cpanel/scripts/find_and_fix_rpm_issues ] unless($distro eq "ubuntu");
 my $findRPMissues =
   Cpanel::SafeRun::Timed::timedsaferun( 0,
     '/usr/local/cpanel/scripts/find_and_fix_rpm_issues' )
@@ -370,28 +370,28 @@ sub bincheck {
         '/usr/bin/chage',                   '.M.......',
     );
     my @BINARIES;
-    my $rpmline;
     my $verify_string;
     my $verify;
     my $binary;
     my $binaryline;
 
-# We skip cpanel and ea- provided RPM's since those are checked via /usr/local/cpanel/scripts/check_cpanel_rpms
-# CentOS 6 apparently installs RPM in /bin/rpm (why this hasn't failed on a C6 server before now is a mystery)
-    my $whichRPM = Cpanel::FindBin::findbin('rpm');
-    my @RPMS =
-qx[ $whichRPM -qa --qf "%{NAME}\n" | egrep -v "^(ea-|cpanel|kernel)" | sort -n | uniq ];
-    my $RPMcnt = @RPMS;
+    return unless my $rpms = get_rpm_href();
+    my @rpms=split /\n/, $rpms;
+    my $RPMcnt = @rpms;
     print_status( 'Done - Found: ' . $RPMcnt . ' RPMs to verify' );
     print_header('[ Verifying RPM binaries - This may take some time... ]');
     logit("Verifying RPM binaries");
 
-    foreach $rpmline (@RPMS) {
+    #foreach my $rpmline (@RPMS) {
+    foreach my $rpmline (@rpms) {
         chomp($rpmline);
-        $verify = qx[ $whichRPM -V $rpmline | egrep "/(s)?bin" ];
+        # We skip cpanel and ea- provided RPM's since those are checked via /usr/local/cpanel/scripts/check_cpanel_pkgs
+        next if ( $rpmline =~ m/^(ea-|cpanel)/ );
+        $verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-V', $rpmline );
         chomp($verify);
         spin();
-        push( @BINARIES, $verify ) unless ( $verify eq "" );
+        #push( @BINARIES, $verify ) unless ( $verify eq "" );
+        push( @BINARIES, $verify ) unless ( $verify eq "" or ! $verify =~ m{bin|sbin} );
     }
     foreach $binaryline (@BINARIES) {
         chomp($binaryline);
@@ -486,6 +486,9 @@ sub scan {
     print_header('[ Checking installed packages for CVEs ]');
     logit("Checking installed packages for CVEs");
     check_for_cve_vulnerabilities();
+    print_header('[ Checking if polkit/policykit has been exploited by CVE-2021-4034 ]');
+    logit("Checking if polkit/policykit has been exploited by CVE-2021-403");
+    check_for_cve_2021_4034();
     print_header('[ Checking if Use MD5 passwords with Apache is disabled ]');
     logit("Checking if Use MD5 passwords with Apache is disabled");
     chk_md5_htaccess();
@@ -580,10 +583,6 @@ sub scan {
     print_header('[ Checking for unowned files/libraries ]');
     logit("Checking for non-owned files/libraries");
     check_lib();
-
-    print_header('[ Checking for fileless malware in memfd_create ]');
-    logit("Checking for fileless malware");
-    check_for_fileless_malware();
 
     print_header('[ Checking /etc/group for suspicious users ]');
     logit("Checking /etc/group for suspicious users");
@@ -709,7 +708,7 @@ sub check_previous_scans {
     print_info("CSI version: $version");
     print_status('Checking for a previous run of CSI');
     if ( -d $csidir ) {
-        chomp( my $date = qx[ date "+%Y-%m-%d-%H:%M:%S" ] );
+        chomp( my $date = Cpanel::SafeRun::Timed::timedsaferun( 0, 'date', "+%Y-%m-%d-%H:%M:%S" ) );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
     }
@@ -785,21 +784,17 @@ sub check_suspended {
 sub check_history {
     if ( -e '/root/.bash_history' ) {
         if ( -l '/root/.bash_history' ) {
-
-            #my $result = qx(ls -la /root/.bash_history);
-            my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ls', '-la',
-                '/root/.bash_history' );
+            my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ls', '-la', '/root/.bash_history' );
             push @SUMMARY, "> /root/.bash_history is a symlink, $result";
         }
 
         my $attr          = isImmutable("/root/.bash_history");
         my $lcisImmutable = "";
         if ($attr) {
-            $lcisImmutable = " [ IMMUTABLE ] ";
+            push @SUMMARY, "> /root/.bash_history is set to " . CYAN "[ IMMUTABLE ]";
         }
         if ( !-s '/root/.bash_history' and !-l '/root/.bash_history' ) {
-            push @SUMMARY,
-              "> /root/.bash_history is a 0 byte file $lcisImmutable";
+            push @SUMMARY, "> /root/.bash_history is a 0 byte file";
         }
 
         # Load /root/.bash_history into @HISTORY array
@@ -984,84 +979,62 @@ sub get_process_list {
 
 sub check_ssh {
     my @ssh_errors;
-    my $ssh_verify;
-    if ( $distro eq "ubuntu" ) {
-        my $Package;
-        foreach my $rpm (qx(dpkg-query -Wf '${Package}\n' | grep '^openssh*')) {
-            $ssh_verify = qx[ dpkg -V $rpm ];
-            if ( $ssh_verify ne '' ) {
-                push( @ssh_errors, " package verification on $rpm failed:\n" );
-                push( @ssh_errors, " $ssh_verify" );
-            }
+    my ( $ssh_verify, $keyutils_verify );
+    my $name;
+    return unless my $rpms = get_rpm_href();
+    my @openssh_pkgs = grep { /^openssh*/ } keys(%{$rpms} );
+    my @keyutillibs_pkgs = grep { /^(libkeyutils1|keyutils-libs)/ } keys(%{$rpms} );
+    foreach my $rpm (@openssh_pkgs) {
+        chomp($rpm);
+        $ssh_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg', '--verify', $rpm ) unless( $distro ne 'ubuntu' );
+        $ssh_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '--verify', $rpm ) unless( $distro eq 'ubuntu' );
+        if ( $ssh_verify) { 
+            $ssh_verify = grep { ! m{ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent|.build-id} } $ssh_verify;
+        }
+        if ( $ssh_verify ne '' && $ssh_verify > 0 ) {
+            push( @ssh_errors, " RPM verification on $rpm failed:\n" );
+            push( @ssh_errors, " $ssh_verify" ) unless( $distro eq 'ubuntu');
         }
     }
-    else {
-        foreach my $rpm (qx(rpm -qa openssh*)) {
-            chomp($rpm);
-            $ssh_verify =
-qx(rpm --verify $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent|\.build-id');
-            if ( $ssh_verify ne '' ) {
-                push( @ssh_errors, " RPM verification on $rpm failed:\n" );
-                push( @ssh_errors, " $ssh_verify" );
-            }
+    foreach my $rpm (@keyutillibs_pkgs) {
+        chomp($rpm);
+        $keyutils_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg', '--verify', $rpm ) unless( $distro ne 'ubuntu' );
+        $keyutils_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '--verify', $rpm ) unless( $distro eq 'ubuntu' );
+        if ( $keyutils_verify) { 
+            $keyutils_verify = grep { ! m{.build-id} } $keyutils_verify;
         }
-    }
-    if ( $distro ne "ubuntu" ) {
-        my $keyutils_verify = qx(rpm -V keyutils-libs | egrep -v '\.build-id');
-        if ( $keyutils_verify ne "" ) {
+        if ( $keyutils_verify ne '' && $keyutils_verify > 1 ) {
             push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
-            push( @ssh_errors, " $keyutils_verify" );
+            push( @ssh_errors, " $keyutils_verify" ) unless( $distro eq 'ubuntu');
             if ( -e '/var/log/prelink/prelink.log' ) {
-                push( @SUMMARY,
-"Note: /var/log/prelink/prelink.log file found. Might be OK if the keyutils-libs RPM was prelinked."
-                );
-                push( @SUMMARY,
-"If in doubt, this should be thoroughly checked by a security professional."
-                );
+                push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Might be OK if the keyutils-libs RPM was prelinked.");
+                push( @SUMMARY, "If in doubt, this should be thoroughly checked by a security professional.");
             }
         }
     }
-    my $continue = has_ps_command();
-    if ($continue) {
-        my @sshd_process_found = qx(ps aux | grep "sshd: root@");
-        my $sshd_process_found;
-        my $showHeaders = 0;
-        foreach $sshd_process_found (@sshd_process_found) {
-            chomp($sshd_process_found);
-            next unless ( substr( $sshd_process_found, 0, 4 ) eq "root" );
-            next if ( $sshd_process_found =~ m/pts|priv/ );
-            if ( $showHeaders == 0 ) {
-                push( @ssh_errors,
-" Suspicious SSH process(es) found [could be sftpd which would be OK]:"
-                );
-                $showHeaders++;
-            }
-            push( @ssh_errors, " $sshd_process_found" );
-        }
+    my @process_list = get_process_list();
+    my $sshd_process_found = 0;
+    for my $process (@process_list) {
+        next unless( $process =~ m{sshd: root@} );
+        next unless( ! $process =~ m{pts|priv} );
+        push( @ssh_errors, " Suspicious SSH process(es) found [could be sftpd which would be OK]:");
     }
+
     my @SSHRPMs;
-    if ( $distro eq "ubuntu" ) {
-        @SSHRPMs = qw( openssh-server openssh-clients );
-    }
-    else {
-        @SSHRPMs = qw( openssh-server openssh-clients openssh );
-    }
+    @SSHRPMs = qw( openssh-server openssh-client ) unless( $distro ne 'ubuntu' );
+    @SSHRPMs = qw( openssh-server openssh-clients openssh ) unless( $distro eq 'ubuntu' );
     my $SSHRPM;
     my $ssh_error_cnt = 0;
     my ( $rpmVendor, $rpmBuildHost, $rpmSignature );
     foreach $SSHRPM (@SSHRPMs) {
-        chomp($SSHRPM);
         if ( $distro eq "ubuntu" ) {
-
-            # Vendor/Maintainer
-            my $Maintainer;
-            $rpmVendor =
-              qx[ dpkg-query -W -f='${Maintainer}\n' | grep $SSHRPM ];
-            chomp($rpmVendor);
-            $ssh_error_cnt++
-              unless ( $rpmVendor =~ (m/ubuntu|Ubuntu Developers/) );
-            $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-
+            for my $name ( keys %{$rpms} ) {
+                foreach my $rpm_ref ( @{ $rpms->{$name} } ) {
+                    next unless( $name eq $SSHRPM );
+                    $ssh_error_cnt++ unless ( $rpm_ref->{maintainer} =~ (m/ubuntu|Ubuntu Developers/) );
+                    $ssh_error_cnt++ if ( $rpm_ref->{maintainer} =~ (m/none/) );
+                }
+            }
             # dpkg-query on Ubuntu does not store Build Host
             # Signature
             open( my $fh, "<", "/varlib/dpkg/info/$SSHRPM.md5sums" );
@@ -1069,56 +1042,33 @@ qx(rpm --verify $rpm | egrep -v 'ssh_config|sshd_config|pam.d|/usr/libexec/opens
                 next unless ( $_ =~ m/\/bin\// );
                 my ( $md5hash, $filename1 ) = ( split( /\s+/, $_ ) );
                 my $filename = "/" . $filename1;
-                my ($md5syshash) =
-                  ( split( /\s+/, qx[ md5sum $filename ] ) )[0];
+                my ($md5syshash) = ( split( /\s+/, Cpanel::SafeRun::Timed::timedsaferun( 2, 'md5sum', $filename ) ) )[0];
                 next unless ( $md5syshash ne $md5hash );
                 $ssh_error_cnt++;
             }
         }
         else {    ## CentOS/CloudLinux/AlmaLinux
-                  # Vendor/Maintainer
-            $rpmVendor = qx[ rpm -qi $SSHRPM | grep 'Vendor' ];
-
-            # Build Host
-            $rpmBuildHost = qx[ rpm -qi $SSHRPM | grep 'Build Host' ];
-
-            # Signature
-            $rpmSignature = qx[ rpm -qi $SSHRPM | grep 'Signature' ];
-            chomp($rpmVendor);
-            chomp($rpmBuildHost);
-            chomp($rpmSignature);
-            $ssh_error_cnt++
-              unless (
-                $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc./) );
+            # Vendor/Maintainer, Build Host, Signature
+            my $rpmInfo = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-qi', $SSHRPM );
+            my @rpmInfo = split /\n/, $rpmInfo;
+            foreach my $rpmLine(@rpmInfo) {
+                chomp($rpmLine);
+                next unless( $rpmLine =~ m{Vendor|Build Host|Signature} );
+                $rpmVendor = $rpmLine if( $rpmLine =~ m/Vendor/ );
+                $rpmBuildHost = $rpmLine if( $rpmLine =~ m/Build Host/ );
+                $rpmSignature = $rpmLine if( $rpmLine =~ m/Signature/ );
+            }
+            $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc./) );
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-            $ssh_error_cnt++
-              unless (
-                $rpmBuildHost =~ (
-m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com/
-                )
-              );
+            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com/));
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) );
-            $ssh_error_cnt++
-              unless (
-                $rpmSignature =~ (
-m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/
-                )
-              );
+            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/));
             $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) );
         }
     }
     if ( $ssh_error_cnt > 3 ) {
-        push( @ssh_errors,
-"Either the Vendor, Build Host, or Signature for one of the openssh RPM's does not match a known and suspected value"
-        );
-        push(
-            @ssh_errors,
-            expand(
-                    MAGENTA "Check by running: "
-                  . WHITE
-"rpm -qi openssh-server openssh-clients openssh | egrep 'Vendor|Build Host|Signature'"
-            )
-        );
+        push( @ssh_errors, "Either the Vendor, Build Host, or Signature for one of the openssh RPM's does not match a known and suspected value");
+        push( @ssh_errors, expand( MAGENTA "Check by running: " . WHITE "rpm -qi openssh-server openssh-clients openssh | egrep 'Vendor|Build Host|Signature'"));
     }
 
     if (@ssh_errors) {
@@ -1152,7 +1102,8 @@ sub check_lib {
         my @DirFiles = readdir(DIR);
         closedir(DIR);
         if ( $distro eq "ubuntu" ) {
-            @dumped = qx[ apt-cache dump ];
+            my $dumped = Cpanel::SafeRun::Timed::timedsaferun( 0, 'apt-cache', 'dump' );
+            @dumped = split /\n/, $dumped;
         }
         foreach $filename (@DirFiles) {
             next if $filename eq "." or $filename eq "..";
@@ -1161,16 +1112,13 @@ sub check_lib {
             if ( $distro eq "ubuntu" ) {
                 $notOwned = grep { /$filename/ } @dumped;
                 if ( !$notOwned ) {
-                    push @notOwned, "$dir/$filename"
-                      unless ( $filename eq "yara.h" );
+                    push @notOwned, "$dir/$filename" unless ( $filename eq "yara.h" );
                 }
             }
             else {
-                $notOwned = qx[ rpm -qf "$dir/$filename" | grep 'not owned' ];
-                if ($notOwned) {
-                    push @notOwned, "$dir/$filename"
-                      unless ( $filename eq "yara.h" );
-                }
+                $notOwned = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-qf', "$dir/$filename" );
+                next unless( $notOwned =~ m/not owned/ );
+                push @notOwned, "$dir/$filename" unless ( $filename eq "yara.h" );
             }
         }
     }
@@ -1299,25 +1247,12 @@ sub timed_run {
 
 sub check_preload {
     return unless ( -e ("/etc/ld.so.preload") );
-    my $libcrypt_so =
-      qx[ grep '/usr/lib64/libcrypt.so.1.1.0' /etc/ld.so.preload ];
-    if ($libcrypt_so) {
-        push( @SUMMARY,
-"> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise."
-        );
-    }
-    my $libconv_so = qx[ grep 'libconv.so' /etc/ld.so.preload ];
-    if ($libconv_so) {
-        push( @SUMMARY,
-"> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise."
-        );
-    }
-    my $libs_so = qx[ grep '/lib64/libs.so' /etc/ld.so.preload ];
-    if ($libs_so) {
-        push( @SUMMARY,
-"> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise."
-        );
-    }
+    my $libcrypt_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/usr/lib64/libcrypt.so.1.1.0', '/etc/ld.so.preload' );
+    my $libconv_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libconv.so', '/etc/ld.so.preload' );
+    my $libs_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib64/libs.so', '/etc/ld.so.preload' );
+    push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
+    push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
+    push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );
 }
 
 sub create_summary {
@@ -1517,13 +1452,9 @@ sub check_for_cdorked_B {
 }
 
 sub check_for_evasive_libkey {
-    my $EvasiveLibKey = qx[ strings /etc/ld.so.cache |grep tls/ ];
-    if ($EvasiveLibKey) {
-        push( @SUMMARY,
-            "> [Possible Rootkit: Ebury/Libkeys] - "
-              . CYAN
-"Hidden/Evasive evidence of Ebury/Libkeys Rootkit found.\n\t \\_ TECH-759"
-        );
+    my $EvasiveLibKey = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/etc/ld.so.cache' );
+    if ( grep { /\/tls/ } $EvasiveLibKey ) {
+        push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] - " . CYAN "Hidden/Evasive evidence of Ebury/Libkeys Rootkit found.\n\t \\_ TECH-759");
     }
 }
 
@@ -1607,36 +1538,22 @@ sub check_for_ebury_socket {
 
 sub check_for_ngioweb {
     return if ( !-e "/etc/machine-id" );
-    return
-      unless (qx[ grep 'ddb0b49d10ec42c38b1093b8ce9ad12a' /etc/machine-id ]);
-    push( @SUMMARY,
-"Found evidence of Linux.Ngioweb Rootkit\n\t\\_ /etc/machine-id contains: ddb0b49d10ec42c38b1093b8ce9ad12a"
-    );
+    return unless (Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', 'ddb0b49d10ec42c38b1093b8ce9ad12a', '/etc/machine-id' ) );
+    push( @SUMMARY, "Found evidence of Linux.Ngioweb Rootkit\n\t\\_ /etc/machine-id contains: ddb0b49d10ec42c38b1093b8ce9ad12a");
 }
 
 sub check_for_hiddenwasp {
     if ( -e ("/lib/libselinux.a") ) {
-        my $HIDESHELL =
-          qx[ strings /lib/libselinux.a | grep 'HIDE_THIS_SHELL' ];
-        if ($HIDESHELL) {
-            push @SUMMARY,
-"> Found HIDE_THIS_SHELL in the /lib/libselinux.a file. Could indicate HiddenWasp Rootkit";
+        my $HideShell = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/lib/libselinux.a' );
+        if ( grep { /HIDE_THIS_SHELL/ } $HideShell ) {
+            push @SUMMARY, "> Found HIDE_THIS_SHELL in the /lib/libselinux.a file. Could indicate HiddenWasp Rootkit";
         }
     }
-    my $HWSocket = qx[ lsof -i tcp:61061 ];
-    if ($HWSocket) {
-        push @SUMMARY,
-"> Found socket listening on port 61061. Could indicate HiddenWasp Rootkit";
-    }
-    my $HWSocket = qx[ lsof -i tcp:65130 ];
-    if ($HWSocket) {
-        push @SUMMARY,
-"> Found socket listening on port 65130. Could indicate Sutsersu Rootkit";
-    }
-    my $HWSocket = qx[ lsof -i tcp:65439 ];
-    if ($HWSocket) {
-        push @SUMMARY,
-"> Found socket listening on port 65439. Could indicate Sutsersu Rootkit";
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 );
+    foreach my $port (@ports) {
+        chomp($port);
+        my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
+        push @SUMMARY, "> Found socket listening on port $port. Could indicate possible root compromise" if( $lsof );
     }
 }
 
@@ -1654,17 +1571,21 @@ sub check_for_dirtycow_passwd {
           Cpanel::SafeRun::Timed::timedsaferun( 4, 'getent passwd 0' );
         chomp($HasPwnd);
         push( @SUMMARY, MAGENTA "\t \\_ $HasPwnd" );
-        my @passwdBAK =
-          qx[ stat -c "%n [Owned by %U]" /tmp/*passwd* 2> /dev/null ];
+    }
+    opendir my $dh, "/tmp";
+    my @tmpdirfiles = readdir($dh);
+    closedir $dh;
+    foreach my $tmpfile(@tmpdirfiles) {
+        next unless( $tmpfile =~ m/passwd/ );
+        my $passwdBAK = Cpanel::SafeRun::Timed::timedsaferun( 4, 'stat', '-c', "%n [Owned by %U]", "/tmp/$tmpfile" );
+        my @passwdBAK = split /\n/, $passwdBAK;
         my $passwdBAKcnt = @passwdBAK;
         my $passwdBAK;
-
         if ( $passwdBAKcnt > 0 ) {
-            push( @SUMMARY,
-                MAGENTA "\t\\_ Possible backup of /etc/passwd found:" );
+            push( @SUMMARY, MAGENTA "> Possible backup of /etc/passwd found (could indicate root comp):" );
             foreach $passwdBAK (@passwdBAK) {
                 chomp($passwdBAK);
-                push( @SUMMARY, CYAN "\t\t\\_ " . $passwdBAK );
+                push( @SUMMARY, expand( CYAN "\t\\_ " . $passwdBAK ) );
             }
         }
     }
@@ -1704,33 +1625,23 @@ sub check_for_suckit {
         }
     }
     if ( -e "/sbin/init" ) {
-        my ($SuckItHomeVal) =
-          ( split( /=/, qx[ strings /sbin/init | grep 'HOME=' ] ) )[1];
-        if ( $SuckItHomeVal and $SuckItHomeVal =~ m/[a-zA-z0-9]/ ) {
-            $SuckItCount++;
-        }
-        my $SuckItFound =
-qx[ strings -an4 /sbin/init | egrep -ie "(fuck|backdoor|bin/rcpc|bin/login)" ];
-        if ($SuckItFound) {
+        my $SuckItStrings = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '-a', '/sbin/init' );
+        if ( grep { m{HOME=[a-zA-Z0-9]|fuck|backdoor|bin/rcpc|bin/login}i } $SuckItStrings ) {
             $SuckItCount++;
         }
     }
-    my $HasSuckIt =
-      qx[ cat /proc/1/maps | egrep "init." | grep -v '(deleted)' ];
-    if ($HasSuckIt) {
+    my $procMaps = Cpanel::SafeRun::Timed::timedsaferun( 4, 'cat', '/proc/1/maps' );
+    if ( grep { m{init\.}i } $procMaps ) {
         $SuckItCount++;
     }
-    my $initSymLink    = qx[ ls -li /sbin/init ];
-    my $telinitSymLink = qx[ ls -li /sbin/telinit ];
+    my $initSymLink    = Cpanel::SafeRun::Timed::timedsaferun( 2, 'ls', '-li', '/sbin/init' );
+    my $telinitSymLink = Cpanel::SafeRun::Timed::timedsaferun( 2, 'ls', '-li', '/sbin/telinit' );
     my ( $SLInode1, $isLink1 ) = ( split( /\s+/, $initSymLink ) )[ 0, 1 ];
     my ( $SLInode2, $isLink2 ) = ( split( /\s+/, $telinitSymLink ) )[ 0, 1 ];
-    if ( $SLInode1 == $SLInode2 and substr( $isLink1, 0, 1 ) ne "l"
-        or substr( $isLink2, 0, 1 ) ne "l" )
-    {
+    if ( $SLInode1 == $SLInode2 and substr( $isLink1, 0, 1 ) ne "l" or substr( $isLink2, 0, 1 ) ne "l" ) {
         $SuckItCount++;
     }
-    my $SuckItHidden =
-      qx[ touch "$csidir/suckittest.mem" "$csidir/suckittest.xrk" ];
+    my $SuckItHidden = Cpanel::SafeRun::Timed::timedsaferun( 2, 'touch', "$csidir/suckittest.mem", "$csidir/suckittest.xrk" );
     if ( !-e "$csidir/suckittest.mem" or !-e "$csidir/suckittest.xrk" ) {
         $SuckItCount++;
     }
@@ -1751,42 +1662,39 @@ qx[ strings -an4 /sbin/init | egrep -ie "(fuck|backdoor|bin/rcpc|bin/login)" ];
 }
 
 sub check_for_redisHack {
-    return unless ( -e "/root/.ssh/authorized_keys" );
-    my $RedisHack = qx[ grep 'REDIS0006 crackitA' /root/.ssh/authorized_keys ];
-    if ($RedisHack) {
-        push( @SUMMARY,
-            "> [Possible Rootkit: Redis Hack] - "
-              . CYAN
-"Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys."
-        );
+    my $keysfile = '/root/.ssh/authorized_keys';
+    open( my $fh, '<', $keysfile ) or return;
+    while( <$fh> ) {
+        if ( $_ =~ m/REDIS0006 crackitA/ ) {
+            push( @SUMMARY, "> [Possible Rootkit: Redis Hack] - " . CYAN "Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys.");
+            last;
+        }
     }
+    close($fh);
 }
 
 sub check_for_linux_lady {
-    my $LLSocket1 = qx[ lsof -i tcp:6379 ];
-
-# NOTE: redis server software runs on port 6379.  Hopefully it's not running as root :)
-    if ( $LLSocket1 =~ m/root/ ) {
-        push @SUMMARY,
-"> Found socket listening on port 6379 (Redis server?). Running as root - VERY DANGEROUS!";
+    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 2, 'lsof', '-i', 'tcp:6379' );
+    my @lsof = split /\n/, $lsof;
+    foreach $lsof(@lsof) {
+        chomp($lsof);
+        my ( $comm, $pid, $user ) = (split( /\s+/, $lsof));
+        next unless( $user eq 'root' );
+        push @SUMMARY, "> Found socket listening on port 6379 (Redis server?). Running as root - " . RED "VERY DANGEROUS!" . CYAN "\n\t\\_[ Could indicate LinuxLady rootkit ]";
+        last;
     }
 }
 
 sub check_for_twink {
-    my $cronpath =
-      ( $distro eq 'ubuntu' )
-      ? '/var/spool/cron/crontab/root'
-      : '/var/spool/cron/root';
-    my $TwinkSSHPort = qx[ lsof -i tcp:322 | grep sshd ];
-    my $InRootsCron  = qx[ egrep '/tmp/twink' $cronpath ]
-      unless ( !-e $cronpath );
-    if ( $TwinkSSHPort and $InRootsCron ) {
-        push @SUMMARY,
-            "> Found sshd listening on "
-          . CYAN "port 322"
-          . YELLOW " and "
-          . RED "/tmp/twink"
-          . YELLOW " in roots crontab. Indicates a possible rootkit";
+    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 2, 'lsof', '-i', 'tcp:322' );
+    return unless( $lsof );
+    my $roots_crontab = Cpanel::SafeRun::Timed::timedsaferun( 3, 'crontab', '-l', '-u', 'root' );
+    my @roots_crontab = split /\n/, $roots_crontab;
+    foreach my $line(@roots_crontab) {
+        if ( $line =~ m{/tmp/twink} ) {
+            push @SUMMARY, "> Found sshd listening on " . CYAN "port 322" . YELLOW " and " . RED "/tmp/twink" . YELLOW " in roots crontab. Indicates a possible rootkit";
+            last;
+        }
     }
 }
 
@@ -1899,63 +1807,38 @@ sub userscan {
     my @conffiles =
       qw( functions.php confic.php db.php wp-config.php configuration.php conf_global.php Settings.php config.php settings.php settings.inc.php submitticket.php );
     my $conffile;
+    my $headerprinted = 0;
+    my $hp1           = 0;
+    my $hp2           = 0;
+
     foreach $conffile (@conffiles) {
         chomp($conffile);
-        push( @symlinks,
-qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls ]
-        ) unless ( !-d "$RealHome/$pubhtml" );
+        my $findit = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'l', '-lname', "$HOMEDIR/*/$pubhtml/$conffile", '-ls' );
+        push @symlinks, $findit unless( ! $findit );
     }
     my $headerprinted = 0;
     my $hp1           = 0;
     my $hp2           = 0;
-    my $symlink;
-    foreach $symlink (@symlinks) {
-        my ( $symUID, $symGID, $link, $pointer, $realpath ) =
-          ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
+    foreach my $symlink (@symlinks) {
+        my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 5, 6, 11, 12, 13 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
-        push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" )
-          unless ($headerprinted);
+        push @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" unless ($headerprinted);
         $headerprinted = 1;
         my $fStat = stat($realpath);
         if ( -e _ ) {
             if ( $symUID eq "root" or $symGID eq "root" ) {
                 if ( $hp1 == 0 ) {
-                    push(
-                        @SUMMARY,
-                        expand(
-                                CYAN "\t\\_ root owned symlinks "
-                              . BOLD RED
-                              "(should be considered root compromised!): "
-                        )
-                    );
+                    push( @SUMMARY, CYAN "\t\\_ root owned symlinks " . BOLD RED "(should be considered root compromised!): ");
                     $hp1 = 1;
                 }
-                push(
-                    @SUMMARY,
-                    expand(
-                            "\t\t\\_ "
-                          . MAGENTA $link . " "
-                          . $pointer . " "
-                          . $realpath
-                    )
-                );
+                push( @SUMMARY, "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath);
             }
             else {
                 if ( $hp2 == 0 ) {
-                    push( @SUMMARY,
-                        expand( CYAN "\t\\_ User owned ($symUID) symlinks: " )
-                    );
+                    push( @SUMMARY, CYAN "\t\\_ User owned ($symUID) symlinks: " );
                     $hp2 = 1;
                 }
-                push(
-                    @SUMMARY,
-                    expand(
-                            "\t\t\\_ "
-                          . MAGENTA $link . " "
-                          . $pointer . " "
-                          . $realpath
-                    )
-                );
+                push( @SUMMARY, "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath);
             }
         }
     }
@@ -1974,9 +1857,7 @@ qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls
     }
 
     print_status("Checking for shadow.roottn.bak hack variants...");
-    my $shadow_roottn_baks =
-      qx[ find $RealHome/etc/* -name 'shadow\.*' -print ]
-      unless ( !-d "$RealHome/etc" );
+    my $shadow_roottn_baks = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/etc", '-name', 'shadow\.*', '-print' ) unless ( !-d "$RealHome/etc" );
     if ($shadow_roottn_baks) {
         my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
         push @SUMMARY,
@@ -2004,53 +1885,42 @@ qx[ find "$RealHome/$pubhtml" -type l -lname "$HOMEDIR/*/$pubhtml/$conffile" -ls
 "> Found suspicious class in $RealHome/$pubhtml/class-wp-rest-api.php";
     }
 
-    print_status(
-        "Checking $pubhtml/wp-includes directory for suspicious *.ico files");
-    if ( -e ("$RealHome/$pubhtml/wp-includes") ) {
-        my $suspICOfiles =
-          qx[ find $RealHome/$pubhtml/wp-includes -iname '*.ico' ];
-        if ($suspICOfiles) {
-            push @SUMMARY,
-"> Found suspicious ico file in $RealHome/$pubhtml/wp-includes/ directory";
-        }
-    }
-
     # SMTPF0x/AnonymousF0x checks
     if ( -e ("$RealHome/.anonymousFox") ) {
         push @SUMMARY, "> Found suspicious file $RealHome/.anonymousFox";
     }
 
     if ( -e ("$RealHome/etc/shadow") ) {
-        my $hassmtpF0x =
-qx[ egrep -i 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/shadow ];
-        if ($hassmtpF0x) {
-            push @SUMMARY,
-                "> Found suspicious smtpF0x user in "
-              . CYAN "$RealHome/etc/shadow"
-              . YELLOW " file";
+        open( my $fh, '<', "$RealHome/etc/shadow" );
+        while ( <$fh> ) {
+            if ( $_ =~ m{anonymousfox-|smtpf0x-|anonymousfox|smtp} ) {
+                push @SUMMARY, "> Found suspicious smtpF0x user in " . CYAN "$RealHome/etc/shadow" . YELLOW " file";
+                last;
+            }
         }
+        close($fh);
     }
     if ( -d ("$RealHome/$pubhtml/ConfigF0x") ) {
         push @SUMMARY,
           "> Found suspicious ConfigFox directory in $RealHome/$pubhtml/";
     }
     if ( -e ("$RealHome/.cpanel/.contactemail") ) {
-        my $hassmtpF0x =
-qx[ egrep -li 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/.cpanel/.contactemail ];
-        if ($hassmtpF0x) {
-            push @SUMMARY,
-"> Found suspicious AnonymousF0x email address in $RealHome/.cpanel/.contactemail";
+        open( my $fh, '<', "$RealHome/.cpanel/.contactemail" );
+        while ( <$fh> ) {
+            if ( $_ =~ m{anonymousfox-|smtpf0x-|anonymousfox|smtpf} ) {
+                push @SUMMARY, "> Found suspicious smtpF0x user in " . CYAN "$RealHome/.cpanel/.contactemail" . YELLOW " file";
+                last;
+            }
         }
+        close($fh);
     }
-    my $hassmtpF0x =
-qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
-    if ($hassmtpF0x) {
-        my @hassmtpF0x = split /\n/, $hassmtpF0x;
-        push @SUMMARY, "> Found suspicious smtpF0x vulnerability under ";
-        foreach my $hassmtpF0x (@hassmtpF0x) {
-            chomp($hassmtpF0x);
-            my ($smtpfox_file) = ( split( /\:/, $hassmtpF0x ) )[0];
-            push @SUMMARY, CYAN "\t\\_ $smtpfox_file";
+    find( { wanted => \&smtpfoxhacks, }, "$RealHome/etc/");
+
+    sub smtpfoxhacks {
+        return if( -d $File::Find::name );
+        my $hassmtpF0x = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', 'anonymousfox-|smtpf0x-|anonymousfox|smtpf', "$File::Find::name" );
+        if ( $hassmtpF0x ) {
+            push @SUMMARY, "> Found suspicious smtpF0x vulnerability in " . CYAN $File::Find::name;
         }
     }
 
@@ -2189,7 +2059,7 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         );
     }
 
-# Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
+    # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
     print_status("Checking for malicious WordPress plugins");
     logit("Checking for malicious WordPress plugins");
     if ( -e "$RealHome/$pubhtml/wp-content/plugins/supersociall" ) {
@@ -2202,18 +2072,38 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
-    if ( -d "$RealHome/$pubhtml/wp-includes" ) {
-        my $chk4ico = qx[ find $RealHome/$pubhtml/wp-includes -name "*.ico" ];
+    if ( -d "$RealHome/$pubhtml" ) {
+        my $chk4ico = 0;
+        my $chk4suspwp = 0;
+        my @chk4ico;
+        my @chk4suspwp;
+        find( { wanted => \&wpchecks, }, "$RealHome/$pubhtml/");
+
+        sub wpchecks {
+            return if( -d $File::Find::name );
+            if ( $File::Find::name =~ m{wp-includes} && $File::Find::name =~ m{.ico$} ) {
+                $chk4ico = 1;
+                push @chk4ico, $File::Find::name;
+            }
+            if ( $File::Find::name =~ m{wp-tmp.php|wp-feed.php|wp-vcd.php} ) {
+                $chk4suspwp = 1;
+                push @chk4suspwp, $File::Find::name;
+                push( @SUMMARY, "> Found possible malicious WordPress files in $RealHome/$pubhtml directory.");
+                foreach my $susp_wp_files_found (@chk4suspwp) {
+                    chomp($susp_wp_files_found);
+                    push( @SUMMARY, expand( WHITE "\t\\_ $susp_wp_files_found" ) );
+                }
+            }
+        }
         if ($chk4ico) {
-            my @chk4ico = split( /\n/, $chk4ico );
-            my $icoFound;
-            push( @SUMMARY,
-"> Found possible malicious WordPress vulnerability in the $RealHome/$pubhtml/wp-includes directory.  An icon (*.ico) file found."
-            );
-            foreach $icoFound (@chk4ico) {
+            push( @SUMMARY, "> Found possible malicious ico file(s) in $RealHome/$pubhtml/wp-includes directory." );
+            foreach my $icoFound (@chk4ico) {
                 chomp($icoFound);
                 push( @SUMMARY, expand( WHITE "\t\\_ $icoFound" ) );
             }
+        }
+        if ( $chk4ico || $chk4suspwp ) {
+            push @SUMMARY, " ";
             push(
                 @SUMMARY,
                 expand(
@@ -2238,41 +2128,26 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         }
     }
 
-# Look for suspicious WP files known to be malware (These files should not exist on a clean system as far as WP is concerned)
-    if ( -d "$RealHome/$pubhtml" ) {
-        my $chk4suspwp = qx[ find $RealHome/$pubhtml -iname "wp-tmp.php" ];
-        $chk4suspwp .= qx[ find $RealHome/$pubhtml -iname "wp-feed.php" ];
-        $chk4suspwp .= qx[ find $RealHome/$pubhtml -iname "wp-vcd.php" ];
-        if ($chk4suspwp) {
-            push( @SUMMARY,
-"> Found possible malicious WordPress files in $RealHome/$pubhtml directory."
-            );
-            my @chk4suspwp = split( /\n/, $chk4suspwp );
-            foreach my $susp_wp_files_found (@chk4suspwp) {
-                chomp($susp_wp_files_found);
-                push( @SUMMARY, expand( WHITE "\t\\_ $susp_wp_files_found" ) );
-            }
-        }
-    }
-
 # Check if Exiftool is installed and if so, use it to check for any favicon.ico files.
 # See https://www.bleepingcomputer.com/news/security/hackers-hide-credit-card-stealing-scripts-in-favicon-exif-data/
-    my $isExifInstalled;
+    my $isExifInstalled=0;
+    my $rpms = get_rpm_href();
     if ( $distro eq "ubuntu" ) {
-        $isExifInstalled =
-          qx[ dpkg -l | grep 'libimage-exiftool-perl' | grep -v '^ii' ];
+        $isExifInstalled = ( grep { /^libimage-exiftool-perl*/ } keys(%{$rpms} ) ) ? 1 : 0;
     }
     else {
-        $isExifInstalled =
-          qx[ rpm -q perl-Image-ExifTool | grep 'is not installed' ];
+        $isExifInstalled = Cpanel::SafeRun::Timed::timedsaferun( 3, 'rpm','-q', 'perl-Image-ExifTool' );
+        $isExifInstalled = (grep ( { /is not installed/ } $isExifInstalled )) ? 0 : 1;
     }
-    if ( !$isExifInstalled and -e "/usr/bin/exiftool" ) {
+    if ( $isExifInstalled and -e "/usr/bin/exiftool" ) {
         my $favIcon;
-        my @favicons = qx[ find $RealHome -iname 'favicon.ico' ];
+        my $favicons = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome", '-iname', 'favicon.ico' );
+        my @favicons = split /\n/, $favicons;
         foreach $favIcon (@favicons) {
             chomp($favIcon);
             my $exifScanLine;
-            my @exifScan = qx[ /usr/bin/exiftool $favIcon ];
+            my $exifScan = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/bin/exiftool', "$favIcon" );
+            my @exifScan = split /\n/, $exifScan;
             foreach $exifScanLine (@exifScan) {
                 if ( $exifScanLine =~ m/eval|function|String\.from|CharCode/ ) {
                     push @SUMMARY,
@@ -2286,17 +2161,10 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
     else {
 # On Ubuntu it's: apt install libimage-exiftool-perl [ https://linoxide.com/install-use-exiftool-linux-ubuntu-centos/ ]
         if ( $distro eq "ubuntu" ) {
-            push @RECOMMENDATIONS,
-                "> ExifTool not installed, please consider running "
-              . MAGENTA "apt install libimage-exiftool-perl "
-              . YELLOW "and running this scan again for additional checks.";
+            push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "apt install libimage-exiftool-perl " . YELLOW "and running this scan again for additional checks." unless( $isExifInstalled );
         }
         else {
-            push @RECOMMENDATIONS,
-                "> ExifTool not installed, please consider running "
-              . MAGENTA "yum install perl-Image-ExifTool"
-              . YELLOW
-" (might require the EPEL repo) and running this scan again for additional checks.";
+            push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "yum install perl-Image-ExifTool" . YELLOW " (might require the EPEL repo) and running this scan again for additional checks." unless( $isExifInstalled );
         }
     }
 
@@ -2305,10 +2173,7 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
         my $yara_available = check_for_yara();
         if ($yara_available) {
             my @yara_urls =
-              qw( 
-	      	https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara 
-		https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara
-	      );
+              qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
             print_header("Downloading yara rules to $csidir");
             my @data;
             for my $URL (@yara_urls) {
@@ -2361,9 +2226,9 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
                           ( split( '\s+', $yara_result ) );
                         $triggered_rule =~ s/_triggered//g;
                     }
-					if ( $triggered_rule =~ m/Rule_/ ) {
-						$triggered_string = YELLOW "See: " . BOLD BLUE "https://cpaneltech.ninja/cgi-bin/triggered.cgi?$triggered_rule";
-					}
+                    if ( $triggered_rule =~ m/Rule_/ ) {
+                        $triggered_string = YELLOW "See: " . BOLD BLUE "https://cpaneltech.ninja/cgi-bin/triggered.cgi?$triggered_rule";
+                    }
                     my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3,
                         "stat $triggered_file | grep -i change" );
                     ($ChangeDate) = ( split( /\./, $ChangeDate ) );
@@ -2388,8 +2253,8 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
                 }
             }
         }
-        else
-        { ## grep scan (not Yara) a bit slower but should catch the same things.
+        else {
+            ## grep scan (not Yara) a bit slower but should catch the same things.
             my $url = URI->new(
 'https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt'
             );
@@ -2404,10 +2269,9 @@ qx[ egrep -sri 'anonymousfox-|smtpf0x-|anonymousfox|smtpf' $RealHome/etc/* ];
                 print $fh $def;
             }
             close($fh);
-            print
-"Scanning $RealHome/$pubhtml for known phrases/strings\n";
-            my $retval =
-qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/$pubhtml/* ];
+            print "Scanning $RealHome/$pubhtml for known phrases/strings\n";
+            # This one cannot be changed from qx to use Cpanel::SafeRun::Timed. Won't work with this particular command.
+            my $retval = qx[ LC_ALL=C grep --exclude="*.zip|*.gz" -srIwf $csidir/csi_detections.txt $RealHome/$pubhtml/* ];
             my @retval     = split( /\n/, $retval );
             my $TotalFound = @retval;
             my $ItemFound;
@@ -2479,17 +2343,15 @@ sub check_for_symlinks {
     my $conffile;
     foreach $conffile (@conffiles) {
         chomp($conffile);
-        push( @symlinks,
-qx[ find /home/*/public_html -type l -lname "/home/*/$conffile" -ls ]
-        );
+        my $findit = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'l', '-lname', "$HOMEDIR/*/$conffile", '-ls' );
+        push @symlinks, $findit unless( ! $findit );
     }
     my $headerprinted = 0;
     my $hp1           = 0;
     my $hp2           = 0;
     my $symlink;
     foreach $symlink (@symlinks) {
-        my ( $symUID, $symGID, $link, $pointer, $realpath ) =
-          ( split( /\s+/, $symlink ) )[ 4, 5, 10, 11, 12 ];
+        my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 5, 6, 11, 12, 13 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
         if ( $headerprinted == 0 ) {
             push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" )
@@ -2557,50 +2419,46 @@ sub check_for_accesshash {
 }
 
 sub check_cookieipvalidation {
-    my $result =
-qx[ /usr/sbin/whmapi1 get_tweaksetting key='cookieipvalidation' | grep 'value: strict' ];
-    if ( !$result ) {
-
-        push @RECOMMENDATIONS,
-"> Cookie IP Validation isn't set to strict - Consider changins this in Tweak Settings.";
+    my $resultJSON = get_whmapi1( 'get_tweaksetting', 'key=cookieipvalidation' );
+    my $result = $resultJSON->{data}->{tweaksetting}->{value};
+    if ( $result ne 'strict' ) {
+        push @RECOMMENDATIONS, "> Cookie IP Validation isn't set to strict - Consider changins this in Tweak Settings.";
         return;
     }
 }
 
 sub check_xframe_content_headers {
-    my $result =
-qx[ /usr/sbin/whmapi1 get_tweaksetting key='xframecpsrvd' | grep 'value: 1' ];
+    my $resultJSON = get_whmapi1( 'get_tweaksetting', 'key=xframecpsrvd' );
+    my $result = $resultJSON->{data}->{tweaksetting}->{value};
     if ( !$result ) {
-
-        push @RECOMMENDATIONS,
-"> X-Frame-Options and X-Content-Type-Options not enabled for cpsrvd - Consider enabling this in Tweak Settings.";
+        push @RECOMMENDATIONS, "> X-Frame-Options and X-Content-Type-Options not enabled for cpsrvd - Consider enabling this in Tweak Settings.";
         return;
     }
 }
 
 sub installClamAV {
-    my $isClamAVInstalled =
-      qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
+    my $isClamAVInstalledJSON = get_whmapi1( 'servicestatus', 'service=clamd' );
+    my $isClamAVInstalled = $isClamAVInstalledJSON->{data}->{service}->{installed};
     if ($isClamAVInstalled) {
         print_info("ClamAV already installed!");
         logit("ClamAV already installed!");
         print_info("Updating ClamAV definitions/databases");
         logit("Updating ClamAV definitions/databases");
-        qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
+        Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/3rdparty/bin/freshclam', "&> /dev/null" );
         return 1;
     }
     else {
         print_info("Installing ClamAV plugin...");
         logit("Installing ClamAV plugin");
-qx[ /usr/local/cpanel/scripts/update_local_rpm_versions --edit target_settings.clamav installed ];
-qx[ /usr/local/cpanel/scripts/check_cpanel_rpms --fix --targets=clamav ];
-        my $ClamInstallChk =
-          qx[ whmapi1 servicestatus service=clamd | grep 'installed: 1' ];
+        get_whmapi1( 'edit_rpm_version', 'section=target_settings', 'key=clamav', 'value=installed' );
+        Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/check_cpanel_pkgs', '--fix', '--targets=clamav' );
+        my $ClamInstallChkJSON = get_whmapi1( 'servicestatus', 'service=clamd' );
+        my $ClamInstallChk = $ClamInstallChkJSON->{data}->{service}->{installed};
         if ($ClamInstallChk) {
             logit("Install completed");
             print_info("Updating ClamAV definitions/databases");
             logit("Updating ClamAV definitions/databases");
-            qx[ /usr/local/cpanel/3rdparty/bin/freshclam &> /dev/null ];
+            Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/3rdparty/bin/freshclam', "&> /dev/null" );
             return 1;
         }
         else {
@@ -2612,19 +2470,13 @@ qx[ /usr/local/cpanel/scripts/check_cpanel_rpms --fix --targets=clamav ];
 }
 
 sub security_advisor {
-    unlink("/var/cpanel/security_advisor_history.json")
-      if ( -e ("/var/cpanel/security_advisor_history.json") );
-    my $SecAdvLine;
-    my @SecAdvisor =
-qx[ /usr/local/cpanel/scripts/check_security_advice_changes | egrep -v 'High|Info|Advice|Type|Module' 2>/dev/null  ];
-    push( @RECOMMENDATIONS,
-            YELLOW "> "
-          . MAGENTA
-          "\t============== SECURITY ADVISOR RESULTS ===============" );
-    foreach $SecAdvLine (@SecAdvisor) {
-        chomp($SecAdvLine);
-        push( @RECOMMENDATIONS, BOLD CYAN $SecAdvLine . "\n" )
-          unless ( $SecAdvLine eq "" );
+    unlink("/var/cpanel/security_advisor_history.json") if ( -e ("/var/cpanel/security_advisor_history.json") );
+    my $SecAdvisor = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/check_security_advice_changes' );
+    my @SecAdvisor = split /\n/, $SecAdvisor;
+    push( @RECOMMENDATIONS, YELLOW "> " . MAGENTA "\t============== SECURITY ADVISOR RESULTS ===============" );
+    foreach my $SecAdvLine(@SecAdvisor) {
+        next if( $SecAdvLine =~ m{High|Info|Advice|Type|Module} );
+        push( @RECOMMENDATIONS, BOLD CYAN $SecAdvLine . "\n" ) unless ( $SecAdvLine eq "" );
     }
 }
 
@@ -2653,34 +2505,29 @@ sub check_for_deprecated {
 }
 
 sub check_sshd_config {
-    my $PermitRootLogin = qx[ grep '^PermitRootLogin ' /etc/ssh/sshd_config ];
-    if ( $PermitRootLogin =~ m/yes/i ) {
-
-        push( @RECOMMENDATIONS,
-"> PermitRootLogin is set to yes in /etc/ssh/sshd_config - consider setting to no or without-password instead!"
-        );
+    no warnings;    ## no critic (TestingAndDebugging::ProhibitNoWarnings)
+    my $sshd_settings  = Cpanel::SafeRun::Timed::timedsaferun( 4, 'sshd', '-T' );
+    my %sshd_conf      = map { split( /\s+/, $_ ) } $sshd_settings;
+    if ( $sshd_conf{'permitrootlogin'} =~ m/^[Yy][Ee][Ss]/ ) {
+        push @RECOMMENDATIONS,  "> PermitRootLogin is set to yes in /etc/ssh/sshd_config - consider setting to no or without-password instead!";
     }
-    my $PassAuth = qx[ grep '^PasswordAuthentication ' /etc/ssh/sshd_config ];
-    if ( $PassAuth =~ m/yes/i ) {
-
-        push( @RECOMMENDATIONS,
-"> PasswordAuthentication is set to yes in /etc/ssh/sshd_config - consider using ssh keys instead!"
-        );
+    if ( $sshd_conf{'passwordauthentication'} =~ m/^[Yy][Ee][Ss]/ ) {
+        push @RECOMMENDATIONS,  "> PasswordAuthentication is set to yes in /etc/ssh/sshd_config - consider using ssh keys instead!";
     }
+
     my $attr = isImmutable("/etc/ssh/sshd_config");
-    if ($attr) {
-        push( @SUMMARY,
-            "> The /etc/ssh/sshd_config file is " . MAGENTA "[IMMUTABLE]" );
-        push @SUMMARY,
-          expand( CYAN "\t\\_ indicates possible root-level compromise!" );
-    }
+    push( @SUMMARY, "> The /etc/ssh/sshd_config file is " . MAGENTA "[IMMUTABLE]" ) unless( ! $attr );
+    push @SUMMARY, expand( CYAN "\t\\_ indicates possible root-level compromise!" ) unless( ! $attr );
     return unless ( -e "/root/.ssh/authorized_keys" );
     my $authkeysGID    = ( stat("/root/.ssh/authorized_keys")->gid );
-    my $suspicious_key = qx[ grep 'mdrfckr' /root/.ssh/authorized_keys ];
-    if ($suspicious_key) {
-        push @SUMMARY,
-          "> /root/.ssh/authorized_keys file contains a malicious key!";
+    open( my $fh, '<', '/root/.ssh/authorized_keys' );
+    while( <$fh> ) {
+        if ( $_ =~ m{mdrfckr} ) { 
+            push @SUMMARY, "> /root/.ssh/authorized_keys file contains a malicious key!";
+            last;
+        }
     }
+    close($fh);
     my $authkeysGname = getgrgid($authkeysGID);
     if ( $authkeysGID > 0 ) {
         push @SUMMARY,
@@ -2690,12 +2537,8 @@ sub check_sshd_config {
           . CYAN "indicates possible root-level compromise";
     }
     my $attr = isImmutable('/root/.ssh/authorized_keys');
-    if ($attr) {
-        push @SUMMARY, "> The /root/.ssh/authorized_keys file set to "
-          . MAGENTA "[IMMUTABLE]";
-        push @SUMMARY,
-          expand( CYAN "\t\\_ indicates possible root-level compromise!" );
-    }
+    push @SUMMARY, "> The /root/.ssh/authorized_keys file set to " . MAGENTA "[IMMUTABLE]" unless( ! $attr );
+    push @SUMMARY, expand( CYAN "\t\\_ indicates possible root-level compromise!" ) unless( ! $attr );
 }
 
 sub isEA4 {
@@ -2734,11 +2577,11 @@ sub misc_checks {
     }
 
     # spy_master
-    my $spymaster =
-      qx[ objdump -T /usr/bin/ssh /usr/sbin/sshd | grep spy_master ];
+    my $objdump = Cpanel::SafeRun::Timed::timedsaferun( 2, 'objdump', '-T', '/usr/bin/ssh', '/usr/sbin/sshd' );
+    my @objdump = split /\n/, $objdump;
+    my $spymaster = grep ( { /spy_master/ } @objdump );
     if ($spymaster) {
-        push @SUMMARY,
-"> Suspicious file found: evidence of spy_master running in ssh/sshd [ $spymaster ]";
+        push @SUMMARY, "> Suspicious file found: evidence of spy_master running in ssh/sshd [ $spymaster ]";
     }
 
     # bitcoin
@@ -2832,12 +2675,11 @@ sub misc_checks {
         }
     }
     if ( -e "/bin/systemctl" ) {
-        my $systemctl_status =
-          qx[ systemctl status rc-local.service | grep 'mysql --noTest' ];
-        if ($systemctl_status) {
-            push @SUMMARY,
-              "> Found evidence of a bitcoin miner in /etc/rc.d/rc.local";
-            push @SUMMARY, "\t\\_ $systemctl_status";
+        my $systemctl_status = Cpanel::SafeRun::Timed::timedsaferun( 5, 'systemctl', 'status', 'rc-local.service' );
+        my @systemctl_status = split /\n/, $systemctl_status;
+        if ( grep ( { /mysql --noTest/ } @systemctl_status ) ) {
+            push @SUMMARY, "> Found evidence of a bitcoin miner in /etc/rc.d/rc.local";
+            push @SUMMARY, "\t\\_ rc-local.service should not be running with mysql --noTest";
         }
     }
 }
@@ -2853,8 +2695,8 @@ sub vtlink {
             my ($FileG)  = getgrgid( ( $fStat->gid ) );
             my $FileSize = $fStat->size;
             my $ctime    = $fStat->ctime;
-            my $sha256   = qx[ sha256sum $FileToChk ];
-            chomp($sha256);
+            my $sha256   = Cpanel::SafeRun::Timed::timedsaferun( 2, 'sha256sum', $FileToChk );
+            #chomp($sha256);
             ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
             my $ignoreHash = ignoreHashes($sha256only);
             my $knownHash  = known_sha256_hashes($sha256only);
@@ -2865,14 +2707,10 @@ sub vtlink {
             # First let's check Virustotal.com
             my $ticketnum = $ENV{'TICKET'};
             $ticketnum = "DEBUG" if ($debug);
-            my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s',
-                "https://myip.cpanel.net/v1.0/" );
+            my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', "https://myip.cpanel.net/v1.0/" );
             chomp($ipaddr);
-            if (   $sha256only && $ipaddr && $ticketnum
-                || $debug && iam('cptech') )
-            {
-                my $vtdata =
-qx[ curl -s "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" ];
+            if ( $sha256only && $ipaddr && $ticketnum && iam('cptech') || $debug ) {
+                my $vtdata = Cpanel::SafeRun::Timed::timedsaferun( 10, 'curl', '-s', "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" );
                 my $output = decode_json($vtdata);
                 my $URL    = $output->{data}->{links}->{self};
                 $URL .= "/detection";
@@ -3015,20 +2853,18 @@ sub rpm_yum_running_chk {
     return if ( $distro eq "ubuntu" );
     my $continue = has_ps_command();
     return unless ($continue);
-    my $lcRunning =
-qx[ ps auxfwww | egrep -i '/usr/bin/rpm|/usr/bin/yum' | egrep -v 'grep|wp-toolkit-cpanel' ];
-    if ($lcRunning) {
+    my @process_list = get_process_list();
+    for my $process (@process_list) {
+        next unless( $process =~ m{/usr/bin/rpm|/usr/bin/yum} );
+        next unless( ! $process =~ m{grep|wp-toolkit-cpanel} );
         logit("An rpm/yum process may be running");
-        print_warn(
-"An rpm/yum process may be running. Could cause some checks to hang waiting for process to complete."
-        );
+        print_warn( "An rpm/yum process may be running. Could cause some checks to hang waiting for process to complete.");
         exit;
     }
 }
 
 sub chk_shadow_hack {
-    my $shadow_roottn_baks =
-      qx[ find $HOMEDIR/*/etc/* -name 'shadow\.*' -print ];
+    my $shadow_roottn_baks = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-name', 'shadow\.*', '-print' );
     if ($shadow_roottn_baks) {
         my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
         push @SUMMARY,
@@ -3046,42 +2882,48 @@ sub chk_shadow_hack {
 }
 
 sub check_for_exim_vuln {
-    my $chk_eximlog = qx[ grep '\${run' /var/log/exim_mainlog* | head -1 ];
+    my $chk_eximlog;
+    $chk_eximlog = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', '\${run', '/var/log/exim_mainlog' ) unless( ! -e '/var/log/exim_mainlog' );;
+    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.1.gz' ) unless( ! -e '/var/log/exim_mainlog.1.gz' );
+    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.2.gz' ) unless( ! -e '/var/log/exim_mainlog.2.gz' );
+    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.3.gz' ) unless( ! -e '/var/log/exim_mainlog.3.gz' );
+    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.4.gz' ) unless( ! -e '/var/log/exim_mainlog.4.gz' );
+    my @chk_eximlog = split /\n/, $chk_eximlog;
     if ($chk_eximlog) {
-        push @SUMMARY,
-"> Found the following string in /var/log/exim_mainlog file. Possible root-level compromise was attempted:\n "
-          . CYAN $chk_eximlog;
+        push @SUMMARY, "> Found the following string in /var/log/exim_mainlog file. Possible root-level compromise was attempted:";
+        foreach $chk_eximlog (@chk_eximlog) {
+            push @SUMMARY, expand( CYAN "\t\\_$chk_eximlog" );
+        }
     }
 }
 
 sub spamscriptchk {
-
-#  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
+    #  Check for obfuscated Perl spamming script - will be owned by user check ps for that user and /tmp/dd
     opendir my $dh, "/tmp";
     my @tmpdirfiles = readdir($dh);
     closedir $dh;
     my $totaltmpfiles = @tmpdirfiles;
     return if $totaltmpfiles > 1000;
     my $showHeader = 0;
+    my $susp_string_found = 0;
     foreach my $file_in_tmp (@tmpdirfiles) {
         chomp($file_in_tmp);
         next if ( $file_in_tmp eq "." || $file_in_tmp eq ".." );
-        my $isASCII = qx[ file /tmp/$file_in_tmp | grep 'ASCII' ];
-        chomp($isASCII);
-        next unless ($isASCII);
-        my $suspicious_string_found =
-          qx[ grep -srl '295c445c5f495f5f4548533c3c3c3d29' /tmp/$file_in_tmp ];
-        if ($suspicious_string_found) {
-            push @SUMMARY,
-              "> Found evidence of user spamming script in /tmp directory"
-              unless ($showHeader);
+        my $isASCII = Cpanel::SafeRun::Timed::timedsaferun( 0, 'file', "/tmp/$file_in_tmp" );
+        next unless( grep { /ASCII/ } $isASCII);
+        open( my $fh, '<', "/tmp/$file_in_tmp" );
+        while ( <$fh> ) {
+            next unless( $_ =~ m/295c445c5f495f5f4548533c3c3c3d29/);
+            $susp_string_found = 1;
+        }
+        close( $fh );
+        if ($susp_string_found) {
+            push @SUMMARY, "> Found evidence of user spamming script in /tmp directory" unless ($showHeader);
             $showHeader = 1;
-            my $FileU = qx[ stat -c "%U" /tmp/$file_in_tmp ];
+            my $FileU = Cpanel::SafeRun::Timed::timedsaferun( 4, 'stat', '-c', "%U", "/tmp/$file_in_tmp" );
             chomp($FileU);
-            my $ExistsinTmp =
-              " [ Exists and is owned by: " . CYAN $FileU . YELLOW " ]";
-            push @SUMMARY,
-              "\t\\_ /tmp/" . $file_in_tmp . " " . $ExistsinTmp . "\n";
+            my $ExistsinTmp = " [ Exists and is owned by: " . CYAN $FileU . YELLOW " ]";
+            push @SUMMARY, "\t\\_ /tmp/" . $file_in_tmp . " " . $ExistsinTmp . "\n";
         }
     }
 }
@@ -3126,27 +2968,21 @@ sub user_crons {
 
 sub check_for_Super_privs {
     return if !-e "/var/lib/mysql/mysql.sock";
-    my @MySQLSuperPriv =
-qx[ mysql -BNe "SELECT Host,User FROM mysql.user WHERE Super_priv='Y'" | egrep -v 'root|mysql.session' ];
-    if (@MySQLSuperPriv) {
-        push @SUMMARY, "> The following MySQL users have the Super Privilege:";
-        my $MySQLSuperPriv = "";
-        foreach $MySQLSuperPriv (@MySQLSuperPriv) {
-            chomp($MySQLSuperPriv);
-            my ( $MySQLHost, $MySQLUser ) = ( split( /\s+/, $MySQLSuperPriv ) );
-            push @SUMMARY,
-                CYAN "\t \\_ User: "
-              . MAGENTA $MySQLUser
-              . CYAN " on Host: "
-              . MAGENTA $MySQLHost;
-        }
+    my $MySQLSuperPriv = Cpanel::SafeRun::Timed::timedsaferun( 5, 'mysql', '-BNe', "SELECT Host,User FROM mysql.user WHERE Super_priv='Y'" );
+    my @MySQLSuperPriv = split /\n/, $MySQLSuperPriv;
+    my $showHeader=0;
+    foreach $MySQLSuperPriv(@MySQLSuperPriv) {
+        next if( $MySQLSuperPriv =~ m{root|mysql.session} );
+        push @SUMMARY, "> The following MySQL users have the Super Privilege:" unless($showHeader);
+        $showHeader=1;
+        my ( $MySQLHost, $MySQLUser ) = ( split( /\s+/, $MySQLSuperPriv ) );
+        push @SUMMARY, CYAN "\t \\_ User: " . MAGENTA $MySQLUser . CYAN " on Host: " . MAGENTA $MySQLHost;
     }
 }
 
 sub check_for_mysqlbackups_user {
     return if !-e "/var/lib/mysql/mysql.sock";
-    my $mysqlbackups_user =
-qx[ mysql -BNe "SELECT User FROM mysql.user WHERE User LIKE 'mysqlbackups%'" ];
+    my $mysqlbackups_user = Cpanel::SafeRun::Timed::timedsaferun( 5, 'mysql', '-BNe', "SELECT User FROM mysql.user WHERE User LIKE 'mysqlbackups%'" );
     if ($mysqlbackups_user) {
         push @SUMMARY, CYAN
 "> Found mysqlbackups user in MySQL.user table - Could be a MySQL backdoor";
@@ -3171,9 +3007,14 @@ sub build_libkeyutils_file_list {
 }
 
 sub get_cron_files {
-    my @cronlist = glob(
-q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/crontabs/root }
-    );
+    #my @cronlist = glob( q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/crontabs/root });
+    my @allcrons = glob( q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/crontabs/root });
+    my @cronlist;
+    foreach my $cron( @allcrons ) {
+        next if( grep { /\.{1,2}$/ } $cron );
+        push @cronlist, $cron;
+    }
+    return @cronlist;
 }
 
 sub get_last_logins_WHM {
@@ -3216,8 +3057,7 @@ sub get_last_logins_WHM {
         my $dispDate = "";
         if ( $num > 1 ) { $times = "times"; }
         if ( $num == 1 ) {
-            my $dispDateLine =
-              qx[ grep --text '$success' /usr/local/cpanel/logs/access_log ];
+            my $dispDateLine = Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', '--text', "$success", '/usr/local/cpanel/logs/access_log' );
             ($dispDate) = ( split( /\s+/, $dispDateLine ) )[3];
             $dispDate =~ s/\[/On: /;
         }
@@ -3237,12 +3077,12 @@ sub get_last_logins_SSH {
     my $mon  = $dt->month_abbr;
     my $year = $dt->year;
 
-    my @LastSSHRootLogins = qx[ last -F | grep '$lcUser' ];
+    my $LastSSHRootLogins = Cpanel::SafeRun::Timed::timedsaferun( 4, 'last', '-F' );
+    my @LastSSHRootLogins = split /\n/, $LastSSHRootLogins;
     my $SSHLogins         = "";
     my @SSHIPs            = undef;
     foreach $SSHLogins (@LastSSHRootLogins) {
-        my ( $lastIP, $cDay, $cMonth, $cDate, $cTime, $cYear ) =
-          ( split( /\s+/, $SSHLogins ) )[ 2, 3, 4, 5, 6, 7 ];
+        my ( $lastIP, $cDay, $cMonth, $cDate, $cTime, $cYear ) = ( split( /\s+/, $SSHLogins ) )[ 2, 3, 4, 5, 6, 7 ];
         next unless ( $cMonth eq $mon && $cYear eq $year );
         push @SSHIPs, $lastIP unless ( $lastIP =~ /[a-zA-Z]/ );
     }
@@ -3301,8 +3141,7 @@ sub get_root_pass_changes {
         $num   = grep { $_ eq $success } @Success;
         $times = "time";
         if ( $num == 1 ) {
-            my $dispDateLine =
-              qx[ grep --text '$success' /usr/local/cpanel/logs/access_log ];
+            my $dispDateLine = Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', '--text', "$success", '/usr/local/cpanel/logs/access_log' );
             ($dispDate) = ( split( /\s+/, $dispDateLine ) )[3];
             $dispDate =~ s/\[/On: /;
         }
@@ -3357,14 +3196,13 @@ sub get_conf {
 }
 
 sub check_for_lilocked_ransomware {
-    my $lilockedFound =
-      qx[ find / -xdev -maxdepth 3 -name '*.lilocked' -print ];
+    my $lilockedFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.lilocked", '-print' );
+    my @lilockedFound = split /\n/, $lilockedFound;
     if ($lilockedFound) {
-        my @lilockedFound = split "\n", $lilockedFound;
         push( @SUMMARY, "> Evidence of lilocked ransomware detected." );
         foreach $lilockedFound (@lilockedFound) {
             chomp($lilockedFound);
-            push( @SUMMARY, CYAN "\t \\_ $lilockedFound" );
+            push( @SUMMARY, CYAN "\t\\_ $lilockedFound" );
         }
     }
 }
@@ -3373,7 +3211,7 @@ sub check_sudoers_file {
     my @sudoersfiles = glob(q{/etc/sudoers.d/*});
     push @sudoersfiles, "/etc/sudoers" unless ( !-e "/etc/sudoers" );
     my $showHeader          = 0;
-    my $external_ip_address = qx[ curl -s https://myip.cpanel.net/v1.0/ ];
+    my $external_ip_address = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', "https://myip.cpanel.net/v1.0/" );
     chomp($external_ip_address);
     my $isAWS_IP = getAWS_IPs($external_ip_address);
     foreach my $sudoerfile (@sudoersfiles) {
@@ -3449,40 +3287,25 @@ sub look_for_suspicious_files {
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         my $FileSize = $fStat->size;
         my $ctime    = $fStat->ctime;
-        my $isNOTRPMowned;
-
+        my $isNOTowned;
         if ( $distro eq "ubuntu" ) {
-            $isNOTRPMowned = qx[ apt-cache dump | grep '$file' ];
+            open( STDERR, '>', '/dev/null' );
+            $isNOTowned = Cpanel::SafeRun::Timed::timedsaferun( 5, 'dpkg', '-S', $file );
+            close( STDERR );
         }
         else {
-            $isNOTRPMowned = qx[ rpm -qf $file ];
+            $isNOTowned = Cpanel::SafeRun::Timed::timedsaferun( 5, 'rpm', '-qf', $file );
         }
-        chomp($isNOTRPMowned);
-        my $RPMowned = "Yes";
-
-        if ( $isNOTRPMowned eq "" or $isNOTRPMowned =~ m/not owned by/ ) {
-            $RPMowned = "No";
-        }
-        my $isImmutable = isImmutable($file);
-        if ($isImmutable) {
-            $isImmutable = MAGENTA " [IMMUTABLE]";
-        }
-        else {
-            $isImmutable = "";
-        }
+        chomp($isNOTowned);
+        my $RPMowned = ( $isNOTowned eq "no path found matching pattern" || $isNOTowned =~ m/not owned by/ ) ? "No" : "Yes";
+        my $isImmutable = ( isImmutable($file) ) ? MAGENTA " [IMMUTALBE]" : "";
         my $isELF = check_file_for_elf($file);
         if ($isELF) {
-            my $contains_bash =
-              Cpanel::SafeRun::Timed::timedsaferun( 0, 'hexdump', '-C',
-                "$file" );
+            my $contains_bash = Cpanel::SafeRun::Timed::timedsaferun( 0, 'hexdump', '-C', "$file" );
             if ( $contains_bash =~ m/bin.*bash/ ) {
-                push @SUMMARY,
-                  expand(
-"> $file contains shellcode within the header - Found via hexdump -C $file | grep 'bin.*bash'"
-                  );
+                push @SUMMARY, expand( "> $file contains shellcode within the header - Found via hexdump -C $file | grep 'bin.*bash'");
             }
-            my $sha256 =
-              Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$file" );
+            my $sha256 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$file" );
             chomp($sha256);
             ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
             my $ignoreHash = ignoreHashes($sha256only);
@@ -3497,7 +3320,7 @@ sub look_for_suspicious_files {
                   . CYAN $FileSize
                   . YELLOW " Date Changed: "
                   . CYAN scalar localtime($ctime)
-                  . YELLOW " RPM Owned: "
+                  . YELLOW " PKG Is Owned: "
                   . CYAN $RPMowned
                   . YELLOW " Owned by U/G: "
                   . CYAN $FileU . "/"
@@ -3550,55 +3373,39 @@ sub check_apitokens_json {
             "\t\\_ This is highly unusual and could indicate a root compromise!"
           );
     }
-    my $hasOldname =
-qx[ grep 'transfer-1567672078' /var/cpanel/authn/api_tokens_v2/whostmgr/root.json ];
-    if ($hasOldname) {
-        push @SUMMARY,
-            "> Found "
-          . CYAN "transfer-1567672078"
-          . YELLOW " in the "
-          . RED "/var/cpanel/authn/api_tokens_v2/whostmgr/root.json"
-          . YELLOW " file";
-    }
 }
 
 sub check_for_junglesec {
-    my $IPRule = qx[ iptables -L -n | grep 'dport 64321' | grep 'j ACCEPT' ];
-    if ($IPRule) {
-        push( @SUMMARY,
-"> Port 64321 set to ACCEPT in firewall - evidence of backdoor created by JungleSec Ransomware"
-        );
+    my $iptables_rules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
+    my @iptables_rules = split /\n/, $iptables_rules;
+    foreach my $IPRule(@iptables_rules) {
+        next unless( $IPRule =~ m{dport 64321} );
+        if ( $IPRule =~ m{j ACCEPT} ) {
+            push( @SUMMARY, "> Port 64321 set to ACCEPT in firewall - evidence of backdoor created by JungleSec Ransomware");
+        }
+        last;
     }
-    my $SearchJungleSec = qx[ find / -xdev -maxdepth 3 -name '*junglesec*' ];
+    my $SearchJungleSec = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', '*junglesec*', '-print' );
     if ($SearchJungleSec) {
-        push( @SUMMARY,
-"> Found possible JungleSec Ransomware - found several encrypted files with the junglesec extension."
-        );
-        push( @SUMMARY,
-                CYAN "\t\\_ Run: "
-              . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" );
+        push( @SUMMARY, "> Found possible JungleSec Ransomware - found several encrypted files with the junglesec extension.");
+        push( @SUMMARY, CYAN "\t\\_ Run: " . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" );
     }
 }
 
 sub isImmutable {
-    my $FileToCheck = $_[0];
+    my $FileToCheck = shift;
     return if !-e $FileToCheck;
-    my $attr = qx[ /usr/bin/lsattr $FileToCheck 2> /dev/null ];
-    if ( $attr =~ m/^\s*\S*[ai]/ ) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
+    return if -l $FileToCheck;
+    my $attr = Cpanel::SafeRun::Timed::timedsaferun( 3, '/usr/bin/lsattr', $FileToCheck );
+    return 1 if ( $attr =~ m/^\s*\S*[ai]/ );
+    return 0;
 }
 
 sub chk_md5_htaccess {
-    my $use_apache_md5_for_htaccess =
-      qx[ grep 'use_apache_md5_for_htaccess=0' /var/cpanel/cpanel.config ];
-    if ($use_apache_md5_for_htaccess) {
-
-        push @RECOMMENDATIONS,
-"> Use MD5 passwords with Apache is disabled in Tweak Settings (limits max characters for htpasswd passwords to 8)";
+    if (! $cpconf{'use_apache_md5_for_htaccess'} ) {
+        push @RECOMMENDATIONS, "> Use MD5 passwords with Apache is disabled in Tweak Settings.";
+        push @RECOMMENDATIONS, expand( CYAN "\t\\_ Uses Crypt-encoded passwords instead of MD5-encoded passwords.");
+        push @RECOMMENDATIONS, expand( CYAN "\t\\_ This limits a maximum of 8 characters which isn't very secure.");
     }
 }
 
@@ -3666,50 +3473,55 @@ sub check_apache_modules {
     return if ( !-d "/etc/apache2/modules" );
     my $ApacheMod;
     opendir( APACHEMODS, "/etc/apache2/modules" );
-    my @ApacheMods = readdir(APACHEMODS);
+    my @ApacheMods = sort( readdir(APACHEMODS) );
     closedir(APACHEMODS);
-    my $FoundOne = 0;
-    my $FoundMod = "";
-    my $output   = "";
-    my @NotOwned;
+    my @OnlyApacheMods;
+    my $FoundOne=0;
+    my @FoundMod;
+    my @OnlyApacheMods;
+    if ( $distro eq 'ubuntu' ) {
+        open( STDERR, '>', '/dev/null' );
+        my $allApacheMods = Cpanel::SafeRun::Timed::timedsaferun( 5, 'dpkg', '-L', 'ea-apache24' );
+        my @allApacheMods = split /\n/, $allApacheMods;
+        foreach my $ApacheMod( @allApacheMods ) {
+            next unless( $ApacheMod =~ m{modules/mod_} );
+            $ApacheMod =~ s{/usr/lib64/apache2/modules/}//g;
+            push @OnlyApacheMods, $ApacheMod;
+        }
+        my $allApacheMods = Cpanel::SafeRun::Timed::timedsaferun( 5, 'dpkg', '-l', "ea-apache24*" );
+        my @allApacheMods = split /\n/, $allApacheMods;
+        foreach my $ApacheMod( @allApacheMods ) {
+            next unless( $ApacheMod =~ m{mod-} );
+            $ApacheMod = ( split( /\s+/, $ApacheMod ) )[1];
+            $ApacheMod =~ s{ea-apache24}{}g;
+            $ApacheMod =~ s{-}{_}g;
+            $ApacheMod .= ".so";
+            push @OnlyApacheMods, $ApacheMod . ".so";
+        }
+        close( STDERR );
+        foreach my $line( @ApacheMods ) {
+            next if( $line eq "." || $line eq ".." );
+            if ( ! grep { m/$line/ } @OnlyApacheMods ) {
+                $FoundOne++;
+                push @FoundMod, $line . " ";
+            }
+        }
+    }
+    else {          ## RPM based
+        open( STDERR, '>', '/dev/null' );
+        foreach my $line( @ApacheMods ) {
+            next if( $line eq "." || $line eq ".." );
+            my $rpmInfo = Cpanel::SafeRun::Timed::timedsaferun( 2, 'rpm', '-qf', "/etc/apache2/modules/$line" );
+            if ( $rpmInfo =~ m{not owned} ) {
+                $FoundOne++;
+                push @FoundMod, $line . " ";
+            }
+        }
+        close( STDERR );
+    }
 
-    if ( $distro eq "ubuntu" ) {
-        my $NotOwned = qx[ dpkg -L ea-apache24 | grep 'modules/mod_' ];
-        $NotOwned .= qx[ dpkg -l ea-apache24* | grep 'mod-' ];
-        @NotOwned = split /\n/, $NotOwned;
-    }
-    my $ApacheModFuzzy;
-    foreach $ApacheMod (@ApacheMods) {
-        chomp($ApacheMod);
-        next if ( $ApacheMod eq "." or $ApacheMod eq ".." );
-        if ( $distro eq "ubuntu" ) {
-            next if ( grep { /$ApacheMod/ } @NotOwned );
-            $ApacheModFuzzy = $ApacheMod;
-            $ApacheModFuzzy =~ s/\_/\-/g;
-            $ApacheModFuzzy =~ s/\.so//g;
-            next if ( grep { /$ApacheModFuzzy/ } @NotOwned );
-            $FoundMod .= $ApacheMod . " ";
-            $FoundOne = 1;
-            $output   = "installed via a package!";
-        }
-        else {
-            my $NotOwned =
-qx[ rpm -qf "/etc/apache2/modules/$ApacheMod" | grep 'not owned' ];
-            next unless ($NotOwned);
-            $FoundMod .= $ApacheMod . " ";
-            $FoundOne = 1;
-            $output   = "owned by an RPM!";
-        }
-    }
-    if ($FoundOne) {
-        push(
-            @SUMMARY,
-            expand(
-"> Found at least one Apache module in /etc/apache2/modules that is not $output\n\t\\_ "
-                  . CYAN "Should be investigated "
-                  . MAGENTA $FoundMod
-            )
-        );
+    if ($FoundOne > 0) {
+        push( @SUMMARY, expand( "> Found an Apache module in /etc/apache2/modules that is not owned by any package.\n\t\\_ " . CYAN "Should be investigated " . MAGENTA @FoundMod));
     }
 }
 
@@ -3755,12 +3567,10 @@ sub ignoreHashes {
 }
 
 sub check_for_unprotected_backdoors {
-    my $UNP_backdoors =
-      qx[ find -L /usr/local/cpanel/base/unprotected/ -name '*.php' ];
+    my $UNP_backdoors = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '-L', '/usr/local/cpanel/base/unprotected/', '-name', '*.php', '-print' );
     if ($UNP_backdoors) {
         my @UNP_backdoors = split "\n", $UNP_backdoors;
-        push @SUMMARY,
-"> Found suspicious PHP files (possible backdoor) in /usr/local/cpanel/base/unprotected";
+        push @SUMMARY, "> Found suspicious PHP files (possible backdoor) in /usr/local/cpanel/base/unprotected";
         foreach $UNP_backdoors (@UNP_backdoors) {
             chomp($UNP_backdoors);
             push @SUMMARY, expand( CYAN "\t\\_ " . $UNP_backdoors );
@@ -3973,33 +3783,19 @@ m/localhost blockchain.info|localhost 100.100.25.3 jsrv.aegis.aliyun.com|localho
     }
 }
 
-sub check_for_fileless_malware {
-    my $memfd_deleted =
-      qx[ ls -alR '/proc/*/exe' 2>/dev/null | grep 'memfd:.*\(deleted\)' ];
-    return unless ($memfd_deleted);
-    push @SUMMARY,
-      "> Detected possible fileless malware.\n\t\\_ See - "
-      . WHITE
-"https://www.sandflysecurity.com/blog/detecting-linux-memfd_create-fileless-malware-with-command-line-forensics/";
-}
-
 sub check_etc_group {
-    my @susp_users = qw(
-      gh0stx
-      sclipicibosu
-      mexalzsherifu
-    );
-    return
-      unless ( -e '/etc/group' )
-      ;    ## If this is true, you have more serious problems.
-    foreach my $susp_user (@susp_users) {
-        chomp($susp_user);
-        my $found = qx[ grep $susp_user '/etc/group' ];
-        if ($found) {
-            push @SUMMARY,
-              "> Found suspicious user in /etc/group file - $found";
+    my @susp_users = qw( gh0stx sclipicibosu mexalzsherifu);
+    return unless ( -e '/etc/group' ) ;    ## If this is true, you have more serious problems.
+    open( my $fh, '<', '/etc/group' );
+    while ( <$fh> ) {
+        foreach my $susp_user (@susp_users) {
+            chomp($susp_user);
+            if ( $_ =~ m{$susp_user} ) {
+                push @SUMMARY, "> Found suspicious user in /etc/group file - " . CYAN $susp_user;
+            }
         }
     }
+    close( $fh );
 }
 
 sub check_binaries_for_shell {
@@ -4084,11 +3880,21 @@ sub check_for_azazel_rootkit {
 }
 
 sub check_for_xbash {
+    return if( ! -f '/etc/my.cnf' );
     my $XBash_Table;
     my $RansomwareNote;
-    my ($mysqldatadir) = ( split( /=/, qx[ grep 'datadir' /etc/my.cnf ] ) )[1];
-    my $mysql_datadir = ($mysqldatadir) ? $mysqldatadir : "/var/lib/mysql";
-    chomp($mysql_datadir);
+    my ( %mycnf_variables, $mycnf_key, $mycnf_value );
+    open( my $fh, '<', '/etc/my.cnf' );
+    while( <$fh> ) {
+        next if( substr( $_, 0,1 ) eq "#" || substr( $_, 0,1 ) eq "[" );
+        next if( $_ eq "" );
+        ($mycnf_key, $mycnf_value ) = ( split( /=/, $_ ) );
+        chomp($mycnf_value);
+        next if ( $mycnf_key eq "" or $mycnf_value eq "" );
+        $mycnf_variables{$mycnf_key} = $mycnf_value;
+    }
+    close($fh);
+    my $mysql_datadir = ( defined $mycnf_variables{'datadir'} ) ? $mycnf_variables{'datadir'} : '/var/lib/mysql';
     if ( -d $mysql_datadir ) {
         opendir( my $dh, $mysql_datadir );
         my @mysql_databases = readdir($dh);
@@ -4096,19 +3902,14 @@ sub check_for_xbash {
         foreach my $database (@mysql_databases) {
             chomp $database;
             next unless ( $database =~ m/PLEASE_READ|README_TO_RECOVER/ );
-            push( @SUMMARY,
-"> Possible Xbash variant ransomware detected. Database's missing? Database "
-                  . CYAN $database
-                  . YELLOW " exists!" );
-            $XBash_Table = qx[ mysql -BNe "SHOW TABLES FROM $database;" ];
+            push( @SUMMARY, "> Possible Xbash variant ransomware detected. Database's missing? Database " . CYAN $database . YELLOW " exists!" );
+            $XBash_Table = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SHOW TABLES FROM $database;" );
             chomp($XBash_Table);
             if ($XBash_Table) {
-                $RansomwareNote =
-                  qx[ mysql -BNe "SELECT * FROM $database.$XBash_Table;" ];
+                $RansomwareNote = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SELECT * FROM $database.$XBash_Table;" );
                 if ($RansomwareNote) {
                     chomp($RansomwareNote);
-                    push( @SUMMARY,
-                        CYAN "\t\\_ Ransomeware Note: $RansomwareNote" );
+                    push( @SUMMARY, CYAN "\t\\_ Ransomeware Note: $RansomwareNote" );
                 }
             }
         }
@@ -4118,30 +3919,54 @@ sub check_for_xbash {
 sub check_for_cronRAT {
 
     # check for evidence of cronRAT - https://sansec.io/research/cronrat
-    my @files = qw( systemd-user.lock php.lock php-fpm-lock www-server.lock );
-    for my $file (@files) {
-        my $fullpath = "/run/user/*/" . $file;
-        next unless (qx[ stat $fullpath 2>/dev/null]);
-        my ($fullpath) =
-          ( split( /\s+/, qx[ stat $fullpath 2>/dev/null | grep 'File:' ] ) )
-          [2];
-        $fullpath =~ s/[‘,’]//g;
-        chomp($fullpath);
-        push( @SUMMARY, "> Suspicious files found: possible cronRAT exploit." );
-        push( @SUMMARY, CYAN "\t \\_ " . $fullpath . " exists" )
-          unless ( !$fullpath );
+    my @dirs = qw( /dev/shm /tmp /var/tmp );
+    my @files = qw( www-shared server-worker-shared sql-shared php-shared systemd-user.lock php.lock php-fpm.lock www-    server.lock php_sess_RANDOM zend_cache___RANDOM php_cache www_cache worker_cahce logo_edited_DATE.png user_edited_DATE.css custom_edited_DATE.css );
+    # Yes, the misspelling of worker_cahce is intentional :)
+    my $fullpath;
+    my $fullstat;
+    my $showHeader=0;
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            $fullpath = $dir . "/" . $file;
+            open( STDERR, '>', '/dev/null' );
+            ($fullstat) = Cpanel::SafeRun::Timed::timedsaferun( 2, 'stat', $fullpath );
+            close( STDERR );
+            next unless( $fullstat );
+            my @fullstat = split /\n/, $fullstat;
+            foreach my $line( @fullstat ) {
+                next unless( $line =~ m{File:} );
+                my ( $foundPath ) = ( split( /\s+/, $line ))[2];
+                chomp($foundPath);
+                push @SUMMARY, "> Suspicious files found: possible cronRAT exploit." unless( $showHeader );
+                push @SUMMARY, expand( "\t\\_ See: https://sansec.io/research/cronrat" ) unless( $showHeader );
+                $showHeader=1;
+                push @SUMMARY, expand( CYAN "\t \\_ " . $fullpath . " exists" ) unless ( !$fullpath );
+            }
+        }
     }
 
-# Add check for grep -l LD_L1BRARY_PATH /proc/*/environ (notice the typo 1 instead of i in L1BRARY)
-    my $L1BRARY_PATH =
-      qx[ grep -l LD_L1BRARY_PATH /proc/*/environ 2>/dev/null ];
-    my @L1BRARY_PATH = split /\n/, $L1BRARY_PATH;
-    if (@L1BRARY_PATH) {
-        push( @SUMMARY,
-            "> Suspicious process(es) found: possible cronRAT exploit." );
-        foreach my $suspproc (@L1BRARY_PATH) {
-            chomp($suspproc);
-            push( @SUMMARY, CYAN "\t \\_ " . $suspproc ) unless ( !$suspproc );
+    for my $file( @files ) {
+        chomp($file);
+        my $found = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/run/user', '-iname', $file, '-print' );
+        if ( $found ) {
+            push @SUMMARY, "> Suspicious files found: possible cronRAT exploit." unless( $showHeader );
+            push @SUMMARY, expand( "\t\\_ See: https://sansec.io/research/cronrat" ) unless( $showHeader );
+            chomp( $found );
+            push @SUMMARY, expand( CYAN "\t \\_ " . $found . " exists" );
+        }
+    }
+
+    my @globfiles = glob( '/proc/*/environ' );
+    my $searchstring = 'LD_LIBRARY_PATH';
+    my $showHeader=0;
+    foreach my $environ_proc(@globfiles) {
+        chomp($environ_proc);
+        my $found = Cpanel::SafeRun::Timed::timedsaferun( 4, 'grep', '--text', $searchstring, $environ_proc );
+        if ( $found ) {
+            push( @SUMMARY, "> Suspicious process(es) found: possible cronRAT exploit." ) unless( $showHeader );
+            $showHeader=1;
+            push( @SUMMARY, CYAN "\t \\_ " . $found ) unless ( !$found );
         }
     }
 }
@@ -4163,12 +3988,19 @@ sub check_for_cve_vulnerabilities {
     foreach my $cveline(@CVEDATA) {
         chomp($cveline);
         next if ( $cveline =~ m/#/ );
-        my ( $pkg, $cve, $notvuln, $vuln, $url ) = ( split( /\|\|/, $cveline) );
+        my ( $type, $pkg, $cve, $notvuln, $vuln, $url ) = ( split( /\|\|/, $cveline) );
+        chomp($type);
         chomp($pkg);
         chomp($cve);
         chomp($notvuln);
         chomp($vuln);
         chomp($url);
+        if ( $distro eq "ubuntu" ) {
+            next if ( $type eq 'rpm' );
+        }
+        else {
+            next if ( $type eq 'apt' );
+        }
         # Check if package is installed
         my $installed = is_installed( $pkg );
         next unless( $installed );
@@ -4189,11 +4021,19 @@ sub check_for_cve_vulnerabilities {
         next unless( ! $found_in_changelog );
         # check version against the vuln and nonvuln variables
         next if ( version_compare( $pkgver, '>=', $notvuln ) );
-        push @SUMMARY, "> The following packages are vulnerable to known CVE's" unless( $showHeader );
+        push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
-        $infoLink = CYAN "See $url" if ($url);
-        push @SUMMARY, expand( "\t\\_ $pkg is Vulnerable to $cve\n\t\t\\_  $infoLink" );
+        $infoLink = CYAN "\n\t\t\\_ See $url" if ($url);
+        push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve $infoLink\n" );
+        push @SUMMARY, expand( GREEN "\t\\_ The following check was used to verify this");
+        if ( $distro eq 'ubuntu' ) {
+            push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
+        }
+        else {
+            push @SUMMARY, expand( YELLOW "\t\\_ rpm -q --changelog " . $pkg . " | grep -E '" . $cve ."'");
+            push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-   positive results if corrupt");
+        }
     }
     return;
 }
@@ -4217,14 +4057,14 @@ sub is_installed {
     my $tcPkg = shift;
     my $is_installed=0;
     if ($distro eq "ubuntu" ) {
-        my $installed_packages=timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n' );
-        $is_installed = grep { /$tcPkg/ } $installed_packages;
+        my $installed_package=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n', $tcPkg );
+        if ( $installed_package ) {
+            $is_installed=1;
+        }
     }
     else {
-        #print "Got to install check routine for $tcPkg\n" if ( $tcPkg eq 'cpanel-dovecot-solr' );
         my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
         chomp($is_installed1);
-        #print "is_installed1=$is_installed1\n" if ( $tcPkg eq 'cpanel-dovecot-solr' );
         $is_installed = ! grep { /is not installed/ } $is_installed1;
     }
     return $is_installed;
@@ -4300,6 +4140,53 @@ sub get_suspicious_cron_strings {
     my $susp_cron_strings = $res->decoded_content;
     my @susp_cron_strings = split /\n/, $susp_cron_strings;
     return \@susp_cron_strings;
+}
+
+sub check_for_cve_2021_4034 {
+    my $authlog;
+    if ( $distro eq 'ubuntu' ) {
+        $authlog = '/var/log/auth.log';
+    }
+    else {
+        $authlog = '/var/log/secure';
+    }
+    open( my $fh, '<', $authlog);
+    while( <$fh> ) {
+        if ( $_ =~ m{The value for the SHELL variable was not found the /etc/shells file} ) {
+            push @SUMMARY, "> Found possible root compromise using CVE-2021-4034";
+            push @SUMMARY, expand( "\t\\_ The string " . CYAN "The value for the SHELL variable was not found the /etc/shells file" . YELLOW " was found in the $authlog file" );
+            last;
+        }
+    }
+    close($fh);
+}
+
+sub get_rpm_href {
+    return get_apt_href() if ( $distro eq 'ubuntu');
+    return unless my $list = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-qa', '--queryformat', q{%{NAME}\t%{VERSION}\t%{RELEASE}\n} );
+    my %rpms;
+    for my $line ( split( /\n/, $list ) ) {
+        my ( $name, $version, $release ) = split( /\t/, $line );
+        push @{ $rpms{$name} }, {
+            'version'     => defined $version     ? $version     : '',
+            'release'     => defined $release     ? $release     : '',
+        };
+    }
+    return \%rpms;
+}
+
+sub get_apt_href {
+    return unless my $list = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\t${Version}\t${Architecture}\t${Maintainer}\n' );
+    my %rpms;
+    for my $line ( split( /\n/, $list ) ) {
+        my ( $name, $version, $arch, $maintainer ) = split( /\t/, $line );
+        push @{ $rpms{$name} }, {
+            'version' => defined $version ? $version : '',
+            'arch' => defined $arch ? $arch : '',
+            'maintainer' => defined $maintainer ? $maintainer : '',
+        };
+    }
+    return \%rpms;
 }
 
 # EOF
