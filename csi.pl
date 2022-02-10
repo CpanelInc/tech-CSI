@@ -1549,7 +1549,7 @@ sub check_for_hiddenwasp {
             push @SUMMARY, "> Found HIDE_THIS_SHELL in the /lib/libselinux.a file. Could indicate HiddenWasp Rootkit";
         }
     }
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 );
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 );
     foreach my $port (@ports) {
         chomp($port);
         my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
@@ -2229,8 +2229,7 @@ sub userscan {
                     if ( $triggered_rule =~ m/Rule_/ ) {
                         $triggered_string = YELLOW "See: " . BOLD BLUE "https://cpaneltech.ninja/cgi-bin/triggered.cgi?$triggered_rule";
                     }
-                    my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3,
-                        "stat $triggered_file | grep -i change" );
+                    my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3, 'stat', $triggered_file, "| grep -i change" );
                     ($ChangeDate) = ( split( /\./, $ChangeDate ) );
                     $ChangeDate =~ s/Change: //;
                     # check hash of $triggered_file against known256_hashes.txt
@@ -2286,8 +2285,7 @@ sub userscan {
             my @newRetVal       = uniq @FileNamesOnly;
             my $TotalFilesFound = @newRetVal;
             foreach $FileOnly (@newRetVal) {
-                my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3,
-                    "stat $FileOnly | grep -i change" );
+                my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3, 'stat', $FileOnly, "| grep -i change" );
                 ($ChangeDate) = ( split( /\./, $ChangeDate ) );
                 $ChangeDate =~ s/Change: //;
                 # check hash of $triggered_file against known256_hashes.txt
@@ -3758,7 +3756,7 @@ sub check_for_suspicious_user {
     my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
-        my $id_found = Cpanel::SafeRun::Timed::timedsaferun( 5, "id $user 2>/dev/null" );
+        my $id_found = Cpanel::SafeRun::Timed::timedsaferun( 5, 'id', $user, "2>/dev/null" );
         if ( $id_found ) {
             push @SUMMARY, "> Found suspicious user " . CYAN $user . YELLOW " in /etc/passwd file.";
         }
@@ -4025,14 +4023,14 @@ sub check_for_cve_vulnerabilities {
         $showHeader=1;
         my $infoLink="";
         $infoLink = CYAN "\n\t\t\\_ See $url" if ($url);
-        push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve $infoLink\n" );
+        push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve $infoLink" );
         push @SUMMARY, expand( GREEN "\t\\_ The following check was used to verify this");
         if ( $distro eq 'ubuntu' ) {
             push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
         }
         else {
             push @SUMMARY, expand( YELLOW "\t\\_ rpm -q --changelog " . $pkg . " | grep -E '" . $cve ."'");
-            push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-   positive results if corrupt");
+            push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
         }
     }
     return;
