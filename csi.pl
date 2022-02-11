@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.0";
+my $version = "3.5.1";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2434,39 +2434,6 @@ sub check_xframe_content_headers {
     }
 }
 
-sub installClamAV {
-    my $isClamAVInstalledJSON = get_whmapi1( 'servicestatus', 'service=clamd' );
-    my $isClamAVInstalled = $isClamAVInstalledJSON->{data}->{service}->{installed};
-    if ($isClamAVInstalled) {
-        print_info("ClamAV already installed!");
-        logit("ClamAV already installed!");
-        print_info("Updating ClamAV definitions/databases");
-        logit("Updating ClamAV definitions/databases");
-        Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/3rdparty/bin/freshclam', "&> /dev/null" );
-        return 1;
-    }
-    else {
-        print_info("Installing ClamAV plugin...");
-        logit("Installing ClamAV plugin");
-        get_whmapi1( 'edit_rpm_version', 'section=target_settings', 'key=clamav', 'value=installed' );
-        Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/check_cpanel_pkgs', '--fix', '--targets=clamav' );
-        my $ClamInstallChkJSON = get_whmapi1( 'servicestatus', 'service=clamd' );
-        my $ClamInstallChk = $ClamInstallChkJSON->{data}->{service}->{installed};
-        if ($ClamInstallChk) {
-            logit("Install completed");
-            print_info("Updating ClamAV definitions/databases");
-            logit("Updating ClamAV definitions/databases");
-            Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/3rdparty/bin/freshclam', "&> /dev/null" );
-            return 1;
-        }
-        else {
-            print_warn("Failed!");
-            logit("Install failed");
-            return 0;
-        }
-    }
-}
-
 sub security_advisor {
     unlink("/var/cpanel/security_advisor_history.json") if ( -e ("/var/cpanel/security_advisor_history.json") );
     my $SecAdvisor = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/check_security_advice_changes' );
@@ -3756,7 +3723,9 @@ sub check_for_suspicious_user {
     my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
-        my $id_found = Cpanel::SafeRun::Timed::timedsaferun( 5, 'id', $user, "2>/dev/null" );
+        open( STDERR, '>', '/dev/null' );
+        my $id_found = Cpanel::SafeRun::Timed::timedsaferun( 5, 'id', $user );
+        close( STDERR );
         if ( $id_found ) {
             push @SUMMARY, "> Found suspicious user " . CYAN $user . YELLOW " in /etc/passwd file.";
         }
