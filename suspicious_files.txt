@@ -1088,7 +1088,6 @@
 /var/run/udev.pid
 /var/run/udev/ud.pid
 /var/sbin/bash
-/var/sftp
 /var/spool/cron/crontabs/rootcat
 /var/spool/cron/rootkey
 /var/spool/lp/admins/.lp
