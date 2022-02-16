@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.1";
+my $version = "3.5.2";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -378,11 +378,10 @@ sub bincheck {
     return unless my $rpms = get_rpm_href();
     my @rpms=split /\n/, $rpms;
     my $RPMcnt = @rpms;
-    print_status( 'Done - Found: ' . $RPMcnt . ' RPMs to verify' );
+    print_status( 'Done - Found: ' . $RPMcnt . ' Packages to verify' );
     print_header('[ Verifying RPM binaries - This may take some time... ]');
     logit("Verifying RPM binaries");
 
-    #foreach my $rpmline (@RPMS) {
     foreach my $rpmline (@rpms) {
         chomp($rpmline);
         # We skip cpanel and ea- provided RPM's since those are checked via /usr/local/cpanel/scripts/check_cpanel_pkgs
@@ -390,7 +389,6 @@ sub bincheck {
         $verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-V', $rpmline );
         chomp($verify);
         spin();
-        #push( @BINARIES, $verify ) unless ( $verify eq "" );
         push( @BINARIES, $verify ) unless ( $verify eq "" or ! $verify =~ m{bin|sbin} );
     }
     foreach $binaryline (@BINARIES) {
@@ -632,7 +630,7 @@ sub scan {
                     next unless -d $dir;
                     print_status("\tScanning $dir directory");
                     my $loadavg = get_loadavg();
-                    print_status( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]");
+                    print_status( expand( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]") );
                     $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
                     my @results   = split /\n/, $results;
                     my $resultcnt = @results;
@@ -643,7 +641,7 @@ sub scan {
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
                             push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ or $showHeader );
                             $showHeader = 1;
-                            push @SUMMARY, "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK/ );
+                            push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK/ );
                         }
                     }
                 }
@@ -721,15 +719,15 @@ sub check_kernel_updates {
     if ( $KernelStatus->{has_kernelcare} ) {
         if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
             push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
-            push @SUMMARY, CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]";
-            push @SUMMARY, CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]";
+            push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
+            push @SUMMARY, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
         }
     }
     else {
         if ( $KernelStatus->{reboot_required} ) {
             push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
-            push @RECOMMENDATIONS, CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]";
-            push @RECOMMENDATIONS, CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]";
+            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
+            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
         }
     }
     logit("Kernel status check completed.");
@@ -822,7 +820,7 @@ sub check_modsecurity {
             if ( !defined( $modsec_vendor->{is_rpm} ) ) {
                 push @RECOMMENDATIONS,
 "> Using $modsec_vendor->{description} YAML rules - Please consider using the RPM\n"
-                  . CYAN "\t\\_ yum install ea-modsec2-rules-owasp-crs"
+                  . CYAN expand( "\t\\_ yum install ea-modsec2-rules-owasp-crs" )
                   unless ( $distro eq "ubuntu" );
             }
             if ( $modsec_vendor->{enabled} == 0 ) {
@@ -881,7 +879,7 @@ sub check_uids {
     if (@baduids) {
         push @SUMMARY, '> Users with UID of 0 detected:';
         foreach (@baduids) {
-            push( @SUMMARY, CYAN "\t \\_ " . $_ );
+            push( @SUMMARY, expand( CYAN "\t \\_ " . $_ ) );
             get_last_logins_WHM($_);
             get_last_logins_SSH($_);
             get_root_pass_changes($_);
@@ -900,7 +898,7 @@ m/pty.spawn("\/bin\/sh")|pty.spawn\("\/bin\/bash"\)|os.system\('\/bin\/bash'\)|o
             push( @SUMMARY,
 "> Found evidence in /root/.bash_history of a possible TTY shell being spawned"
             );
-            push( @SUMMARY, "\t \\_ $histline\n" );
+            push( @SUMMARY, expand( "\t \\_ $histline\n" ) );
         }
     }
 }
@@ -915,7 +913,7 @@ m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\
         {
             push( @SUMMARY,
                 "> Suspicious entries found in /root/.bash_history" );
-            push( @SUMMARY, "\t\\_ $histline" );
+            push( @SUMMARY, expand( "\t\\_ $histline" ) );
         }
     }
 }
@@ -935,7 +933,7 @@ sub check_processes {
         next unless ( _ignore_susp_proc( $suspicious_process ) );
         push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
         $headerPrint = 1;
-        push @SUMMARY, CYAN "\t\\_ " . join( "\t\\_ ", map { my ( $u, $c, $a ) = @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' }; "[pid: $_] [user: $u] [cmd: $c] [args: $a]" } keys %procs);
+        push @SUMMARY, CYAN expand( "\t\\_ " . join( "\t\\_ ", map { my ( $u, $c, $a ) = @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' }; "[pid: $_] [user: $u] [cmd: $c] [args: $a]" } keys %procs) );
     }
 }
 
@@ -1474,7 +1472,7 @@ sub check_for_unowned_libkeyutils_files {
             "> [Possible Rootkit: Ebury/Libkeys] - "
               . CYAN "Library/file is unowned" );
         for my $unowned_lib (@unowned_libs) {
-            push( @SUMMARY, CYAN "\t\\_ $unowned_lib is not owned by any RPM" );
+            push( @SUMMARY, expand( CYAN "\t\\_ $unowned_lib is not owned by any RPM" ) );
             vtlink($unowned_lib);
         }
     }
@@ -1564,13 +1562,13 @@ sub check_for_dirtycow_passwd {
         push( @SUMMARY,
             "> [DirtyCow] - Evidence of FireFart/DirtyCow compromise found." );
         push( @SUMMARY,
-            CYAN
+            expand( CYAN
 "\t \\_ Run: getent passwd 0 and notice the 5th field says 'pwned'"
-        );
+        ) );
         my $HasPwnd =
           Cpanel::SafeRun::Timed::timedsaferun( 4, 'getent passwd 0' );
         chomp($HasPwnd);
-        push( @SUMMARY, MAGENTA "\t \\_ $HasPwnd" );
+        push( @SUMMARY, expand( MAGENTA "\t \\_ $HasPwnd" ) );
     }
     opendir my $dh, "/tmp";
     my @tmpdirfiles = readdir($dh);
@@ -1680,7 +1678,7 @@ sub check_for_linux_lady {
         chomp($lsof);
         my ( $comm, $pid, $user ) = (split( /\s+/, $lsof));
         next unless( $user eq 'root' );
-        push @SUMMARY, "> Found socket listening on port 6379 (Redis server?). Running as root - " . RED "VERY DANGEROUS!" . CYAN "\n\t\\_[ Could indicate LinuxLady rootkit ]";
+        push @SUMMARY, "> Found socket listening on port 6379 (Redis server?). Running as root - " . RED "VERY DANGEROUS!" . expand( CYAN "\n\t\\_[ Could indicate LinuxLady rootkit ]" );
         last;
     }
 }
@@ -1822,23 +1820,24 @@ sub userscan {
     foreach my $symlink (@symlinks) {
         my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 5, 6, 11, 12, 13 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
+        next if ( $SLdir =~ m{/home/virtfs} );
         push @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" unless ($headerprinted);
         $headerprinted = 1;
         my $fStat = stat($realpath);
         if ( -e _ ) {
             if ( $symUID eq "root" or $symGID eq "root" ) {
                 if ( $hp1 == 0 ) {
-                    push( @SUMMARY, CYAN "\t\\_ root owned symlinks " . BOLD RED "(should be considered root compromised!): ");
+                    push( @SUMMARY, expand( CYAN "\t\\_ root owned symlinks " . BOLD RED "(should be considered root compromised!): ") );
                     $hp1 = 1;
                 }
-                push( @SUMMARY, "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath);
+                push( @SUMMARY, expand( "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath) );
             }
             else {
                 if ( $hp2 == 0 ) {
-                    push( @SUMMARY, CYAN "\t\\_ User owned ($symUID) symlinks: " );
+                    push( @SUMMARY, expand( CYAN "\t\\_ User owned ($symUID) symlinks: " ) );
                     $hp2 = 1;
                 }
-                push( @SUMMARY, "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath);
+                push( @SUMMARY, expand( "\t\t\\_ " . MAGENTA $link . " " . $pointer . " " . $realpath) );
             }
         }
     }
@@ -1860,15 +1859,13 @@ sub userscan {
     my $shadow_roottn_baks = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/etc", '-name', 'shadow\.*', '-print' ) unless ( !-d "$RealHome/etc" );
     if ($shadow_roottn_baks) {
         my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
-        push @SUMMARY,
-"> Found the following directories containing possible variant of the shadow.roottn.bak hack:";
-        push @SUMMARY,
-          expand( MAGENTA
-"\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php"
-          );
+        my $showHeader=0;
         foreach $shadow_roottn_baks (@shadow_roottn_baks) {
+            push @SUMMARY, "> Found the following directories containing possible variant of the shadow.roottn.bak hack:" unless( $showHeader);
+            push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php") unless( $showHeader);
+            $showHeader=1;
             chomp($shadow_roottn_baks);
-            next if ( $shadow_roottn_baks =~ m/shadow.lock/ );
+            next if ( $shadow_roottn_baks =~ m{shadow.lock|/home/virtfs} );
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
     }
@@ -1938,7 +1935,7 @@ sub userscan {
                   "> Found php script under $RealHome/$pubhtml/.well-known" );
             $headerprinted = 1;
         }
-        push( @SUMMARY, CYAN "\t\\_ $file" );
+        push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
     }
 
     print_status(
@@ -2032,7 +2029,7 @@ sub userscan {
         if ( -f _ and not -z _ ) {
             spin();
             push( @SUMMARY, "> Found evidence of stealrat botnet" );
-            push( @SUMMARY, CYAN "\t\\_ $fullpath" );
+            push( @SUMMARY, expand( CYAN "\t\\_ $fullpath" ) );
         }
     }
 
@@ -2229,25 +2226,31 @@ sub userscan {
                     if ( $triggered_rule =~ m/Rule_/ ) {
                         $triggered_string = YELLOW "See: " . BOLD BLUE "https://cpaneltech.ninja/cgi-bin/triggered.cgi?$triggered_rule";
                     }
-                    my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3, 'stat', $triggered_file, "| grep -i change" );
-                    ($ChangeDate) = ( split( /\./, $ChangeDate ) );
+                    my $ChangeDate;
+                    my $ChangeDateStat = Cpanel::SafeRun::Timed::timedsaferun( 3, 'stat', $triggered_file );
+                    my @ChangeDateStat = split /\n/, $ChangeDateStat;
+                    foreach my $line( @ChangeDateStat ) {
+                        next unless( $line =~ m/Change: / );
+                        ($ChangeDate) = ( split( /\./, $line ) );
+                        last;
+                    }
                     $ChangeDate =~ s/Change: //;
                     # check hash of $triggered_file against known256_hashes.txt
                     my ($sha256only) = (split(/\s+/,Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$triggered_file" )))[0];
                     my $knownHash  = known_sha256_hashes($sha256only);
                     my $susp_hash="";
                     if ($knownHash) {
-                        $susp_hash = CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!";
+                        $susp_hash = expand( CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!" );
                     }
                     push @SUMMARY,
-                        "\t\\_ File: "
+                        expand( "\t\\_ File: "
                       . MAGENTA $triggered_file
                       . YELLOW " looks suspicious. "
                       . GREEN "Changed on ["
                       . $ChangeDate . "] "
                       . $susp_hash . " "
                       . BOLD CYAN
-                      "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string"
+                      "\n\t\t\\_ [Triggered: $triggered_rule] $triggered_string" )
                       unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ );
                 }
             }
@@ -2284,16 +2287,22 @@ sub userscan {
             }
             my @newRetVal       = uniq @FileNamesOnly;
             my $TotalFilesFound = @newRetVal;
+            my $ChangeDate;
             foreach $FileOnly (@newRetVal) {
-                my $ChangeDate = Cpanel::SafeRun::Timed::timedsaferun( 3, 'stat', $FileOnly, "| grep -i change" );
-                ($ChangeDate) = ( split( /\./, $ChangeDate ) );
+                my $ChangeDateStat = Cpanel::SafeRun::Timed::timedsaferun( 3, 'stat', $FileOnly );
+                my @ChangeDateStat = split /\n/, $ChangeDateStat;
+                foreach my $line( @ChangeDateStat ) {
+                    next unless( $line =~ m/Change: / );
+                    ($ChangeDate) = ( split( /\./, $line ) );
+                    last;
+                }
                 $ChangeDate =~ s/Change: //;
                 # check hash of $triggered_file against known256_hashes.txt
                 my ($sha256only) = (split(/\s+/,Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$FileOnly" )))[0];
                 my $knownHash  = known_sha256_hashes($sha256only);
                 my $susp_hash="";
                 if ($knownHash) {
-                    $susp_hash = CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!";
+                    $susp_hash = expand( CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!" );
                 }
                 push(
                     @SUMMARY,
@@ -2351,11 +2360,9 @@ sub check_for_symlinks {
     foreach $symlink (@symlinks) {
         my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 5, 6, 11, 12, 13 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
-        if ( $headerprinted == 0 ) {
-            push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" )
-              unless ($headerprinted);
-            $headerprinted = 1;
-        }
+        next if ( $SLdir =~ m{/home/virtfs} );
+        push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" ) unless ($headerprinted);
+        $headerprinted = 1;
         my $fStat = stat($realpath);
         if ( -e _ ) {
             if ( $symUID eq "root" or $symGID eq "root" ) {
@@ -2567,7 +2574,7 @@ sub misc_checks {
                         "> Suspicous file found (possible bitcoin miner?)" );
                     $headerprinted = 1;
                 }
-                push( @SUMMARY, CYAN "\t\\_ $fullpath" );
+                push( @SUMMARY, expand( CYAN "\t\\_ $fullpath" ) );
                 vtlink($fullpath);
             }
         }
@@ -2607,11 +2614,11 @@ sub misc_checks {
                     chomp($susp_cron_string);
                     if ( $_ =~ m{$susp_cron_string} ) {
                         push @cronContains,
-                            CYAN "\t \\_ "
+                            expand( CYAN "\t \\_ "
                         . $cron
                         . "\n\t\t \\_ Contains: [ "
                         . RED $_
-                        . CYAN " ] $isImmutable";
+                        . CYAN " ] $isImmutable" );
                     }
                 }
             }
@@ -2635,7 +2642,7 @@ sub misc_checks {
             if ( -f _ and not -z _ ) {
                 push( @SUMMARY,
                     "> Suspicious files found: possible bitcoin miner." );
-                push( @SUMMARY, CYAN "\t \\_ " . $fullpath . " exists" );
+                push( @SUMMARY, expand( CYAN "\t \\_ " . $fullpath . " exists" ) );
             }
         }
     }
@@ -2644,7 +2651,7 @@ sub misc_checks {
         my @systemctl_status = split /\n/, $systemctl_status;
         if ( grep ( { /mysql --noTest/ } @systemctl_status ) ) {
             push @SUMMARY, "> Found evidence of a bitcoin miner in /etc/rc.d/rc.local";
-            push @SUMMARY, "\t\\_ rc-local.service should not be running with mysql --noTest";
+            push @SUMMARY, expand( "\t\\_ rc-local.service should not be running with mysql --noTest" );
         }
     }
 }
@@ -2832,15 +2839,13 @@ sub chk_shadow_hack {
     my $shadow_roottn_baks = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-name', 'shadow\.*', '-print' );
     if ($shadow_roottn_baks) {
         my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
-        push @SUMMARY,
-"> Found the following directories containing the shadow.roottn.bak hack:";
-        push @SUMMARY,
-          expand( MAGENTA
-"\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php"
-          );
+        my $showHeader = 0;
         foreach $shadow_roottn_baks (@shadow_roottn_baks) {
+            next if ( $shadow_roottn_baks =~ m{shadow.lock|/home/virtfs} );
+            push @SUMMARY, "> Found the following directories containing the shadow.roottn.bak hack:" unless( $showHeader );
+            push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php") unless( $showHeader );
+            $showHeader=1;
             chomp($shadow_roottn_baks);
-            next if ( $shadow_roottn_baks =~ m/shadow.lock/ );
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
     }
@@ -2888,7 +2893,7 @@ sub spamscriptchk {
             my $FileU = Cpanel::SafeRun::Timed::timedsaferun( 4, 'stat', '-c', "%U", "/tmp/$file_in_tmp" );
             chomp($FileU);
             my $ExistsinTmp = " [ Exists and is owned by: " . CYAN $FileU . YELLOW " ]";
-            push @SUMMARY, "\t\\_ /tmp/" . $file_in_tmp . " " . $ExistsinTmp . "\n";
+            push @SUMMARY, expand( "\t\\_ /tmp/" . $file_in_tmp . " " . $ExistsinTmp . "\n" );
         }
     }
 }
@@ -2912,19 +2917,19 @@ sub user_crons {
             chomp($cronline);
             if ( $cronline =~ m{ perl \s (?:/var)?/tmp/[a-zA-Z]+ }xms ) {
                 push @SUMMARY,
-                    CYAN "> Found suspicious cron entry in the "
+                    expand( CYAN "> Found suspicious cron entry in the "
                   . MAGENTA $usercron
                   . CYAN " user account:"
-                  . YELLOW "\n\t\\_ $cronline";
+                  . YELLOW "\n\t\\_ $cronline" );
             }
             foreach my $susp_cron_string (@susp_cron_strings) {
                 chomp($susp_cron_string);
                 if ( $cronline =~ m{$susp_cron_string} ) {
                     push @SUMMARY,
-                        CYAN "> Found suspicious cron entry in the "
+                        expand( CYAN "> Found suspicious cron entry in the "
                     . MAGENTA $usercron
                     . CYAN " user account:"
-                    . YELLOW "\n\t\\_ $cronline";
+                    . YELLOW "\n\t\\_ $cronline" );
                 }
             }
         }
@@ -2941,7 +2946,7 @@ sub check_for_Super_privs {
         push @SUMMARY, "> The following MySQL users have the Super Privilege:" unless($showHeader);
         $showHeader=1;
         my ( $MySQLHost, $MySQLUser ) = ( split( /\s+/, $MySQLSuperPriv ) );
-        push @SUMMARY, CYAN "\t \\_ User: " . MAGENTA $MySQLUser . CYAN " on Host: " . MAGENTA $MySQLHost;
+        push @SUMMARY, expand( CYAN "\t \\_ User: " . MAGENTA $MySQLUser . CYAN " on Host: " . MAGENTA $MySQLHost );
     }
 }
 
@@ -3026,7 +3031,7 @@ sub get_last_logins_WHM {
             ($dispDate) = ( split( /\s+/, $dispDateLine ) )[3];
             $dispDate =~ s/\[/On: /;
         }
-        push( @INFO, CYAN "\t\\_ $success ($num $times) " . MAGENTA $dispDate )
+        push( @INFO, expand( CYAN "\t\\_ $success ($num $times) " . MAGENTA $dispDate ) )
           unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
     }
 }
@@ -3062,7 +3067,7 @@ sub get_last_logins_SSH {
                   . YELLOW " (in $mon):" );
             $headerPrinted = 1;
         }
-        push( @INFO, CYAN "\t\\_ IP: $SSHLogins" )
+        push( @INFO, expand( CYAN "\t\\_ IP: $SSHLogins" ) )
           unless ( $SSHLogins =~ m/208.74.12|184.94.197./ );
     }
 }
@@ -3111,7 +3116,7 @@ sub get_root_pass_changes {
             $dispDate =~ s/\[/On: /;
         }
         if ( $num > 1 ) { $times = "times"; }
-        push( @INFO, CYAN "\t\\_ $success ($num $times) " . MAGENTA $dispDate )
+        push( @INFO, expand( CYAN "\t\\_ $success ($num $times) " . MAGENTA $dispDate ) )
           unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
     }
 }
@@ -3167,7 +3172,7 @@ sub check_for_lilocked_ransomware {
         push( @SUMMARY, "> Evidence of lilocked ransomware detected." );
         foreach $lilockedFound (@lilockedFound) {
             chomp($lilockedFound);
-            push( @SUMMARY, CYAN "\t\\_ $lilockedFound" );
+            push( @SUMMARY, expand( CYAN "\t\\_ $lilockedFound" ) );
         }
     }
 }
@@ -3200,10 +3205,10 @@ sub check_sudoers_file {
             $showHeader = 1;
             if ( $sudoerline =~ m/ALL, !root/ ) {
                 push @SUMMARY,
-"\t\\_ $sudoerfile: $sudoerline has !root - might be susceptible to CVE-2019-14287";
+expand( "\t\\_ $sudoerfile: $sudoerline has !root - might be susceptible to CVE-2019-14287" );
             }
             else {
-                push @SUMMARY, CYAN "\t\\_ $sudoerfile: " . MAGENTA $sudoerline;
+                push @SUMMARY, expand( CYAN "\t\\_ $sudoerfile: " . MAGENTA $sudoerline );
             }
         }
     }
@@ -3281,7 +3286,7 @@ sub look_for_suspicious_files {
               expand( "> Suspicious $fileType found: "
                   . CYAN $file
                   . $isImmutable
-                  . YELLOW "\n\t\\_ Size: "
+                  . expand( YELLOW "\n\t\\_ Size: "
                   . CYAN $FileSize
                   . YELLOW " Date Changed: "
                   . CYAN scalar localtime($ctime)
@@ -3289,7 +3294,7 @@ sub look_for_suspicious_files {
                   . CYAN $RPMowned
                   . YELLOW " Owned by U/G: "
                   . CYAN $FileU . "/"
-                  . $FileG );
+                  . $FileG ) );
         }
     }
 }
@@ -3353,7 +3358,7 @@ sub check_for_junglesec {
     my $SearchJungleSec = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', '*junglesec*', '-print' );
     if ($SearchJungleSec) {
         push( @SUMMARY, "> Found possible JungleSec Ransomware - found several encrypted files with the junglesec extension.");
-        push( @SUMMARY, CYAN "\t\\_ Run: " . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" );
+        push( @SUMMARY, expand( CYAN "\t\\_ Run: " . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" ) );
     }
 }
 
@@ -3393,43 +3398,43 @@ sub check_cpupdate_conf {
         push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..."
           unless ($showHeader);
         push @RECOMMENDATIONS,
-          CYAN "\t\\_ Automatic cPanel Updates are disabled";
+          expand( CYAN "\t\\_ Automatic cPanel Updates are disabled" );
         $showHeader = 1;
     }
     if ( $cpupdate_conf->{'UPDATES'} eq "manual" ) {
         push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..."
           unless ($showHeader);
         push @RECOMMENDATIONS,
-          CYAN "\t\\_ Automatic cPanel Updates are set to manual";
+          expand( CYAN "\t\\_ Automatic cPanel Updates are set to manual" );
         $showHeader = 1;
     }
     if ( $cpupdate_conf->{'RPMUP'} eq "never" ) {
         push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..."
           unless ($showHeader);
-        push @RECOMMENDATIONS, CYAN "\t\\_ Automatic RPM Updates are disabled";
+        push @RECOMMENDATIONS, expand( CYAN "\t\\_ Automatic RPM Updates are disabled" );
         $showHeader = 1;
     }
     if ( $cpupdate_conf->{'RPMUP'} eq "manual" ) {
         push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..."
           unless ($showHeader);
         push @RECOMMENDATIONS,
-          CYAN "\t\\_ Automatic RPM Updates are set to manual";
+          CYAN expand( "\t\\_ Automatic RPM Updates are set to manual" );
         $showHeader = 1;
     }
     if ( $cpupdate_conf->{'SARULESUP'} eq "never" ) {
         push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..."
           unless ($showHeader);
         push @RECOMMENDATIONS,
-          CYAN
-"\t\\_ Automatic SARULESUP Updates are disabled - SpamAssassin rules might be outdated";
+          expand( CYAN
+"\t\\_ Automatic SARULESUP Updates are disabled - SpamAssassin rules might be outdated" );
         $showHeader = 1;
     }
     if ( $cpupdate_conf->{'SARULESUP'} eq "manual" ) {
         push @RECOMMENDATIONS, "> Checking the /etc/cpupdate.conf file..."
           unless ($showHeader);
         push @RECOMMENDATIONS,
-          CYAN
-"\t\\_ Automatic SARULESUP Updates are set to manual - SpamAssassin rules might be outdated";
+          expand( CYAN
+"\t\\_ Automatic SARULESUP Updates are set to manual - SpamAssassin rules might be outdated" );
         $showHeader = 1;
     }
 }
@@ -3830,9 +3835,9 @@ sub check_for_ncom_rootkit {
             chomp($preload);
             if ( grep { /$preload/ } @strings ) {
                 push( @SUMMARY,
-"\t\\_ /etc/ld.so.preload contains evidence of NCOM rootkit [ "
+expand( "\t\\_ /etc/ld.so.preload contains evidence of NCOM rootkit [ "
                       . CYAN $preload
-                      . " ]" );
+                      . " ]" ) );
             }
         }
     }
@@ -3876,7 +3881,7 @@ sub check_for_xbash {
                 $RansomwareNote = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SELECT * FROM $database.$XBash_Table;" );
                 if ($RansomwareNote) {
                     chomp($RansomwareNote);
-                    push( @SUMMARY, CYAN "\t\\_ Ransomeware Note: $RansomwareNote" );
+                    push( @SUMMARY, expand( CYAN "\t\\_ Ransomeware Note: $RansomwareNote" ) );
                 }
             }
         }
@@ -3933,7 +3938,7 @@ sub check_for_cronRAT {
         if ( $found ) {
             push( @SUMMARY, "> Suspicious process(es) found: possible cronRAT exploit." ) unless( $showHeader );
             $showHeader=1;
-            push( @SUMMARY, CYAN "\t \\_ " . $found ) unless ( !$found );
+            push( @SUMMARY, expand( CYAN "\t \\_ " . $found ) ) unless ( !$found );
         }
     }
 }
@@ -3991,7 +3996,7 @@ sub check_for_cve_vulnerabilities {
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
-        $infoLink = CYAN "\n\t\t\\_ See $url" if ($url);
+        $infoLink = expand( CYAN "\n\t\t\\_ See $url" ) if ($url);
         push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve $infoLink" );
         push @SUMMARY, expand( GREEN "\t\\_ The following check was used to verify this");
         if ( $distro eq 'ubuntu' ) {
