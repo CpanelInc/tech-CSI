@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.2";
+my $version = "3.5.3";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -101,6 +101,7 @@ my $sha256only;
 our $HOMEDIR       = $conf->{'HOMEDIR'};
 our @FILESTOSCAN   = undef;
 our $rootkitsfound = 0;
+our @process_list = get_process_list();
 ###################################################
 # Check to see if the calling user is root or not #
 ###################################################
@@ -119,7 +120,6 @@ my (
     %ipcs,         $distro,  $distro_version, $distro_major,
     $distro_minor, $ignoreload
 );
-get_process_pid_hash( \%process );
 get_ipcs_hash( \%ipcs );
 if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
 
@@ -929,12 +929,21 @@ sub check_processes {
     my $headerPrint = 0;
     foreach my $suspicious_process (@susp_procs) {
         chomp($suspicious_process);
-        next if ( my %procs = grep_process_cmd( $suspicious_process, 'root' ) );
-        next unless ( _ignore_susp_proc( $suspicious_process ) );
-        push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
-        $headerPrint = 1;
-        push @SUMMARY, CYAN expand( "\t\\_ " . join( "\t\\_ ", map { my ( $u, $c, $a ) = @{ $procs{$_} }{ 'USER', 'COMM', 'ARGS' }; "[pid: $_] [user: $u] [cmd: $c] [args: $a]" } keys %procs) );
+        next if ( _ignore_susp_proc( $suspicious_process ) );
+        my ( $u, $p, $a );
+        foreach my $proc(@process_list) {
+            chomp($proc);
+            $proc =~ s/\|//g;
+            $proc =~ s/\\//g;
+            $proc =~ s/_//g;
+            if ( $proc =~ m/$suspicious_process/ ) {
+                push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
+                $headerPrint = 1;
+                push @SUMMARY, CYAN expand( "\t\\_ $proc" );
+            }
+        }
     }
+    return;
 }
 
 sub _ignore_susp_proc {
@@ -971,13 +980,13 @@ sub get_process_list {
     my $continue = has_ps_command();
     return unless ($continue);
     return split /\n/,
-      Cpanel::SafeRun::Timed::timedsaferun( 0, 'ps', 'axwwwf', '-o',
-        'user,pid,cmd' );
+      Cpanel::SafeRun::Timed::timedsaferun( 0, 'ps', '--no-header', '--width=1000', 'axwwwf', '-o', 'user,pid,args' );
 }
 
 sub check_ssh {
     my @ssh_errors;
-    my ( $ssh_verify, $keyutils_verify );
+    my $ssh_verify;
+    my $keyutils_verify;
     my $name;
     return unless my $rpms = get_rpm_href();
     my @openssh_pkgs = grep { /^openssh*/ } keys(%{$rpms} );
@@ -986,23 +995,25 @@ sub check_ssh {
         chomp($rpm);
         $ssh_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg', '--verify', $rpm ) unless( $distro ne 'ubuntu' );
         $ssh_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '--verify', $rpm ) unless( $distro eq 'ubuntu' );
-        if ( $ssh_verify) { 
-            $ssh_verify = grep { ! m{ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent|.build-id} } $ssh_verify;
-        }
-        if ( $ssh_verify ne '' && $ssh_verify > 0 ) {
-            push( @ssh_errors, " RPM verification on $rpm failed:\n" );
-            push( @ssh_errors, " $ssh_verify" ) unless( $distro eq 'ubuntu');
+        my @ssh_verify = split /\n/, $ssh_verify;
+        my $showHeader = 0;
+        foreach my $ssh_verify( @ssh_verify ) {
+            next if( grep { m{ssh_config|sshd_config|pam.d|/usr/libexec/openssh/ssh-keysign|/usr/bin/ssh-agent|.build-id} } $ssh_verify );
+            push( @ssh_errors, MAGENTA "RPM verification on $rpm failed for the following:" ) unless( $showHeader );;
+            $showHeader = 1;
+            push( @ssh_errors, expand( $ssh_verify ) ) unless( $distro eq 'ubuntu');
         }
     }
     foreach my $rpm (@keyutillibs_pkgs) {
         chomp($rpm);
         $keyutils_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg', '--verify', $rpm ) unless( $distro ne 'ubuntu' );
         $keyutils_verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '--verify', $rpm ) unless( $distro eq 'ubuntu' );
-        if ( $keyutils_verify) { 
-            $keyutils_verify = grep { ! m{.build-id} } $keyutils_verify;
-        }
-        if ( $keyutils_verify ne '' && $keyutils_verify > 1 ) {
-            push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" );
+        my @keyutils_verify = split /\n/, $keyutils_verify;
+        my $showHeader = 0;
+        foreach my $keyutils_verify( @keyutils_verify ) {
+            next if( grep { m{.build-id} } $keyutils_verify );
+            push( @ssh_errors, " RPM verification on keyutils-libs failed:\n" ) unless( $showHeader );
+            $showHeader = 1;
             push( @ssh_errors, " $keyutils_verify" ) unless( $distro eq 'ubuntu');
             if ( -e '/var/log/prelink/prelink.log' ) {
                 push( @SUMMARY, "Note: /var/log/prelink/prelink.log file found. Might be OK if the keyutils-libs RPM was prelinked.");
@@ -1010,7 +1021,6 @@ sub check_ssh {
             }
         }
     }
-    my @process_list = get_process_list();
     my $sshd_process_found = 0;
     for my $process (@process_list) {
         next unless( $process =~ m{sshd: root@} );
@@ -1132,48 +1142,6 @@ sub check_lib {
 m{/usr/lib/systemd/system|/lib/modules|/lib/firmware|/usr/lib/vmware-tools|/lib64/xtables|jvm|php|perl5|/usr/lib/ruby|python|golang|fontconfig|/usr/lib/exim|/usr/lib/exim/bin|/usr/lib64/pkcs11|/usr/lib64/setools|/usr/lib64/dovecot/old-stats|/usr/lib64/libdb4};
         push( @SUMMARY, expand( CYAN "\t\\_ " . $file ) );
     }
-}
-
-sub get_process_pid_hash () {
-    my $continue = has_ps_command();
-    return unless ($continue);
-    my $field_separator = '#^#';
-    my $ps_format_opt   = join( $field_separator, qw( %p %P %U %t %n %c %a ) );
-    my %hash            = map {
-        my ( $pid, $ppid, $user, $etime, $nice, $comm, $args ) =
-          split /\s*\Q$field_separator\E\s*/, $_;
-        $pid  =~ s/^\s+//;
-        $args =~ s/\s+$//;
-        my ( $sec, $min, $hou, $day ) = reverse split( /[:-]/, $etime );
-        $day += 0;
-        $hou += 0;
-        $min += 0;
-        $sec += $day * 86400 + $hou * 3600 + $min * 60;
-        $pid => {
-            'PPID'   => defined $ppid  ? $ppid  : '',
-            'USER'   => defined $user  ? $user  : '',
-            'ETIME'  => defined $etime ? $etime : '',
-            'NICE'   => defined $nice  ? $nice  : '0',
-            'COMM'   => defined $comm  ? $comm  : '',
-            'ARGS'   => defined $args  ? $args  : '',
-            'ETIMES' => $sec,
-        }
-      } split /\n/,
-      Cpanel::SafeRun::Timed::timedsaferun( 0, 'ps', '--no-headers',
-        '--width=1000', '-eo', $ps_format_opt );
-    return \%hash;
-}
-
-sub grep_process_cmd {
-    my ( $pattern, $user ) = @_;
-    my $procs = get_process_pid_hash();
-    my %result;
-    for my $pid ( keys %{$procs} ) {
-        next if defined $user ? $procs->{$pid}->{'USER'} ne $user : 0;
-        $result{$pid} = $procs->{$pid}
-          if grep { /^$pattern/ } @{ $procs->{$pid} }{ 'COMM', 'ARGS' };
-    }
-    return %result;
 }
 
 sub get_ipcs_hash ($) {
@@ -1396,7 +1364,6 @@ sub check_for_cdorked_A {
     my @apache_bins = ();
     push @apache_bins, $HTTPD_PATH;
 
-    my @process_list = get_process_list();
     for my $process (@process_list) {
         if ( $process =~ m{ \A root \s+ (\d+) [^\d]+ $HTTPD_PATH }xms ) {
             my $pid          = $1;
@@ -2825,7 +2792,6 @@ sub rpm_yum_running_chk {
     return if ( $distro eq "ubuntu" );
     my $continue = has_ps_command();
     return unless ($continue);
-    my @process_list = get_process_list();
     for my $process (@process_list) {
         next unless( $process =~ m{/usr/bin/rpm|/usr/bin/yum} );
         next unless( ! $process =~ m{grep|wp-toolkit-cpanel} );
