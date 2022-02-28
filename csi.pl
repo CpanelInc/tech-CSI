@@ -31,7 +31,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.3";
+my $version = "3.5.4";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -89,8 +89,6 @@ else {
 
 my $rootdir = "/root";
 my $csidir  = "$rootdir/CSI";
-#my $susp_cron_string =
-#"tor2web|onion|yxarsh\.shop|cr2\.sh|oanacroane|bnrffa4|ipfswallet|pastebin|R9T8kK9w|iamhex|watchd0g\.sh|\/tmp\/\.\/xL|\/dev\/shm\/\.kauditd\/\[kauditd\]|n5slskx|5b51f9dea|6hsnefbp|unk\.sh|ap\.sh|53 23 31 2 3 |import hashlib|yx=hashlib|\.xmr|bitcoin|kinsing|CRON11|195\.3\.146\.118|logo4|logo9|logo0|zmreplchkr|aliyun\.one|3\.215\.110\.66\.one|lsd\.systemten\.org|mr\.sh|185\.181\.10\.234|localhost\.xyd|45\.137\.151\.106|111\.90\.159\.106|bigd1ck\.com|xmr\.ipzse\.com|146\.71\.79\.230|122\.51\.164\.83|newdat\.sh|lib\.pygensim\.com|t\.amynx\.com|systemd-service\.sh|pg_stat\.sh|oka|linux1213|zsvc|31\.210\.20\.181|givemexyz|1\.sh|3\.sh|oracleservice|.Library/SystemServices/updateSystem|fczyo-cron";
 our @HISTORY;
 our $spincounter;
 our $CPANEL_CONFIG_FILE = q{/var/cpanel/cpanel.config};
@@ -118,7 +116,7 @@ my (
     $secadv,       $help,    $debug,          $userscan,
     $customdir,    $binscan, $scan,           %process,
     %ipcs,         $distro,  $distro_version, $distro_major,
-    $distro_minor, $ignoreload
+    $distro_minor, $ignoreload, $overwrite
 );
 get_ipcs_hash( \%ipcs );
 if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
@@ -167,6 +165,7 @@ GetOptions(
     'ignoreload'  => \$ignoreload,
     'help'        => \$help,
     'debug'       => \$debug,
+    'overwrite'   => \$overwrite,
 );
 
 #######################################
@@ -298,26 +297,19 @@ sub show_help {
     );
     print_header("Functions");
     print_header("=================");
-    print_status("With no arguments, performs a quick scan looking for IoC's.");
+    print_status("With no arguments [DEFAULT] performs a quick scan looking for IoC's.");
     print_normal(" ");
-    print_status(
-"--bincheck  Performs RPM verification on core system binaries and prints active aliases."
-    );
-    print_normal(" ");
-    print_status(
-"--userscan cPanelUser  Asks to install Yara if not already installed and performs a Yara scan for a single cPanel User.."
-    );
+    print_status( "--bincheck  Performs RPM verification on core system binaries and prints active aliases.");
+    print_status( "--userscan cPanelUser  Installs Yara if not already installed & performs a Yara scan for a single cPanel User.");
     print_normal(" ");
     print_header("Additional scan options available");
     print_header("=================");
-    print_header(
-"--shadow	Performs a check on all email accounts looking for variants of shadow.roottn hack."
-    );
-    print_header("--symlink     Performs a symlink hack check for all accounts.");
-    print_header("--secadv      Runs Security Advisor");
-    print_header( "--yarascan   skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
-    print_header(
-        "--full		Performs all of the above checks - very time consuming.");
+    print_header( "--shadow     Performs a check on all email accounts looking for variants of shadow.roottn hack.");
+    print_header( "--symlink    Performs a symlink hack check for all accounts.");
+    print_header( "--secadv     Runs Security Advisor");
+    print_header( "--yarascan   Kkips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
+    print_header( "--full       Performs all of the above checks - very time consuming.");
+    print_header( "--debug      Shows additional extrenuous info including errors if any. Use only at direction of cPanel Support.");
     print_normal(" ");
     print_header("Examples");
     print_header("=================");
@@ -567,11 +559,9 @@ sub scan {
     logit("Checking for ransomwareEXX");
     check_for_ransomwareEXX();
 
-#    if ( -e "/etc/grub.conf" ) {
-        print_header('[ Checking kernel status ]');
-        logit("Checking kernel status");
-        check_kernel_updates();
-#    }
+    print_header('[ Checking kernel status ]');
+    logit("Checking kernel status");
+    check_kernel_updates();
     print_header(
         '[ Checking for suspicious MySQL users (Including Super privileges) ]');
     logit("Checking for suspicious MySQL users including Super privileges");
@@ -669,6 +659,9 @@ sub scan {
     print_header('[ Checking for accesshash ]');
     logit("Checking for accesshash");
     check_for_accesshash();
+    print_header('[ Checking if SymLinkProtection is enabled ]');
+    logit("Checking if SymLinkProtection is enabled");
+    check_if_symlink_protect_on();
     print_header('[ Checking setting of Cookie IP Validation ]');
     logit("Checking setting of Cookie IP Validation");
     check_cookieipvalidation();
@@ -704,6 +697,9 @@ sub scan {
 
 sub check_previous_scans {
     print_info("CSI version: $version");
+    print_status('Running in debug mode - Extrenuous output will be present') if ( $debug );
+    logit('Running in debug mode') if ( $debug );
+    return if ( $overwrite );
     print_status('Checking for a previous run of CSI');
     if ( -d $csidir ) {
         chomp( my $date = Cpanel::SafeRun::Timed::timedsaferun( 0, 'date', "+%Y-%m-%d-%H:%M:%S" ) );
@@ -1752,7 +1748,7 @@ sub spin {
 }
 
 sub userscan {
-    my $lcUserToScan = $_[0];
+    my $lcUserToScan = shift;
     my $RealHome     = Cpanel::PwCache::gethomedir($lcUserToScan);
     if ( !( -e ("$RealHome") ) ) {
         print_warn("$lcUserToScan has no /home directory!");
@@ -2036,6 +2032,22 @@ sub userscan {
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
+    my $susp_dir = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'd', '-print' );
+    my @susp_dir = split /\n/, $susp_dir;
+    my $showHeader=0;
+    foreach $susp_dir(@susp_dir) {
+        chomp($susp_dir);
+        if ( $susp_dir =~ m{wp-content/plugins/[a-zA-Z]{10}} ) {
+            push @SUMMARY, "> Found suspicious randomized 10 character directory name in a WordPress plugins folder:" unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( CYAN "\t\\_ $susp_dir" );
+            if ( -e "$susp_dir/three-column-screen-layout.php" ) {
+                push @SUMMARY, expand( MAGENTA "\t\t\\_ Also contains the " . WHITE "three-column-screen-layout.php" . MAGENTA " file." );
+                push @SUMMARY, expand( MAGENTA "\t\t\\_ Likely related to the AnonymousF0x exploit" );
+            }
+        }
+    }
+
     if ( -d "$RealHome/$pubhtml" ) {
         my $chk4ico = 0;
         my $chk4suspwp = 0;
@@ -2388,6 +2400,17 @@ sub check_for_accesshash {
 "> Found /root/.accesshash file! - Consider using API Tokens instead"
         );
     }
+}
+
+sub check_if_symlink_protect_on {
+    return unless( -e '/etc/apache2/conf/httpd.conf' );
+    open( my $fh, '<', '/etc/apache2/conf/httpd.conf' );
+    while( <$fh> ) {
+        next unless( $_ eq 'SymlinkProtect Off' );
+        push @RECOMMENDATIONS, expand( "Apache SymLinkProtection is disabled, recommendation is to enable this" );
+        last;
+    }
+    close( $fh );
 }
 
 sub check_cookieipvalidation {
@@ -3225,9 +3248,9 @@ sub look_for_suspicious_files {
         my $ctime    = $fStat->ctime;
         my $isNOTowned;
         if ( $distro eq "ubuntu" ) {
-            open( STDERR, '>', '/dev/null' );
+            open( STDERR, '>', '/dev/null' ) if ( ! $debug );
             $isNOTowned = Cpanel::SafeRun::Timed::timedsaferun( 5, 'dpkg', '-S', $file );
-            close( STDERR );
+            close( STDERR ) if ( ! $debug );
         }
         else {
             $isNOTowned = Cpanel::SafeRun::Timed::timedsaferun( 5, 'rpm', '-qf', $file );
@@ -3266,10 +3289,7 @@ sub look_for_suspicious_files {
 }
 
 sub check_proc_sys_vm {
-    my $sysctl = {
-        map { split( /\s=\s/, $_, 2 ) }
-          split( /\n/, timed_run( 0, 'sysctl', '-a' ) )
-    };
+    my $sysctl = { map { split( /\s=\s/, $_, 2 ) } split( /\n/, timed_run( 0, 'sysctl', '-a' ) ) };
     if ( defined( $sysctl->{'vm.nr_hugepages'} )
         && $sysctl->{'vm.nr_hugepages'} > 0 )
     {
@@ -3416,7 +3436,7 @@ sub check_apache_modules {
     my @FoundMod;
     my @OnlyApacheMods;
     if ( $distro eq 'ubuntu' ) {
-        open( STDERR, '>', '/dev/null' );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
         my $allApacheMods = Cpanel::SafeRun::Timed::timedsaferun( 5, 'dpkg', '-L', 'ea-apache24' );
         my @allApacheMods = split /\n/, $allApacheMods;
         foreach my $ApacheMod( @allApacheMods ) {
@@ -3434,7 +3454,7 @@ sub check_apache_modules {
             $ApacheMod .= ".so";
             push @OnlyApacheMods, $ApacheMod . ".so";
         }
-        close( STDERR );
+        close( STDERR ) if ( ! $debug );
         foreach my $line( @ApacheMods ) {
             next if( $line eq "." || $line eq ".." );
             if ( ! grep { m/$line/ } @OnlyApacheMods ) {
@@ -3444,7 +3464,7 @@ sub check_apache_modules {
         }
     }
     else {          ## RPM based
-        open( STDERR, '>', '/dev/null' );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
         foreach my $line( @ApacheMods ) {
             next if( $line eq "." || $line eq ".." );
             my $rpmInfo = Cpanel::SafeRun::Timed::timedsaferun( 2, 'rpm', '-qf', "/etc/apache2/modules/$line" );
@@ -3453,7 +3473,7 @@ sub check_apache_modules {
                 push @FoundMod, $line . " ";
             }
         }
-        close( STDERR );
+        close( STDERR ) if ( ! $debug );
     }
 
     if ($FoundOne > 0) {
@@ -3694,9 +3714,9 @@ sub check_for_suspicious_user {
     my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
-        open( STDERR, '>', '/dev/null' );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
         my $id_found = Cpanel::SafeRun::Timed::timedsaferun( 5, 'id', $user );
-        close( STDERR );
+        close( STDERR ) if ( ! $debug );
         if ( $id_found ) {
             push @SUMMARY, "> Found suspicious user " . CYAN $user . YELLOW " in /etc/passwd file.";
         }
@@ -3867,9 +3887,9 @@ sub check_for_cronRAT {
         next if !-e $dir;
         for my $file (@files) {
             $fullpath = $dir . "/" . $file;
-            open( STDERR, '>', '/dev/null' );
+            open( STDERR, '>', '/dev/null' ) if ( ! $debug );
             ($fullstat) = Cpanel::SafeRun::Timed::timedsaferun( 2, 'stat', $fullpath );
-            close( STDERR );
+            close( STDERR ) if ( ! $debug );
             next unless( $fullstat );
             my @fullstat = split /\n/, $fullstat;
             foreach my $line( @fullstat ) {
@@ -3896,7 +3916,7 @@ sub check_for_cronRAT {
     }
 
     my @globfiles = glob( '/proc/*/environ' );
-    my $searchstring = 'LD_LIBRARY_PATH';
+    my $searchstring = 'LD_L1BRARY_PATH';
     my $showHeader=0;
     foreach my $environ_proc(@globfiles) {
         chomp($environ_proc);

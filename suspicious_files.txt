@@ -776,6 +776,7 @@
 /usr/bin/mailrc
 /usr/bin/miner2
 /usr/bin/_-minerd
+/usr/bin/modload
 /usr/bin/n3tstat
 /usr/bin/netlink.ko
 /usr/bin/ntpsx
