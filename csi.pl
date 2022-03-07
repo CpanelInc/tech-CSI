@@ -1,37 +1,63 @@
 #!/usr/local/cpanel/3rdparty/bin/perl
-# Copyright 2022, cPanel, L.L.C.
-# All rights reserved.
-# http://cpanel.net
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice,
-# this list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-# this list of conditions and the following disclaimer in the documentation
-# and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the owner nor the names of its contributors may be
-# used to endorse or promote products derived from this software without
-# specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
+# CSI - cPanel Security Investigator
 # Current Maintainer: Peter Elsner
 
+=encoding utf-8
+
+=head1 COPYRIGHT
+
+Copyright 2022, cPanel, L.L.C.
+All rights reserved.
+http://cpanel.net
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the owner nor the names of its contributors may be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+=head1 NAME
+
+CSI - cPanel Security Investigator
+
+=head1 DESCRIPTION
+
+=over
+
+=item quick scan [DEAULT] - Perform a quick scan of the server
+
+=item --userscan cPanelUser - Scans an individual user account.
+
+=item --binscan - Does an RPM verify of all binaries on the server.
+
+=item --symlink - Includes a check for symlink hacks during scan.
+
+=item --secadv - Includes Security Advisor Results during scan.
+
+=item --full - Performs a full scan including symlink and secadv & Yara scan.
+
+=item --yarascan - Skips confirmation during --full scan. MAY CAUSE: HIGH LOAD!!!
+
+=item --overwrite - Use already exisitng /root/CSI directory.
+
+=item --cron - Run via cron. Add to roots crontab or create /etc/cron.d/csi with the following contents:
+
+#!/bin/sh
+
+/usr/local/cpanel/3rdparty/bin/perl <(curl -s https://raw.githubusercontent.com/CpanelInc/tech-csi/master/csi.pl) --cron
+
+=back
+
+=cut
+
 use strict;
-my $version = "3.5.4";
+my $version = "3.5.6";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -100,6 +126,11 @@ our $HOMEDIR       = $conf->{'HOMEDIR'};
 our @FILESTOSCAN   = undef;
 our $rootkitsfound = 0;
 our @process_list = get_process_list();
+my $hostname = Cpanel::SafeRun::Timed::timedsaferun( 10, 'hostname', '-f' );
+chomp $hostname if defined $hostname;
+if ( not length($hostname) ) {
+    $hostname = hostname();
+}
 ###################################################
 # Check to see if the calling user is root or not #
 ###################################################
@@ -116,7 +147,7 @@ my (
     $secadv,       $help,    $debug,          $userscan,
     $customdir,    $binscan, $scan,           %process,
     %ipcs,         $distro,  $distro_version, $distro_major,
-    $distro_minor, $ignoreload, $overwrite
+    $distro_minor, $ignoreload, $overwrite,   $cron
 );
 get_ipcs_hash( \%ipcs );
 if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
@@ -166,6 +197,7 @@ GetOptions(
     'help'        => \$help,
     'debug'       => \$debug,
     'overwrite'   => \$overwrite,
+    'cron'        => \$cron,
 );
 
 #######################################
@@ -202,8 +234,15 @@ if ($help) {
     show_help();
     exit;
 }
+
+if ( $cron ) {
+    $overwrite=1;
+    $full=1;
+    $yarascan=1;
+    logit("Running with cron switch (full, yarascan and overwrite are automatically added)");
+}
 check_previous_scans();
-logit("=== STARTING CSI ===");
+logit("=== STARTING CSI on $hostname ===");
 
 sub get_loadavg {
     my ($load_avg) = (
@@ -222,8 +261,9 @@ my $loadavg = get_loadavg();
 
 if ( $loadavg > ( $corecnt * 3 ) && !$ignoreload ) {
     print RED
-"Load Average is too high ($loadavg) which is > than 3 times the number of cores\n";
+"Load Average is too high ($loadavg) which is greater than 3 times the number of cores\n";
     print WHITE "If you really want to continue, pass --ignoreload\n";
+    logit( 'Load average too high: ' . $loadavg );
     exit;
 }
 
@@ -242,6 +282,8 @@ if (
           . "\n" );
     setpriority( 0, 0, 19 );
 }
+
+
 my $scanstarttime = Time::Piece->new;
 print_header( YELLOW "Scan started on $scanstarttime" );
 logit("Scan started on $scanstarttime");
@@ -285,7 +327,11 @@ $scanTotTime = $scanTotTime . "\n";
 print_header("Elapsed Time: $scanTotTime");
 logit("Elapsed Time: $scanTotTime");
 logit("=== COMPLETED CSI ===");
+if ( $cron ) {
+    send_email();
+}
 exit;
+
 ########
 # Subs #
 ########
@@ -307,8 +353,10 @@ sub show_help {
     print_header( "--shadow     Performs a check on all email accounts looking for variants of shadow.roottn hack.");
     print_header( "--symlink    Performs a symlink hack check for all accounts.");
     print_header( "--secadv     Runs Security Advisor");
-    print_header( "--yarascan   Kkips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
-    print_header( "--full       Performs all of the above checks - very time consuming.");
+    print_header( "--yarascan   Skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
+    print_header( "--full       Performs all of the above checks - very time consuming. Can cause HIGH LOAD DURING YARA SCANS!!!");
+    print_header( "--overwrite  Overwrite last summary and skip creation of new CSI directory under root.");
+    print_header( "--cron       Run via cron. Note: --full, --overwrite and --yarascan options will also be passed.");
     print_header( "--debug      Shows additional extrenuous info including errors if any. Use only at direction of cPanel Support.");
     print_normal(" ");
     print_header("Examples");
@@ -317,6 +365,8 @@ sub show_help {
     print_status("            /root/csi.pl --symlink");
     print_status("            /root/csi.pl --secadv");
     print_status("            /root/csi.pl --full [--yarascan]");
+    print_status("            /root/csi.pl --overwrite");
+    print_status("            /root/csi.pl --cron [ add this to roots crontab or to a file in /etc/cron.d or /etc/cron.daily ]");
     print_status("Bincheck: ");
     print_status("            /root/csi.pl --bincheck");
     print_status("Userscan ");
@@ -690,6 +740,7 @@ sub scan {
     }
 
     print_header('[ cPanel Security Investigator Complete! ]');
+    logit( 'cPanel Security Investigator Complete!' );
     print_header('[ CSI Summary ]');
     print_normal('');
     dump_summary();
@@ -699,34 +750,62 @@ sub check_previous_scans {
     print_info("CSI version: $version");
     print_status('Running in debug mode - Extrenuous output will be present') if ( $debug );
     logit('Running in debug mode') if ( $debug );
-    return if ( $overwrite );
+    if ( $overwrite ) {
+       	unlink( "$csidir/csi.log" );
+      	return;
+    }
     print_status('Checking for a previous run of CSI');
     if ( -d $csidir ) {
+        logit( 'Previous CSI directory found, backing up and creating a new one' );
         chomp( my $date = Cpanel::SafeRun::Timed::timedsaferun( 0, 'date', "+%Y-%m-%d-%H:%M:%S" ) );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
+        mkdir( "$csidir", 0755 );
     }
-    mkdir( "$csidir", 0755 );
+    return;
 }
 
 sub check_kernel_updates {
-    return if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.68'));
-    my $KernelStatus = Cpanel::Kernel::Status::kernel_status();
-    if ( $KernelStatus->{has_kernelcare} ) {
-        if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
-            push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
-            push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
-            push @SUMMARY, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
+    if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.102.0.0')) {
+        use Cpanel::Kernel::GetDefault;
+        my $boot_kernelversion = Cpanel::Kernel::GetDefault::get();
+        my $running_kernelversion = Cpanel::Kernel::get_running_version();
+        my $has_kernelcare=0;
+        my $reboot_required=0;
+        $has_kernelcare if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates() );
+        if ( $running_kernelversion ne $boot_kernelversion ) {
+            $reboot_required=1;
+            if ($has_kernelcare) {
+                if ($reboot_required) {
+                    push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
+                    push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]" );
+                    push @SUMMARY, expand( CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]" );
+                }
+            }
+            else {
+                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
+                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]" );
+                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]" );
+            }
         }
     }
-    else {
-        if ( $KernelStatus->{reboot_required} ) {
-            push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
-            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
-            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
+    else {      ## 102+
+        my $KernelStatus = Cpanel::Kernel::Status::kernel_status();
+        if ( $KernelStatus->{has_kernelcare} ) {
+            if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
+                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
+                push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
+                push @SUMMARY, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
+            }
+        }
+        else {
+            if ( $KernelStatus->{reboot_required} ) {
+                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
+                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
+                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
+            }
         }
     }
-    logit("Kernel status check completed.");
 }
 
 sub check_logfiles {
@@ -1113,16 +1192,18 @@ sub check_lib {
             next if $filename eq "." or $filename eq "..";
             lstat "$dir/$filename";
             next if -d "$dir/$filename" or -l "$dir/$filename";
+            my $isELF = check_file_for_elf("$dir/$filename");
+            next unless( $isELF );
             if ( $distro eq "ubuntu" ) {
                 $notOwned = grep { /$filename/ } @dumped;
                 if ( !$notOwned ) {
-                    push @notOwned, "$dir/$filename" unless ( $filename eq "yara.h" );
+                    push @notOwned, "$dir/$filename";
                 }
             }
             else {
                 $notOwned = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-qf', "$dir/$filename" );
                 next unless( $notOwned =~ m/not owned/ );
-                push @notOwned, "$dir/$filename" unless ( $filename eq "yara.h" );
+                push @notOwned, "$dir/$filename";
             }
         }
     }
@@ -1218,19 +1299,16 @@ sub check_preload {
 }
 
 sub create_summary {
-    open( my $CSISUMMARY, '>', "$csidir/summary" )
-      or die("Cannot create CSI summary file $csidir/summary: $!\n");
-    print $CSISUMMARY BOLD RED "\nWARNINGS\n";
-    print $CSISUMMARY
-"=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n";
+    open( my $CSISUMMARY, '>', "$csidir/summary.txt" ) or die("Cannot create CSI summary file $csidir/summary.txt: $!\n");
     if (@SUMMARY) {
+        print $CSISUMMARY BOLD RED "\nWARNINGS\n";
+        print $CSISUMMARY "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n";
         foreach (@SUMMARY) {
             print $CSISUMMARY $_, "\n";
         }
     }
     else {
-        print $CSISUMMARY BOLD GREEN
-          "> Congratulations, no negative items found!\n\n";
+        print $CSISUMMARY BOLD GREEN "> Congratulations, no negative items found!\n\n";
     }
     print $CSISUMMARY
 "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n";
@@ -1259,7 +1337,7 @@ sub create_summary {
 
 sub dump_summary {
     if ( @SUMMARY == 0 ) {
-        print BOLD GREEN "> Congratulations, no negative items found!\n\n";
+        print BOLD GREEN "> Congratulations, no negative items found!\n\n" unless( $cron );
     }
 
     create_summary();
@@ -1268,7 +1346,7 @@ sub dump_summary {
         @SUMMARY = @UniqSummary;
         print_warn('The following negative items were found:');
         foreach (@SUMMARY) {
-            print BOLD YELLOW $_ . "\n";
+            print BOLD YELLOW $_ . "\n" unless( $cron );
         }
         print_normal('');
         print_normal(
@@ -1288,7 +1366,7 @@ sub dump_summary {
     if (@INFO) {
         print_info('The following is just informational');
         foreach (@INFO) {
-            print BOLD YELLOW $_ . "\n";
+            print BOLD YELLOW $_ . "\n" unless( $cron );
         }
     }
     print_separator(
@@ -1298,54 +1376,54 @@ sub dump_summary {
         print_recommendations(
             'You should consider making the following recommendations:');
         foreach (@RECOMMENDATIONS) {
-            print BOLD YELLOW $_ . "\n";
+            print BOLD YELLOW $_ . "\n" unless( $cron );
         }
     }
 }
 
 sub print_normal {
     my $text = shift;
-    print "$text\n";
+    print "$text\n" unless( $cron );
 }
 
 sub print_normal_chomped {
     my $text = shift;
-    print "$text";
+    print "$text" unless( $cron );
 }
 
 sub print_separator {
     my $text = shift;
-    print BOLD BLUE "$text\n";
+    print BOLD BLUE "$text\n" unless( $cron );
 }
 
 sub print_header {
     my $text = shift;
-    print BOLD CYAN "$text\n";
+    print BOLD CYAN "$text\n" unless( $cron );
 }
 
 sub print_status {
     my $text = shift;
-    print YELLOW "$text\n";
+    print YELLOW "$text\n" unless( $cron );
 }
 
 sub print_summary {
     my $text = shift;
-    print BOLD YELLOW "$text\n";
+    print BOLD YELLOW "$text\n" unless( $cron );
 }
 
 sub print_info {
     my $text = shift;
-    print BOLD CYAN "[INFORMATIONAL]: $text\n";
+    print BOLD CYAN "[INFORMATIONAL]: $text\n" unless( $cron );
 }
 
 sub print_warn {
     my $text = shift;
-    print BOLD RED "[WARNING]: $text\n";
+    print BOLD RED "[WARNING]: $text\n" unless( $cron );
 }
 
 sub print_recommendations {
     my $text = shift;
-    print BOLD GREEN "[RECOMMENDATIONS]: $text\n";
+    print BOLD GREEN "[RECOMMENDATIONS]: $text\n" unless( $cron );
 }
 
 sub check_for_cdorked_A {
@@ -1735,6 +1813,9 @@ sub logit {
     my $date        = `date`;
     chomp($Message2Log);
     chomp($date);
+    if ( ! -d "$csidir" ) {
+        mkdir( "$csidir", 0755 );
+    }
     open( CSILOG, ">>$csidir/csi.log" ) or die($!);
     print CSILOG "$date - $Message2Log\n";
     close(CSILOG);
@@ -1828,7 +1909,7 @@ sub userscan {
             push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php") unless( $showHeader);
             $showHeader=1;
             chomp($shadow_roottn_baks);
-            next if ( $shadow_roottn_baks =~ m{shadow.lock|/home/virtfs} );
+            next if ( $shadow_roottn_baks =~ m{shadow.png|shadow.lock|/home/virtfs} );
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
     }
@@ -2175,12 +2256,12 @@ sub userscan {
 
             print CYAN "Scanning "
               . WHITE $RealHome
-              . "/$pubhtml... (Using the following YARA rules)\n";
+              . "/$pubhtml... (Using the following YARA rules)\n" unless( $cron );
 
             my ( @results, $results );
             foreach my $file (@data) {
                 chomp($file);
-                print BOLD BLUE "\tYara File: $file\n";
+                print BOLD BLUE "\tYara File: $file\n" unless( $cron );
                 $results .=
                   Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr',
                     "$file", "$RealHome/$pubhtml" );
@@ -2512,7 +2593,6 @@ sub misc_checks {
     my @dirs     = undef;
     my @files    = undef;
     my $fullpath = "";
-    my $cron     = "";
 
     # coinminer
     @dirs  = qw( /root/non /root/non/non );
@@ -2830,7 +2910,7 @@ sub chk_shadow_hack {
         my @shadow_roottn_baks = split "\n", $shadow_roottn_baks;
         my $showHeader = 0;
         foreach $shadow_roottn_baks (@shadow_roottn_baks) {
-            next if ( $shadow_roottn_baks =~ m{shadow.lock|/home/virtfs} );
+            next unless( $shadow_roottn_baks =~ m{/etc/} );
             push @SUMMARY, "> Found the following directories containing the shadow.roottn.bak hack:" unless( $showHeader );
             push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php") unless( $showHeader );
             $showHeader=1;
@@ -3583,6 +3663,10 @@ sub has_ps_command {
 
 sub check_for_yara {
     return 1 if ( -e "/usr/local/bin/yara" );
+    if ( $cron ) {
+		logit( 'Yara engine not installed, skipping Yara scans' );
+    	return 0;		## Don't ask to install Yara engine if running via cron
+	}
     my $continue_yara_install = "Yara engine not installed, OK to install?";
     if (
         !IO::Prompt::prompt(
@@ -4145,6 +4229,39 @@ sub get_apt_href {
         };
     }
     return \%rpms;
+}
+
+sub send_email {
+    my $epochdate=time();
+    my $date=scalar localtime( $epochdate );
+    my $to='root';
+    my $from='root';
+    my $subject="CSI Summary Report for $date on $hostname";
+
+    open( my $fh, '<', "$csidir/summary.txt" );
+    my @data=<$fh>;
+    close($fh);
+    open( OUTPUT, ">$csidir/summary.txt" );
+    foreach my $line(@data) {
+        chomp($line);
+        $line =~ s/\e\[[0-9;]*m//g;
+        print OUTPUT $line . "\n";
+    }
+    close(OUTPUT);
+
+    use MIME::Lite;
+    my $msg = MIME::Lite->new(
+        From     => $from,
+        To       => $to,
+        Subject  => $subject,
+        Type     => 'TEXT',
+        Path     => "$csidir/summary.txt",
+    );
+    $msg->attach (
+        Type => 'TEXT',
+        Path => "$csidir/csi.log"
+    );
+    $msg->send;
 }
 
 # EOF
