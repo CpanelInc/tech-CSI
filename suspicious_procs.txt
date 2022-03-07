@@ -11,9 +11,7 @@ bashh
 bashx
 BI5zj
 /bin/bash \./go
-/bin/bash -i
 /bin/bash \./tsm
-/bin/sh -i
 biosetjenkins
 bnrffa4
 bonns
@@ -41,7 +39,7 @@ dovecat
 DSST
 Duck.sh
 eggdrop
-.FLYING --no-longpoll
+.FLYING \--no-longpoll
 ftpsdns
 gddr
 Guard.sh
@@ -135,7 +133,6 @@ ysaydh
 zcash
 zigw
 .zte_error
-[l]og4j
 ./udp
 ./oka
 ./crun
