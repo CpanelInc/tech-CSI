@@ -10,7 +10,6 @@ bashg
 bashh
 bashx
 BI5zj
-/bin/bash /etc/rc.d/rc.local start
 /bin/bash \./go
 /bin/bash -i
 /bin/bash \./tsm
