@@ -31,3 +31,5 @@ apt||policykit-1||CVE-2021-4034||0.105-26ubuntu1.2||0.105-26ubuntu1||https://sup
 apt||samba||CVE-2022-0336||2:4.13.17+dfsg||2:4.11.6+dfsg
 apt||samba||CVE-2021-44142||2:4.13.17+dfsg||2:4.11.6+dfsg
 rpm||samba||CVE-2021-44142||4.13.17||4.13.16
+# kernel
+#all||kernel||CVE-2022-0847||5.13||5.8

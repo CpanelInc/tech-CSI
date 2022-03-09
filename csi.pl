@@ -2,62 +2,8 @@
 # CSI - cPanel Security Investigator
 # Current Maintainer: Peter Elsner
 
-=encoding utf-8
-
-=head1 COPYRIGHT
-
-Copyright 2022, cPanel, L.L.C.
-All rights reserved.
-http://cpanel.net
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-3. Neither the name of the owner nor the names of its contributors may be used to endorse or promote products derived from this software without
-specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-=head1 NAME
-
-CSI - cPanel Security Investigator
-
-=head1 DESCRIPTION
-
-=over
-
-=item quick scan [DEAULT] - Perform a quick scan of the server
-
-=item --userscan cPanelUser - Scans an individual user account.
-
-=item --binscan - Does an RPM verify of all binaries on the server.
-
-=item --symlink - Includes a check for symlink hacks during scan.
-
-=item --secadv - Includes Security Advisor Results during scan.
-
-=item --full - Performs a full scan including symlink and secadv & Yara scan.
-
-=item --yarascan - Skips confirmation during --full scan. MAY CAUSE: HIGH LOAD!!!
-
-=item --overwrite - Use already exisitng /root/CSI directory.
-
-=item --cron - Run via cron. Add to roots crontab or create /etc/cron.d/csi with the following contents:
-
-#!/bin/sh
-
-/usr/local/cpanel/3rdparty/bin/perl <(curl -s https://raw.githubusercontent.com/CpanelInc/tech-csi/master/csi.pl) --cron
-
-=back
-
-=cut
-
 use strict;
-my $version = "3.5.6";
+my $version = "3.5.7";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1005,13 +951,13 @@ sub check_processes {
     foreach my $suspicious_process (@susp_procs) {
         chomp($suspicious_process);
         next if ( _ignore_susp_proc( $suspicious_process ) );
-        my ( $u, $p, $a );
         foreach my $proc(@process_list) {
             chomp($proc);
             $proc =~ s/\|//g;
             $proc =~ s/\\//g;
             $proc =~ s/_//g;
-            if ( $proc =~ m/$suspicious_process/ ) {
+            $proc =~ s/\[//g;
+            if ( $suspicious_process =~ m{$proc} ) {
                 push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
                 $headerPrint = 1;
                 push @SUMMARY, CYAN expand( "\t\\_ $proc" );
@@ -4022,10 +3968,23 @@ sub get_hashes {
 
 sub check_for_cve_vulnerabilities {
     my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/cve_data.txt');
-    my $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
-    my $res = $ua->get($url);
-    my $CVEDATA  = $res->decoded_content;
-    my @CVEDATA  = split /\n/, $CVEDATA;
+    my $ua;
+    my $res;
+    my $CVEDATA;
+    my @CVEDATA;
+    if ( $debug && -e 'cve_data.txt' ) {
+        open( my $fh, '<', 'cve_data.txt' );
+        while( <$fh> ) {
+            push @CVEDATA, $_;
+        }
+        close( $fh );
+    }
+    else {
+        $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+        $res = $ua->get($url);
+        $CVEDATA  = $res->decoded_content;
+        @CVEDATA  = split /\n/, $CVEDATA;
+    }
     my $showHeader=0;
     foreach my $cveline(@CVEDATA) {
         chomp($cveline);
@@ -4063,6 +4022,7 @@ sub check_for_cve_vulnerabilities {
         next unless( ! $found_in_changelog );
         # check version against the vuln and nonvuln variables
         next if ( version_compare( $pkgver, '>=', $notvuln ) );
+        #next if ( version_compare( $pkgver, '<', $vuln ) );
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
@@ -4085,6 +4045,13 @@ sub found_in_changelog {
     my $tcCVE = shift;
     my $in_chglog=0;
     if ($distro eq "ubuntu" ) {
+        if ( $tcPkg eq 'kernel' ) {
+            open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+            my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
+            close( STDERR );
+            chomp($uname);
+            $tcPkg="linux-headers-$uname" if ( $distro eq 'ubuntu' );
+        }
         my $in_chglog1 = timed_run( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" );
         $in_chglog = 1 unless( ! $in_chglog1 );
     }
@@ -4098,16 +4065,31 @@ sub found_in_changelog {
 sub is_installed {
     my $tcPkg = shift;
     my $is_installed=0;
-    if ($distro eq "ubuntu" ) {
-        my $installed_package=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n', $tcPkg );
-        if ( $installed_package ) {
-            $is_installed=1;
+    my $pkgversion=0;
+    if ( $tcPkg eq 'kernel' ) {
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
+        close( STDERR );
+        chomp($uname);
+        if ( $distro eq 'ubuntu' ) {
+            $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "linux-headers-$uname" );
+        }
+        else {
+            $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg-$uname" );
         }
     }
-    else {
-        my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
-        chomp($is_installed1);
-        $is_installed = ! grep { /is not installed/ } $is_installed1;
+    else { 
+        if ( $distro eq 'ubuntu' ) {
+            my $installed_package=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n', $tcPkg );
+            if ( $installed_package ) {
+                $is_installed=1;
+            }
+        }
+        else {
+            my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
+            chomp($is_installed1);
+            $is_installed = ! grep { /is not installed/ } $is_installed1;
+        }
     }
     return $is_installed;
 }
@@ -4156,11 +4138,25 @@ sub _version_cmp {
 sub get_pkg_version {
     my $tcPkg = shift;
     my $pkgversion;
-    if ( $distro eq "ubuntu" ) {
-        $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "$tcPkg" );
+    if ( $tcPkg eq 'kernel' ) {
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
+        close( STDERR );
+        chomp($uname);
+        if ( $distro eq 'ubuntu' ) {
+            $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "linux-headers-$uname" );
+        }
+        else {
+            $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg-$uname" );
+        }
     }
     else {
-        $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
+        if ( $distro eq 'ubuntu' ) {
+            $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "$tcPkg" );
+        }
+        else {
+            $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
+        }
     }
     chomp($pkgversion);
     $pkgversion =~ s/$tcPkg//g;
@@ -4263,5 +4259,58 @@ sub send_email {
     );
     $msg->send;
 }
+
+
+=encoding utf-8
+
+=head1 COPYRIGHT
+
+Copyright 2022, cPanel, L.L.C.
+All rights reserved.
+http://cpanel.net
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the owner nor the names of its contributors may be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+=head1 CSI - cPanel Security Investigator
+
+=head1 USAGE/OPTIONS
+
+=over
+
+=item quick scan [DEAULT] - Perform a quick scan of the server
+
+=item --userscan cPanelUser - Scans an individual user account.
+
+=item --binscan - Does an RPM verify of all binaries on the server.
+
+=item --symlink - Includes a check for symlink hacks during scan.
+
+=item --secadv - Includes Security Advisor Results during scan.
+
+=item --full - Performs a full scan including symlink and secadv & Yara scan.
+
+=item --yarascan - Skips confirmation during --full scan. CAUSES HIGH LOAD!!!
+
+=item --overwrite - Use already exisitng /root/CSI directory.
+
+=item --cron - Run via cron. You can create /etc/cron.daily/csi with the contents below (one line):
+
+=back
+
+curl -s https://raw.githubusercontent.com/CpanelInc/tech-csi/master/csi.pl | /usr/local/cpanel/3rdparty/bin/perl - --cron
+
+Then change the permissions to 0755 [chmod 0755 /etc/cron.daily/csi].
+
+=cut
 
 # EOF
