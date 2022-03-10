@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.7";
+my $version = "3.5.8";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -4022,7 +4022,6 @@ sub check_for_cve_vulnerabilities {
         next unless( ! $found_in_changelog );
         # check version against the vuln and nonvuln variables
         next if ( version_compare( $pkgver, '>=', $notvuln ) );
-        #next if ( version_compare( $pkgver, '<', $vuln ) );
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
@@ -4138,25 +4137,11 @@ sub _version_cmp {
 sub get_pkg_version {
     my $tcPkg = shift;
     my $pkgversion;
-    if ( $tcPkg eq 'kernel' ) {
-        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
-        close( STDERR );
-        chomp($uname);
-        if ( $distro eq 'ubuntu' ) {
-            $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "linux-headers-$uname" );
-        }
-        else {
-            $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg-$uname" );
-        }
+    if ( $distro eq 'ubuntu' ) {
+        $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "$tcPkg" );
     }
     else {
-        if ( $distro eq 'ubuntu' ) {
-            $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "$tcPkg" );
-        }
-        else {
-            $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
-        }
+        $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
     }
     chomp($pkgversion);
     $pkgversion =~ s/$tcPkg//g;
