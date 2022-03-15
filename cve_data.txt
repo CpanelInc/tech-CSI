@@ -1,36 +1,54 @@
-# Package Type || Package Name || CVE ID || Not Vulnerable Version || Vulnerable Version || Link to article/documentation for reference
+# Package Type || Package Name || CVE ID || Not Vulnerable Version || OS Vulnerable || Link to article/documentation for reference
 # cPanel's Dovecot
-all||cpanel-dovecot||CVE-2019-11500||2.3.7||2.3.0||https://support.cpanel.net/hc/en-us/articles/1500005965222
-all||cpanel-dovecot||CVE-2019-7524||2.3.5||2.2.36
+all||cpanel-dovecot||CVE-2019-11500||2.3.7.2||ALL||https://support.cpanel.net/hc/en-us/articles/1500005965222
+all||cpanel-dovecot||CVE-2019-7524||2.3.5||ALL
 # cPanel's Dovecot-Solr
-all||cpanel-dovecot-solr||CVE-2021-44228||8.8.24||8.8.23||https://support.cpanel.net/hc/en-us/articles/4415775520919
-all||cpanel-dovecot-solr||CVE-2021-45046||8.8.25||8.8.24||https://support.cpanel.net/hc/en-us/articles/4415775520919
+all||cpanel-dovecot-solr||CVE-2021-44228||8.8.24||ALL||https://support.cpanel.net/hc/en-us/articles/4415775520919
+all||cpanel-dovecot-solr||CVE-2021-45046||8.8.25||ALL||https://support.cpanel.net/hc/en-us/articles/4415775520919
 # cPanel's Apache 2.4 (ea-apache24)
-all||ea-apache24||CVE-2019-0211||2.4.38||2.4.17
-all||ea-apache24||CVE-2021-41773|EA-10157||2.4.51||2.4.50||https://support.cpanel.net/hc/en-us/articles/4410090849047
-all||ea-apache24||CVE-2021-42013|EA-10179||2.4.51||2.4.49
-all||ea-apache24||CVE-2021-44790|EA-10370||2.4.52||2.4.51||https://support.cpanel.net/hc/en-us/articles/4416673077143
-all||ea-apache24||CVE-2021-44224|EA-10370||2.4.52||2.4.51||https://support.cpanel.net/hc/en-us/articles/4416673077143
+all||ea-apache24||CVE-2019-0211||2.4.38||ALL
+all||ea-apache24||CVE-2021-41773|EA-10157||2.4.51||ALL||https://support.cpanel.net/hc/en-us/articles/4410090849047
+all||ea-apache24||CVE-2021-42013|EA-10179||2.4.51||ALL
+all||ea-apache24||CVE-2021-44790|EA-10370||2.4.52||ALL||https://support.cpanel.net/hc/en-us/articles/4416673077143
+all||ea-apache24||CVE-2021-44224|EA-10370||2.4.52||ALL||https://support.cpanel.net/hc/en-us/articles/4416673077143
 # cPanel's PHP Versions
-all||ea-php73||CVE-2021-21703|EA-10237||7.3.33||7.3.32
-all||ea-php74||CVE-2021-21703|EA-10228||7.4.26||7.4.25
-all||ea-php80||CVE-2021-21703|EA-10225||8.0.13||8.0.12
+all||ea-php73||CVE-2021-21703|EA-10237||7.3.33||ALL
+all||ea-php74||CVE-2021-21703|EA-10228||7.4.26||ALL
+all||ea-php80||CVE-2021-21703|EA-10225||8.0.13||ALL
 # Sudo
-all||sudo||CVE-2021-3156||1.8.24||1.8.23
+all||sudo||CVE-2021-3156||1.8.24||ALL
 # cPanel's Exim
-all||cpanel-exim||CVE-2019-16928||4.92.6||4.92.5
-all||cpanel-exim||CVE-2019-15846||4.92.3||4.92.2
-all||cpanel-exim||CVE-2019-10149||4.91.0||4.90.0
-all||cpanel-exim||CVE-2019-10149||4.87.0||4.86.0
-all||cpanel-exim||CVE-2018-6789||4.90.1||4.89
-all||cpanel-exim||CVE-2020-28007|CVE-2020-28008|CVE-2020-28009|CVE-2020-28010|CVE-2020-28011|CVE-2020-28012|CVE-2020-28013|CVE-2020-28014|CVE-2020-28015|CVE-2020-28017|CVE-2020-28018|CVE-2020-28019|CVE-2020-28021|CVE-2020-28022|CVE-2020-28023|CVE-2020-28024|CVE-2020-28025|CVE-2020-28026||4.94.2||4.94.1
+all||cpanel-exim||CVE-2019-16928||4.92.6||ALL
+all||cpanel-exim||CVE-2019-15846||4.92.3||ALL
+all||cpanel-exim||CVE-2019-10149||4.91.0||ALL
+all||cpanel-exim||CVE-2019-10149||4.87.0||ALL
+all||cpanel-exim||CVE-2018-6789||4.90.1||ALL
+all||cpanel-exim||CVE-2020-28007||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28008||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28009||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28010||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28011||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28012||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28013||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28014||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28015||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28017||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28018||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28019||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28021||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28022||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28023||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28024||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28025||4.94.2||ALL
+all||cpanel-exim||CVE-2020-28026||4.94.2||ALL
 # Polkit/Policykit-1
-rpm||polkit||CVE-2021-4034||0.112-26.el7_9.1||0.112-26.el7||https://support.cpanel.net/hc/en-us/articles/4420357490455
-apt||policykit-1||CVE-2021-4034||0.105-26ubuntu1.2||0.105-26ubuntu1||https://support.cpanel.net/hc/en-us/articles/4420357490455
+rpm||polkit||CVE-2021-4034||0.112-26.el7_9.1||ALL||https://support.cpanel.net/hc/en-us/articles/4420357490455
+apt||policykit-1||CVE-2021-4034||0.105-26ubuntu1.2||ALL||https://support.cpanel.net/hc/en-us/articles/4420357490455
 # Samba
-apt||samba||CVE-2022-0336||2:4.13.17+dfsg||2:4.11.6+dfsg
-apt||samba||CVE-2021-44142||2:4.13.17+dfsg||2:4.11.6+dfsg
-rpm||samba||CVE-2021-44142||4.13.17||4.13.16
+apt||samba||CVE-2022-0336||2:4.13.17+dfsg||ALL
+apt||samba||CVE-2021-44142||2:4.13.17+dfsg||ALL
+rpm||samba||CVE-2021-44142||4.13.17||ALL
 # kernel
-apt||linux-generic||CVE-2022-0847||5.4.0.104.108||5.4.0.104.107
-rpm||kernel-headers||CVE-2022-0847||4.18.0.348.20.1||4.18.0.348.20.0
+apt||linux-headers||CVE-2022-0847||5.4.0.104.108||ubuntu-20.04
+apt||linux-headers||CVE-2022-25636||5.4.0.104.108||ubuntu-20.04
+rpm||kernel||CVE-2022-0847||4.18.0-348.12.2||cloudlinux-8.0 almalinux-8.0||

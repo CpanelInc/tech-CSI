@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.8";
+my $version = "3.5.9";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -3989,19 +3989,23 @@ sub check_for_cve_vulnerabilities {
     foreach my $cveline(@CVEDATA) {
         chomp($cveline);
         next if ( $cveline =~ m/#/ );
-        my ( $type, $pkg, $cve, $notvuln, $vuln, $url ) = ( split( /\|\|/, $cveline) );
+        my ( $type, $pkg, $cve, $notvuln, $os_vuln, $url ) = ( split( /\|\|/, $cveline) );
         chomp($type);
         chomp($pkg);
         chomp($cve);
         chomp($notvuln);
-        chomp($vuln);
+        chomp($os_vuln);
         chomp($url);
-        if ( $distro eq "ubuntu" ) {
+        if ( $distro eq 'ubuntu' ) {
             next if ( $type eq 'rpm' );
         }
         else {
             next if ( $type eq 'apt' );
         }
+		next unless is_os_vulnerable( $os_vuln );
+        # Check if package is kernel or linux-headers (if so, uname -r must be added)
+        my $pkg1 = get_package_type( $pkg );
+        $pkg=$pkg1;
         # Check if package is installed
         my $installed = is_installed( $pkg );
         next unless( $installed );
@@ -4017,11 +4021,13 @@ sub check_for_cve_vulnerabilities {
             if ($5) { $sub += $al2num{ lc($5) } }
             $pkgver = join( '.', $maj, $min, $patch, $sub );
         }
+        chomp( $pkgver );
         # check changelog for the CVE
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
         next unless( ! $found_in_changelog );
         # check version against the vuln and nonvuln variables
-        next if ( version_compare( $pkgver, '>=', $notvuln ) );
+        my $op='>=';
+        next if ( version_compare( $pkgver, $op, $notvuln ) );
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
@@ -4039,20 +4045,60 @@ sub check_for_cve_vulnerabilities {
     return;
 }
 
+sub is_os_vulnerable {
+    my $tcOSData = shift;
+    my @tcOSData = split /\s+/, $tcOSData;
+    my $os_vulnerable=0;
+    if ( $tcOSData eq 'ALL' ) {
+        return 1;
+    }
+    foreach my $tcOSLine(@tcOSData) {
+        chomp($tcOSLine);
+        my ( $tcOSDist,$tcOSVer ) = (split( /\-/, $tcOSLine ));
+        chomp( $tcOSDist);
+        chomp( $tcOSVer);
+        my $op='>=';
+        if ( $distro eq $tcOSDist ) {
+            if ( version_compare( $distro_version, $op, $tcOSVer) ) {
+                $os_vulnerable=1;
+                last;
+            }
+        }
+    }
+    return $os_vulnerable;
+}
+
+sub get_package_type {
+    my $tcPkg = shift;
+    if ( $tcPkg =~ m{kernel|linux-headers} ) {
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
+        close( STDERR ) if ( ! $debug );
+        chomp($uname);
+        if ( $distro eq 'ubuntu' ) {
+            $tcPkg="linux-headers-$uname";
+        }
+        else {
+            $tcPkg="kernel-$uname";
+        }
+    }
+    return $tcPkg;
+}
+
 sub found_in_changelog {
     my $tcPkg = shift;
     my $tcCVE = shift;
     my $in_chglog=0;
-    if ($distro eq "ubuntu" ) {
-        if ( $tcPkg eq 'kernel' ) {
-            open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-            my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
-            close( STDERR );
-            chomp($uname);
-            $tcPkg="linux-headers-$uname" if ( $distro eq 'ubuntu' );
-        }
+    my $in_chglog1=0;
+    if ($distro eq 'ubuntu' ) {
         my $in_chglog1 = timed_run( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" );
-        $in_chglog = 1 unless( ! $in_chglog1 );
+        $in_chglog = grep { /$tcCVE/ } $in_chglog1;
+        return 1 unless( ! $in_chglog );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'apt-get', 'changelog', $tcPkg );
+        $in_chglog = grep { /$tcCVE/ } $in_chglog1;
+        return 1 unless( ! $in_chglog );
+        return $in_chglog;
     }
     else {
         my $in_chglog1 = timed_run( 0, 'rpm', '-q', "$tcPkg", '--changelog' );
@@ -4065,32 +4111,39 @@ sub is_installed {
     my $tcPkg = shift;
     my $is_installed=0;
     my $pkgversion=0;
-    if ( $tcPkg eq 'kernel' ) {
-        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
-        close( STDERR );
-        chomp($uname);
-        if ( $distro eq 'ubuntu' ) {
-            $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "linux-headers-$uname" );
+    if ( $distro eq 'ubuntu' ) {
+        my $installed_package=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n', $tcPkg );
+        if ( $installed_package ) {
+            $is_installed=1;
         }
-        else {
-            $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg-$uname" );
-        }
-    }
-    else { 
-        if ( $distro eq 'ubuntu' ) {
-            my $installed_package=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n', $tcPkg );
-            if ( $installed_package ) {
-                $is_installed=1;
-            }
-        }
-        else {
-            my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
-            chomp($is_installed1);
-            $is_installed = ! grep { /is not installed/ } $is_installed1;
-        }
+	}
+    else {
+        my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
+        chomp($is_installed1);
+        $is_installed = ! grep { /is not installed/ } $is_installed1;
     }
     return $is_installed;
+}
+
+sub get_pkg_version {
+    my $tcPkg = shift;
+    my $pkgversion;
+    if ( $distro eq 'ubuntu' ) {
+        $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${Version}\n', "$tcPkg" );
+    }
+    else {
+        $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
+    }
+    chomp($pkgversion);
+    return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
+    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.noarch|ubuntu.*|\.cp98.*|\.cp11.*|[A-Za-z])//g;
+    $pkgversion =~ s/\+/\./g;
+    $pkgversion =~ s/\-/\./g;
+    $pkgversion =~ s/^\.//;
+    $pkgversion =~ s/^\.//;
+    $pkgversion =~ s/^\-//;
+    $pkgversion =~ s/^\-//;
+    return $pkgversion;
 }
 
 sub version_compare {
@@ -4132,28 +4185,6 @@ sub _version_cmp {
         $$ref = 0 unless defined $$ref;
     }
     return $a1 <=> $a2 || $b1 <=> $b2 || $c1 <=> $c2 || $d1 <=> $d2;
-}
-
-sub get_pkg_version {
-    my $tcPkg = shift;
-    my $pkgversion;
-    if ( $distro eq 'ubuntu' ) {
-        $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${binary:Package}-${Version}\n', "$tcPkg" );
-    }
-    else {
-        $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
-    }
-    chomp($pkgversion);
-    $pkgversion =~ s/$tcPkg//g;
-    return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
-    $pkgversion =~ s/$tcPkg//g;
-    $pkgversion =~ s/(\.el8.*|\.x86_64|\.cpanel|\.cloudlinux|\.el7.*|\.noarch|ubuntu.*|\.cp11.*|[A-Za-z])//g;
-    $pkgversion =~ s/\+/\./g;
-    $pkgversion =~ s/^\-//;
-    $pkgversion =~ s/^\-//;
-    $pkgversion =~ s/^\.//;
-    $pkgversion =~ s/\-\d.*//;
-    return $pkgversion;
 }
 
 sub get_suspicious_cron_strings {
