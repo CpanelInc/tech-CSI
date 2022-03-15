@@ -44,6 +44,8 @@ all||cpanel-exim||CVE-2020-28026||4.94.2||ALL
 # Polkit/Policykit-1
 rpm||polkit||CVE-2021-4034||0.112-26.el7_9.1||ALL||https://support.cpanel.net/hc/en-us/articles/4420357490455
 apt||policykit-1||CVE-2021-4034||0.105-26ubuntu1.2||ALL||https://support.cpanel.net/hc/en-us/articles/4420357490455
+# openssl
+all||openssl||CVE-2022-0778||1.1.1.14||ubuntu-20.04 cloudlinux-8.0 almalinux-8.0||
 # Samba
 apt||samba||CVE-2022-0336||2:4.13.17+dfsg||ALL
 apt||samba||CVE-2021-44142||2:4.13.17+dfsg||ALL
