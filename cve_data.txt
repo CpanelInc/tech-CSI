@@ -11,6 +11,8 @@ all||ea-apache24||CVE-2021-41773|EA-10157||2.4.51||ALL||https://support.cpanel.n
 all||ea-apache24||CVE-2021-42013|EA-10179||2.4.51||ALL
 all||ea-apache24||CVE-2021-44790|EA-10370||2.4.52||ALL||https://support.cpanel.net/hc/en-us/articles/4416673077143
 all||ea-apache24||CVE-2021-44224|EA-10370||2.4.52||ALL||https://support.cpanel.net/hc/en-us/articles/4416673077143
+all||ea-apache24||CVE-2022-22720|EA-10550||2.4.53||ALL||
+all||ea-apache24||CVE-2022-22721|EA-10550||2.4.53||ALL||
 # cPanel's PHP Versions
 all||ea-php73||CVE-2021-21703|EA-10237||7.3.33||ALL
 all||ea-php74||CVE-2021-21703|EA-10228||7.4.26||ALL
