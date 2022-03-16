@@ -509,6 +509,7 @@
 /sbin/vobiscum
 /sbin/xc
 /sbin/xlogin
+/tmp/.138171241
 /tmp/2t3ik
 /tmp/4004.db
 /tmp/.../a
@@ -1073,6 +1074,7 @@
 /var/log/xmrig
 /var/.lug.txt
 /var/opt/power
+/var/run/.netns.pid
 /var/run/bioset
 /var/run/lvm//lvm.pid
 /var/run/npss.state
