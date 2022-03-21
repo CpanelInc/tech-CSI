@@ -351,6 +351,7 @@
 /lib/x86_64-linux-gnu/libc-2.23.so
 /linux_avp
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
+/media/.cpuminer-gr-1.2.2-x86_64_linux
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
 /opt/yilu/mservice
@@ -973,6 +974,7 @@
 /usr/local/include/uconf.h
 /usr/local/lib/libjdk.so
 /usr/local/lib/libprocesshider.so
+/usr/local/lib/libprocesshider3.so
 /usr/local/sbin/bin/bash.pid
 /usr/local/sbin/bin/config.json
 /usr/local/sbin/bin/cron.d
@@ -1008,6 +1010,7 @@
 /usr/sbin/kswapd
 /usr/sbin/ldb
 /usr/sbin/libdns.so
+/usr/sbin/libhttpd.so
 /usr/sbin/mech
 /usr/sbin/minerd
 /usr/sbin/netdns

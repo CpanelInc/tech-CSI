@@ -39,6 +39,7 @@ use Time::Piece;
 use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 our $RUN_STATE;
+our $gl_is_kernel=0;
 
 _init_run_state();
 if ( exists $ENV{'PACHA_AUTOFIXER'} ) {
@@ -913,7 +914,7 @@ sub check_for_TTY_shell_spawns {
     foreach $histline (@HISTORY) {
         chomp($histline);
         if ( $histline =~
-m/pty.spawn("\/bin\/sh")|pty.spawn\("\/bin\/bash"\)|os.system\('\/bin\/bash'\)|os.system\('\/bin\/sh'\)|\/bin\/sh -i|\/bin\/bash -i/
+m/pty.spawn("\/bin\/sh")|pty.spawn\("\/bin\/bash"\)|os.system\('\/bin\/bash'\)|os.system\('\/bin\/sh'\)|\/bin\/sh -i|\/bin\/bash -i|cpuminer-gr-avx2/
           )
         {
             push( @SUMMARY,
@@ -951,16 +952,16 @@ sub check_processes {
     foreach my $suspicious_process (@susp_procs) {
         chomp($suspicious_process);
         next if ( _ignore_susp_proc( $suspicious_process ) );
-        foreach my $proc(@process_list) {
-            chomp($proc);
-            $proc =~ s/\|//g;
-            $proc =~ s/\\//g;
-            $proc =~ s/_//g;
-            $proc =~ s/\[//g;
-            if ( $suspicious_process =~ m{$proc} ) {
+        foreach my $line(@process_list) {
+            chomp($line);
+            if ( $line =~ m/$suspicious_process/ ) {
+                my ( $u, $p, $c ) = (split /\s+/, $line );
+                my ( $a1,$a2,$a3,$a4,$a5,$a6,$a7 ) = (split( /\s+/, $line ))[3,4,5,6,7,8,9];
+                my $a = $a1 . " " . $a2 . " " . $a3 . " " . $a4 . " " . $a5 . " " . $a6 . " " . $a7;
                 push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
                 $headerPrint = 1;
-                push @SUMMARY, CYAN expand( "\t\\_ $proc" );
+                push @SUMMARY, CYAN expand( "\t\\_ Found suspicious process " . YELLOW $suspicious_process . CYAN " running" );
+                push @SUMMARY, "\t\\_ " . MAGENTA "User: " . YELLOW $u . MAGENTA " / Pid: " . YELLOW $p . MAGENTA " / Command: " . YELLOW $c . MAGENTA " / Arguments: " . YELLOW $a;
             }
         }
     }
@@ -1239,9 +1240,11 @@ sub check_preload {
     my $libcrypt_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/usr/lib64/libcrypt.so.1.1.0', '/etc/ld.so.preload' );
     my $libconv_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libconv.so', '/etc/ld.so.preload' );
     my $libs_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib64/libs.so', '/etc/ld.so.preload' );
+    my $libprochider_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libprocesshider', '/etc/ld.so.preload' );
     push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
     push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
     push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );
+    push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libprochider_so );
 }
 
 sub create_summary {
@@ -4002,19 +4005,24 @@ sub check_for_cve_vulnerabilities {
         else {
             next if ( $type eq 'apt' );
         }
-		next unless is_os_vulnerable( $os_vuln );
+        print "=== PKG: $pkg === CVE: $cve === OS: $distro [ $distro_version ] === \n" if ( $debug );
+        next unless is_os_vulnerable( $os_vuln );
+        print "OS IS VULNERABLE TO $cve [ $os_vuln ]\n" if ( $debug );
         # Check if package is kernel or linux-headers (if so, uname -r must be added)
-        my $pkg1 = get_package_type( $pkg );
+        my $pkg1 = is_kernel( $pkg );        ## Checks to see if $pkg is a kernel or linux-headers pacakge!
         $pkg=$pkg1;
+        print expand( "\tDEBUG: package=$pkg\n" ) if ( $debug );
         # Check if package is installed
         my $installed = is_installed( $pkg );
         next unless( $installed );
+        print expand( "\tDEBUG: $pkg is installed\n" ) if ( $debug );
         # If we get here, it is installed, now let's get the version number
         chomp( my $pkgver = get_pkg_version( $pkg ) );
         if ( $pkg =~ m{openssl} ) {
             next unless ( $pkgver =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
             my ( $maj, $min, $patch ) = ( $1, $2, $3 );
-            # map alphas into number and sum values so packages such as openssl which have alpha's in version number i.e. h=8, m=13, and za=27
+            # map alphas into number and sum values so packages such as openssl which have alpha's in version number 
+            # i.e. h=8, m=13, and za=27
             my %al2num = map { ( "a" .. "z" )[ $_ - 1 ] => $_ } ( 1 .. 26 );
             my $sub = 0;
             if ($4) { $sub += $al2num{ lc($4) } }
@@ -4022,12 +4030,16 @@ sub check_for_cve_vulnerabilities {
             $pkgver = join( '.', $maj, $min, $patch, $sub );
         }
         chomp( $pkgver );
+        print expand( "\tDEBUG: package version=$pkgver\n" ) if ( $debug );
         # check changelog for the CVE
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
         next unless( ! $found_in_changelog );
+        print expand( "\tDEBUG: found_in_changelog=$found_in_changelog\n" ) if ( $debug );
         # check version against the vuln and nonvuln variables
         my $op='>=';
+        print expand( "\tDEBUG: is $pkgver $op $notvuln ?: " ) if ( $debug );
         next if ( version_compare( $pkgver, $op, $notvuln ) );
+        print "No\n" if ( $debug ); 
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
@@ -4068,7 +4080,7 @@ sub is_os_vulnerable {
     return $os_vulnerable;
 }
 
-sub get_package_type {
+sub is_kernel {
     my $tcPkg = shift;
     if ( $tcPkg =~ m{kernel|linux-headers} ) {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
@@ -4081,6 +4093,7 @@ sub get_package_type {
         else {
             $tcPkg="kernel-$uname";
         }
+        $gl_is_kernel=1;
     }
     return $tcPkg;
 }
@@ -4116,7 +4129,7 @@ sub is_installed {
         if ( $installed_package ) {
             $is_installed=1;
         }
-	}
+    }
     else {
         my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
         chomp($is_installed1);
@@ -4134,6 +4147,7 @@ sub get_pkg_version {
     else {
         $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
     }
+    $pkgversion =~ s/$tcPkg//g if ( $gl_is_kernel == 0 );
     chomp($pkgversion);
     return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
     $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.noarch|ubuntu.*|\.cp98.*|\.cp11.*|[A-Za-z])//g;
