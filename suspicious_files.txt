@@ -510,6 +510,7 @@
 /sbin/vobiscum
 /sbin/xc
 /sbin/xlogin
+/tmp.russ
 /tmp/.138171241
 /tmp/2t3ik
 /tmp/4004.db

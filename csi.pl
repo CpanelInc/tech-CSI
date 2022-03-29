@@ -971,6 +971,7 @@ sub check_processes {
 sub _ignore_susp_proc {
     my $tcProc = shift;
     return 1 if ( $tcProc =~ m{log4j} && -e '/usr/bin/log4j-cve-2021-44228-hotpatch' );
+    return 1 if ( $tcProc =~ m{log4j} && -d '/home/cpanelsolr/server/lib/ext/' );
     return 0;
 }
 
