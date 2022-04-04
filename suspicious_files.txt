@@ -975,6 +975,7 @@
 /usr/local/include/uconf.h
 /usr/local/lib/libjdk.so
 /usr/local/lib/libprocesshider.so
+/usr/local/lib/libprocesshider2.so
 /usr/local/lib/libprocesshider3.so
 /usr/local/sbin/bin/bash.pid
 /usr/local/sbin/bin/config.json
