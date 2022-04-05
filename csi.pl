@@ -2945,7 +2945,7 @@ sub user_crons {
                 chomp($susp_cron_string);
                 if ( $cronline =~ m{$susp_cron_string} ) {
                     push @SUMMARY,
-                        expand( CYAN "> Found suspicious cron entry in the "
+                        expand( CYAN "> Found suspicious cron entry [ $susp_cron_string ] in the "
                     . MAGENTA $usercron
                     . CYAN " user account:"
                     . YELLOW "\n\t\\_ $cronline" );
