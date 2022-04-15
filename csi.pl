@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.9";
+my $version = "3.5.10";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -26,6 +26,7 @@ use Cpanel::IONice         ();
 use Cpanel::PwCache        ();
 use Cpanel::PwCache::Get   ();
 use Cpanel::SafeRun::Timed ();
+use JSON::PP;
 use List::MoreUtils qw(uniq);
 use Math::Round;
 use POSIX;
@@ -33,7 +34,6 @@ use Getopt::Long;
 use Path::Iterator::Rule;
 use IO::Socket::INET;
 use IO::Prompt;
-use JSON::MaybeXS qw(encode_json decode_json);
 use Term::ANSIColor qw(:constants);
 use Time::Piece;
 use Time::Seconds;
@@ -1546,6 +1546,19 @@ sub check_for_hiddenwasp {
     }
 }
 
+sub check_for_fritzfrog {
+    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
+    my @lsof = split /\n/, $lsof;
+    foreach $lsof(@lsof) {
+        chomp($lsof);
+        next unless( $lsof =~ m/^(nginx|ifconfig|php-fpm|apache2|libexec)'/ );
+        next unless( $lsof =~ m/deleted/ );
+        my ( $binary, $pid, $user ) = (split( /\s+/, $lsof));
+        next unless( $user eq 'root' );
+        push @SUMMARY, "> Found possible FritzFrog malware. $binary running on pid $pid";
+    }
+}
+
 sub check_for_dirtycow_passwd {
     print_header("[ Checking for evidence of DirtyCow within /etc/passwd ]");
     return unless my $gecos = ( getpwuid(0) )[6];
@@ -1720,6 +1733,7 @@ sub all_malware_checks {
     check_for_dragnet();
     check_for_exim_vuln();
     check_for_hiddenwasp();
+    check_for_fritzfrog();
     check_for_ngioweb();
     check_for_dirtycow_passwd();
     check_for_lilocked_ransomware();
@@ -3971,76 +3985,113 @@ sub get_hashes {
 }
 
 sub check_for_cve_vulnerabilities {
-    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/cve_data.txt');
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/cve_data.json');
     my $ua;
     my $res;
     my $CVEDATA;
     my @CVEDATA;
-    if ( $debug && -e 'cve_data.txt' ) {
-        open( my $fh, '<', 'cve_data.txt' );
-        while( <$fh> ) {
-            push @CVEDATA, $_;
-        }
-        close( $fh );
+    $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+    $res = $ua->get($url);
+    $CVEDATA  = $res->decoded_content;
+    @CVEDATA  = split /\n/, $CVEDATA;
+    open( my $fh, '>', "$csidir/cve_data.json" );
+    foreach my $line(@CVEDATA) {
+        chomp($line);
+        print $fh $line . "\n";
     }
-    else {
-        $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
-        $res = $ua->get($url);
-        $CVEDATA  = $res->decoded_content;
-        @CVEDATA  = split /\n/, $CVEDATA;
+    close( $fh );
+    my $data;
+    if ( open ( my $json_stream, "$csidir/cve_data.json" ) ) {
+        local $/ = undef;
+        my $json = JSON::PP->new;
+        $data = $json->decode(<$json_stream>);
+        close($json_stream);
     }
-    my $showHeader=0;
-    foreach my $cveline(@CVEDATA) {
-        chomp($cveline);
-        next if ( $cveline =~ m/#/ );
-        my ( $type, $pkg, $cve, $notvuln, $os_vuln, $url ) = ( split( /\|\|/, $cveline) );
-        chomp($type);
-        chomp($pkg);
-        chomp($cve);
-        chomp($notvuln);
-        chomp($os_vuln);
-        chomp($url);
+    foreach my $line( @{ $data } ) {
+        my $type = $line->{Package_Type};
+        my $pkg = $line->{Package_Name};
+        my $cve = $line->{CVE_ID};
+        my $notvuln = $line->{Patched_Version};
+        my $os_vuln = $line->{OS_Vulnerable};
+        my $url = $line->{Link};
+
         if ( $distro eq 'ubuntu' ) {
-            next if ( $type eq 'rpm' );
+            if ( $type eq 'rpm' ) {
+                print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . GREEN ucfirst( $distro ) .  CYAN " and type is " . MAGENTA "RPM\n" if ( $debug );
+                next;
+            }
         }
         else {
-            next if ( $type eq 'apt' );
+            if ( $type eq 'apt' ) {
+                print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . RED ucfirst( $distro ) .    CYAN " and type is " . MAGENTA "APT\n" if ( $debug );
+                next;
+            }
         }
-        print "=== PKG: $pkg === CVE: $cve === OS: $distro [ $distro_version ] === \n" if ( $debug );
-        next unless is_os_vulnerable( $os_vuln );
-        print "OS IS VULNERABLE TO $cve [ $os_vuln ]\n" if ( $debug );
+
+        if ( is_os_vulnerable( $os_vuln ) ==0 ) {
+            print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . GREEN "NOT vulnerable\n" if ( $debug );
+            next;
+        }
+
         # Check if package is kernel or linux-headers (if so, uname -r must be added)
+        print CYAN "Checking if " . YELLOW $pkg . " is a kernel/linux-header package: " if ( $debug );
         my $pkg1 = is_kernel( $pkg );        ## Checks to see if $pkg is a kernel or linux-headers pacakge!
+        my $is_kernel = ( $pkg1 =~ m{kernel|linux-header} ) ? "Yes" : "No";
+        print GREEN $is_kernel . "\n" if ( $debug );
         $pkg=$pkg1;
-        print expand( "\tDEBUG: package=$pkg\n" ) if ( $debug );
+
         # Check if package is installed
+        print CYAN "Checking if " . YELLOW $pkg . " is installed: " if ( $debug );
         my $installed = is_installed( $pkg );
+        my $is_installed = ( $installed ) ? "Yes" : "No";
+        print GREEN $is_installed . "\n" if ( $debug );
         next unless( $installed );
-        print expand( "\tDEBUG: $pkg is installed\n" ) if ( $debug );
-        # If we get here, it is installed, now let's get the version number
+
+        # If we get here, it is installed, now get the version number
+        print CYAN "Getting version number of " . YELLOW $pkg . ": " if ( $debug );
         chomp( my $pkgver = get_pkg_version( $pkg ) );
         if ( $pkg =~ m{openssl} ) {
             next unless ( $pkgver =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
+            my $original_pkgver=$pkgver;
             my ( $maj, $min, $patch ) = ( $1, $2, $3 );
-            # map alphas into number and sum values so packages such as openssl which have alpha's in version number 
-            # i.e. h=8, m=13, and za=27
+            # If we map the alphas into a number and sum the values the version will be compatible with version_compare()·
+            # and save us a lot of trouble, i.e. h=8, m=13, and za=27
             my %al2num = map { ( "a" .. "z" )[ $_ - 1 ] => $_ } ( 1 .. 26 );
             my $sub = 0;
             if ($4) { $sub += $al2num{ lc($4) } }
             if ($5) { $sub += $al2num{ lc($5) } }
             $pkgver = join( '.', $maj, $min, $patch, $sub );
+            chomp( $pkgver );
+            print GREEN "$original_pkgver\n" if ( $debug );
         }
-        chomp( $pkgver );
-        print expand( "\tDEBUG: package version=$pkgver\n" ) if ( $debug );
+        else {
+            chomp( $pkgver );
+            print GREEN "$pkgver\n" if ( $debug );
+        }
+
         # check changelog for the CVE
+        print CYAN "Checking to see if " . BOLD RED $cve . CYAN " for " . YELLOW $pkg . CYAN " is in the changelogs: "  if ( $debug );
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
+        my $in_changelog = ( $found_in_changelog ) ? "Yes" : "No";
+        print GREEN $in_changelog . "\n" if ( $debug );
         next unless( ! $found_in_changelog );
-        print expand( "\tDEBUG: found_in_changelog=$found_in_changelog\n" ) if ( $debug );
-        # check version against the vuln and nonvuln variables
+
+        # check version against the nonvuln variable
         my $op='>=';
-        print expand( "\tDEBUG: is $pkgver $op $notvuln ?: " ) if ( $debug );
+        chomp($pkgver);
+        chomp($notvuln);
+        print CYAN "Checking if " . YELLOW $pkgver . " " . MAGENTA $op . " " . YELLOW $notvuln . ": " if ( $debug );
+        my $vercmp = ( version_compare( $pkgver, $op, $notvuln ) ) ? "Yes" : "No";
+        print GREEN $vercmp . "\n" if ( $debug );
         next if ( version_compare( $pkgver, $op, $notvuln ) );
-        print "No\n" if ( $debug ); 
+        my @letters = ("a".."z");
+        if ( $pkg =~ m{openssl} ) {
+            my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
+            my $sub1 = $letters[$sub -1];
+            $pkgver = join( '.', $maj, $min, $patch, $sub1 );
+        }
+
+        my $showHeader=0;
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
@@ -4105,20 +4156,19 @@ sub found_in_changelog {
     my $in_chglog=0;
     my $in_chglog1=0;
     if ($distro eq 'ubuntu' ) {
-        my $in_chglog1 = timed_run( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" );
-        $in_chglog = grep { /$tcCVE/ } $in_chglog1;
-        return 1 unless( ! $in_chglog );
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'apt-get', 'changelog', $tcPkg );
+        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" );
+        close( STDERR ) if ( ! $debug );
         $in_chglog = grep { /$tcCVE/ } $in_chglog1;
         return 1 unless( ! $in_chglog );
-        return $in_chglog;
     }
     else {
-        my $in_chglog1 = timed_run( 0, 'rpm', '-q', "$tcPkg", '--changelog' );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'apt-get', 'changelog', $tcPkg );
+        close( STDERR ) if ( ! $debug );
         $in_chglog = grep { /$tcCVE/ } $in_chglog1;
+        return 1 unless( ! $in_chglog );
     }
-    return $in_chglog;
 }
 
 sub is_installed {
@@ -4126,29 +4176,40 @@ sub is_installed {
     my $is_installed=0;
     my $pkgversion=0;
     if ( $distro eq 'ubuntu' ) {
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
         my $installed_package=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${binary:Package}\n', $tcPkg );
+        close( STDERR ) if ( ! $debug );
         if ( $installed_package ) {
             $is_installed=1;
         }
+        return $is_installed;
     }
     else {
-        my $is_installed1=timed_run( 0, 'rpm', '-q', $tcPkg );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        my $is_installed1=Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', $tcPkg );
+        close( STDERR ) if ( ! $debug );
         chomp($is_installed1);
-        $is_installed = ! grep { /is not installed/ } $is_installed1;
+        my $is_installed = ! grep { /is not installed/ } $is_installed1;
+        return $is_installed;
     }
-    return $is_installed;
 }
 
 sub get_pkg_version {
     my $tcPkg = shift;
     my $pkgversion;
     if ( $distro eq 'ubuntu' ) {
-        $pkgversion = timed_run( 0, 'dpkg-query', '-W', '-f=${Version}\n', "$tcPkg" );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        $pkgversion=Cpanel::SafeRun::Timed::timedsaferun( 0, 'dpkg-query', '-W', '-f=${Version}\n', "$tcPkg" );
+        close( STDERR ) if ( ! $debug );
     }
     else {
-        $pkgversion = timed_run( 0, 'rpm', '-q', "$tcPkg" );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        $pkgversion=Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', "$tcPkg" );
+        close( STDERR ) if ( ! $debug );
     }
-    $pkgversion =~ s/$tcPkg//g if ( $gl_is_kernel == 0 );
+    if ( $gl_is_kernel == 0 ) {
+        $pkgversion =~ s/$tcPkg//g;
+    }
     chomp($pkgversion);
     return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
     $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.noarch|ubuntu.*|\.cp98.*|\.cp11.*|[A-Za-z])//g;
