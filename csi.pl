@@ -4158,18 +4158,17 @@ sub found_in_changelog {
     my $in_chglog1=0;
     if ($distro eq 'ubuntu' ) {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" );
+        $in_chglog1 = ( Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) ) ? 1 : 0;
         close( STDERR ) if ( ! $debug );
-        $in_chglog = grep { /$tcCVE/ } $in_chglog1;
-        return 1 unless( ! $in_chglog );
+        $in_chglog=1 unless( $in_chglog1 == 0 );
     }
     else {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'apt-get', 'changelog', $tcPkg );
+        $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', "$tcPkg", '--changelog' );
         close( STDERR ) if ( ! $debug );
-        $in_chglog = grep { /$tcCVE/ } $in_chglog1;
-        return 1 unless( ! $in_chglog );
+        $in_chglog = ( grep { /$tcCVE/ } $in_chglog1 ) ? 1 : 0;
     }
+    return $in_chglog;
 }
 
 sub is_installed {
