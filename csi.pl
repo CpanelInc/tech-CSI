@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.10";
+my $version = "3.5.11";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2385,6 +2385,7 @@ sub check_for_symlinks {
         my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 5, 6, 11, 12, 13 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
         next if ( $SLdir =~ m{/home/virtfs} );
+        next unless( -d $realpath );
         push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" ) unless ($headerprinted);
         $headerprinted = 1;
         my $fStat = stat($realpath);
