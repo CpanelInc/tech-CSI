@@ -622,6 +622,7 @@
 /tmp/mycron
 /tmp/.mysqli/mysqlc
 /tmp/netlink.ko
+/tmp/nimbuspwn/poc.d
 /tmp/.netscalerd
 /tmp/.netscalerd/uuid
 /tmp/pamdicks
