@@ -8,6 +8,7 @@
 /bin/dockerlogger
 /bin/ftpsdns
 /bin/gmbpr
+/bin/good
 /bin/home
 /bin/host.ph1
 /bin/httpdns
@@ -43,6 +44,7 @@
 /bin/watchbog
 /bin/watchdog
 /bin/.wwwwwwweeeeeeeeeeepaasss
+/bin/ygljglkjgfg0
 /bin/zigw
 /boot/grub/deamon
 /boot/grub/disk_genius
@@ -97,6 +99,7 @@
 /dev/shm/devs_mx_cache
 /dev/shm/.kauditd
 /dev/shm/.kauditd/[kauditd]
+/dev/shm/kdmtmpflush
 /dev/shm/.linux
 /dev/shm/.lwp
 /dev/shm/.lwp/.out
@@ -259,10 +262,12 @@
 /etc/xfsdxd
 /etc/xinetd.d/asp
 /etc/xmrig
+/etc/sdf3fslsdf15
 /etc/zigw
 /home/.local
 /home/ ./root
 /home//.ssh/authorized_keys
+/home/ygljglkjgfg1
 /lib64/libgrubd.so
 /lib64/libhdx.so
 /lib64/libkeystats.so
@@ -490,6 +495,7 @@
 /root/.xnhsn
 /root/.yjrz
 /root/.yldsg
+/root/ygljglkjgfg2
 /root/.ymzx
 /root/.yrw
 /root/.yvf
@@ -723,6 +729,7 @@
 /tmp/./xL.1
 /tmp/./xL.2
 /tmp/xp
+/tmp/sdf3fslsdf13
 /tmp/zilog
 /tmp/zolog
 /usr/bin/4004.db
@@ -746,6 +753,7 @@
 /usr/bin/.etc
 /usr/bin/execute
 /usr/bin/gib
+/usr/bin/good
 /usr/bin/iproute.ko
 /usr/bin/ishit
 /usr/bin/jdc
@@ -1058,6 +1066,7 @@
 /usr/X11R6/.zk
 /usr/X11R6/.zk/echo
 /usr/X11R6/.zk/xfs
+/usr/sdf3fslsdf14
 /var/adm/.profile
 /var/adm/sa/.adm
 /var/elan2
@@ -1082,6 +1091,8 @@
 /var/opt/power
 /var/run/.netns.pid
 /var/run/bioset
+/var/run/haldrund.pid
+/var/run/gcc.pid
 /var/run/lvm//lvm.pid
 /var/run/npss.state
 /var/run/nscd/ns.pid

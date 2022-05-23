@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.11";
+my $version = "3.5.13";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -40,6 +40,14 @@ use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 our $RUN_STATE;
 our $gl_is_kernel=0;
+
+###################################################
+# Check to see if the calling user is root or not #
+###################################################
+if ( $> != 0 ) {
+    print "This script must be run as root\n";
+    exit;
+}
 
 _init_run_state();
 if ( exists $ENV{'PACHA_AUTOFIXER'} ) {
@@ -78,13 +86,7 @@ chomp $hostname if defined $hostname;
 if ( not length($hostname) ) {
     $hostname = hostname();
 }
-###################################################
-# Check to see if the calling user is root or not #
-###################################################
-if ( $> != 0 ) {
-    logit("Must be run as root");
-    die "This script must be run as root\n";
-}
+
 ###########################################################
 # Parse positional parameters for flags and set variables #
 ###########################################################
@@ -476,6 +478,9 @@ sub scan {
     print_header('[ Checking if polkit/policykit has been exploited by CVE-2021-4034 ]');
     logit("Checking if polkit/policykit has been exploited by CVE-2021-403");
     check_for_cve_2021_4034();
+    print_header('[ Checking for BPFDoor ]');
+    logit("Checking for BPFDoor");
+    check_for_bpfdoor();
     print_header('[ Checking if Use MD5 passwords with Apache is disabled ]');
     logit("Checking if Use MD5 passwords with Apache is disabled");
     chk_md5_htaccess();
@@ -2714,10 +2719,10 @@ sub vtlink {
             # First let's check Virustotal.com
             my $ticketnum = $ENV{'TICKET'};
             $ticketnum = "DEBUG" if ($debug);
-            my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', "https://myip.cpanel.net/v1.0/" );
+            my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', '-4', "https://myip.cpanel.net/v1.0/" );
             chomp($ipaddr);
             if ( $sha256only && $ipaddr && $ticketnum && iam('cptech') || $debug ) {
-                my $vtdata = Cpanel::SafeRun::Timed::timedsaferun( 10, 'curl', '-s', "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" );
+                my $vtdata = Cpanel::SafeRun::Timed::timedsaferun( 10, 'curl', '-s', '-4', "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" );
                 my $output = decode_json($vtdata);
                 my $URL    = $output->{data}->{links}->{self};
                 $URL .= "/detection";
@@ -3215,7 +3220,7 @@ sub check_sudoers_file {
     my @sudoersfiles = glob(q{/etc/sudoers.d/*});
     push @sudoersfiles, "/etc/sudoers" unless ( !-e "/etc/sudoers" );
     my $showHeader          = 0;
-    my $external_ip_address = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', "https://myip.cpanel.net/v1.0/" );
+    my $external_ip_address = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', '-4', "https://myip.cpanel.net/v1.0/" );
     chomp($external_ip_address);
     my $isAWS_IP = getAWS_IPs($external_ip_address);
     foreach my $sudoerfile (@sudoersfiles) {
@@ -3252,7 +3257,7 @@ sub getAWS_IPs {
     my $chkIP = shift;
     chomp($chkIP);
     use NetAddr::IP;
-    my $AWSsubnets = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s',
+    my $AWSsubnets = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', '-4',
         'https://ip-ranges.amazonaws.com/ip-ranges.json' );
     my @AWSsubnets = split /\n/, $AWSsubnets;
     foreach my $awsline (@AWSsubnets) {
@@ -3646,7 +3651,7 @@ sub check_for_yara {
         return 0;
     }
     my $yara_headers =
-      Cpanel::SafeRun::Timed::timedsaferun( 30, 'curl', '-sL', '--head',
+      Cpanel::SafeRun::Timed::timedsaferun( 30, 'curl', '-sL', '-4', '--head',
         'https://github.com/VirusTotal/yara/releases/latest' );
     my @yara_headers = split /\n/, $yara_headers;
     my $yara_version;
@@ -4289,6 +4294,23 @@ sub check_for_cve_2021_4034 {
         }
     }
     close($fh);
+}
+
+sub check_for_bpfdoor {
+    my $has_packet_recvmsg = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', 'packet_recvmsg', "/proc/*/stack" );
+    push @SUMMARY, "> Found evidence of possible BPFDoor hack $has_packet_recvmsg" if( $has_packet_recvmsg );
+    my $wait_for_more_packets = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', 'wait_for_more_packets', "/proc/*/stack" );
+    push @SUMMARY, "> Found evidence of possible BPFDoor hack $wait_for_more_packets" if( $wait_for_more_packets );
+    my $start_port=42391;
+    my $end_port=43391;
+    my $chk_iptables="";
+    while( $start_port <= $end_port ) {
+        $chk_iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n', "grep ':$start_port'" );
+        if ( $chk_iptables ) {
+            push @SUMMARY, "> Found evidence of possible BFPDoor hack $chk_iptables";
+        }
+        $start_port++;
+    }
 }
 
 sub get_rpm_href {

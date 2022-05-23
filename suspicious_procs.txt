@@ -190,3 +190,5 @@ pop.sh
 jepsen
 log4j
 kthreaddk
+qmgr -l -t fifo -u
+/usr/sbin/console-kit-daemon
