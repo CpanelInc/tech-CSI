@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.13";
+my $version = "3.5.14";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -554,6 +554,9 @@ sub scan {
     print_header('[ Checking for spam sending script in /tmp ]');
     logit("Checking for spam sending script in /tmp");
     spamscriptchk();
+    print_header('[ Checking for root owned spam sending directory under /usr/local/share/. /ita/ ]');
+    logit("Checking for root owned spam sending directory under /usr/local/share/. /ita/");
+    check_for_ita_perl_hack();
     print_header('[ Checking user level crons for suspicious entries ]');
     logit("Checking user level crons");
     user_crons();
@@ -967,6 +970,11 @@ sub check_processes {
                 $headerPrint = 1;
                 push @SUMMARY, CYAN expand( "\t\\_ Found suspicious process " . YELLOW $suspicious_process . CYAN " running" );
                 push @SUMMARY, "\t\\_ " . MAGENTA "User: " . YELLOW $u . MAGENTA " / Pid: " . YELLOW $p . MAGENTA " / Command: " . YELLOW $c . MAGENTA " / Arguments: " . YELLOW $a;
+                my $proclink = '/proc/' . $p . '/exe';
+                if ( -l $proclink && readlink( $proclink ) ) {
+                    push @SUMMARY, "\t\\_ " . YELLOW $proclink . " -> " . RED readlink($proclink) . CYAN "  - Checking this binary at VirusTotal.com";
+                    vtlink(readlink( $proclink ));
+                }
             }
         }
     }
@@ -2937,6 +2945,18 @@ sub spamscriptchk {
     }
 }
 
+sub check_for_ita_perl_hack {
+    my $dir='/usr/local/share/. /ita';
+    my $file='/usr/local/share/. /ita.gz';
+    return unless( -d $dir );
+    push @SUMMARY, MAGENTA "> POSSIBLE ROOT-LEVEL COMPROMISE! " . YELLOW "Suspicious directory found: " . WHITE $dir;
+    push @SUMMARY, YELLOW "\t\\_ This directory has been known to send spam/phishing emails out and is in a root owned location."; 
+    if ( -e $file ) {
+        push @SUMMARY, MAGENTA "> Suspicious file found: " . CYAN $file;
+        push @SUMMARY, YELLOW "\t\\_ This file has been known to be malicious and is in a root owned location."; 
+    }
+}
+
 sub user_crons {
     my $crondir = ( $distro eq "ubuntu" ) ? "/var/spool/cron/crontabs" : "/var/spool/cron";
     opendir my $dh, $crondir;
@@ -3292,6 +3312,7 @@ sub look_for_suspicious_files {
         my $fStat = lstat($file) or die($!);
         $fileType = "file"      unless ( -d $file );
         $fileType = "directory" unless ( -f $file );
+        $file="'$file'";
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         my $FileSize = $fStat->size;
@@ -3306,7 +3327,7 @@ sub look_for_suspicious_files {
             $isNOTowned = Cpanel::SafeRun::Timed::timedsaferun( 5, 'rpm', '-qf', $file );
         }
         chomp($isNOTowned);
-        my $RPMowned = ( $isNOTowned eq "no path found matching pattern" || $isNOTowned =~ m/not owned by/ ) ? "No" : "Yes";
+        my $RPMowned = ( $isNOTowned eq "no path found matching pattern" || $isNOTowned eq "" || $isNOTowned =~ m/not owned by/ ) ? "No" : "Yes";
         my $isImmutable = ( isImmutable($file) ) ? MAGENTA " [IMMUTALBE]" : "";
         my $isELF = check_file_for_elf($file);
         if ($isELF) {
@@ -3321,6 +3342,7 @@ sub look_for_suspicious_files {
             vtlink($file) unless ($ignoreHash);
         }
         else {
+            $file =~ s/'//g;
             push @SUMMARY,
               expand( "> Suspicious $fileType found: "
                   . CYAN $file
@@ -4303,10 +4325,10 @@ sub check_for_bpfdoor {
     push @SUMMARY, "> Found evidence of possible BPFDoor hack $wait_for_more_packets" if( $wait_for_more_packets );
     my $start_port=42391;
     my $end_port=43391;
-    my $chk_iptables="";
+    my $chk_iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
+    my @chk_iptables = split /\n/, $chk_iptables;
     while( $start_port <= $end_port ) {
-        $chk_iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n', "grep ':$start_port'" );
-        if ( $chk_iptables ) {
+        if ( grep { /$start_port/ } @chk_iptables ) {
             push @SUMMARY, "> Found evidence of possible BFPDoor hack $chk_iptables";
         }
         $start_port++;
