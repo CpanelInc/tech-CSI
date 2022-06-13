@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.14";
+my $version = "3.5.15";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2716,13 +2716,11 @@ sub vtlink {
             my $FileSize = $fStat->size;
             my $ctime    = $fStat->ctime;
             my $sha256   = Cpanel::SafeRun::Timed::timedsaferun( 2, 'sha256sum', $FileToChk );
-            #chomp($sha256);
             ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
             my $ignoreHash = ignoreHashes($sha256only);
             my $knownHash  = known_sha256_hashes($sha256only);
 
-            push @SUMMARY,
-              expand( "> Suspicious file found: " . CYAN $FileToChk );
+            push @SUMMARY, expand( "> Suspicious file found: " . CYAN $FileToChk );
 
             # First let's check Virustotal.com
             my $ticketnum = $ENV{'TICKET'};
@@ -3521,14 +3519,18 @@ sub check_apache_modules {
         foreach my $ApacheMod( @allApacheMods ) {
             next unless( $ApacheMod =~ m{mod-} );
             $ApacheMod = ( split( /\s+/, $ApacheMod ) )[1];
-            $ApacheMod =~ s{ea-apache24}{}g;
+            $ApacheMod =~ s{ea-apache24-}{}g;
             $ApacheMod =~ s{-}{_}g;
             $ApacheMod .= ".so";
-            push @OnlyApacheMods, $ApacheMod . ".so";
+            push @OnlyApacheMods, $ApacheMod;
         }
         close( STDERR ) if ( ! $debug );
         foreach my $line( @ApacheMods ) {
             next if( $line eq "." || $line eq ".." );
+            # quick patch to address CPANEL-40756
+            if ( $line eq 'mod_evasive24.so' ) {
+                $line = 'mod_evasive.so';
+            }
             if ( ! grep { m/$line/ } @OnlyApacheMods ) {
                 $FoundOne++;
                 push @FoundMod, $line . " ";
