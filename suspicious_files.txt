@@ -216,6 +216,7 @@
 /etc/profile.d/.h
 /etc/profile.d/.helpdd
 /etc/profile.d/kacpi_notify
+/etc/rc-Zobk0jpi/PgSD93ql
 /etc/rc2.d/S04syslogd
 /etc/rc2.d/S99po1kitd-update
 /etc/rc3.d/S04syslogd
@@ -368,6 +369,7 @@
 /proc/knark
 /proc/kset
 /proc/rtkit
+/proc/syslogk
 /rescue/mount_fs
 /root/.a
 /root/aaa.log
