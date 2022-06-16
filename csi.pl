@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.15";
+my $version = "3.5.16";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1002,8 +1002,7 @@ sub bitcoin_chk {
               . CYAN $xmrig_cron;
         }
     }
-    my $xm2sg_socket =
-      Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-plant' );
+    my $xm2sg_socket = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-plant' );
     my @xm2sg_socket = split /\n/, $xm2sg_socket;
     if ( grep { /xm2sg/ } @xm2sg_socket ) {
         push @SUMMARY,
@@ -1751,6 +1750,7 @@ sub all_malware_checks {
     check_for_dirtycow_passwd();
     check_for_lilocked_ransomware();
     check_for_junglesec();
+    check_for_panchan();
 }
 
 sub get_httpd_path {
@@ -3415,6 +3415,36 @@ sub check_for_junglesec {
     if ($SearchJungleSec) {
         push( @SUMMARY, "> Found possible JungleSec Ransomware - found several encrypted files with the junglesec extension.");
         push( @SUMMARY, expand( CYAN "\t\\_ Run: " . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" ) );
+    }
+}
+
+sub check_for_panchan {
+    my $persist=0;
+    my $binary=0;
+    my $listening_port=0;
+
+    my $check_persist = Cpanel::SafeRun::Timed::timedsaferun( 0, 'systemctl', 'list-units', '--full', '-all' );
+    my @check_persist = split( /\n/, $check_persist );
+    if ( grep { /systemd-worker.service/ } @check_persist ) {
+        $persist=1;
+    }
+
+    my $xinetd_files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/.*', '-maxdepth', '1', '-name', 'xinetd', '-type', 'f' );
+    my @xinetd_files = split /\n/, $xinetd_files;
+    if ( grep { /xinetd/ } @xinetd_files ) {
+        $persist=1;
+    }
+    my $check_port = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-lno' );
+    my @check_port = split /\n/, $check_port;
+    if ( grep { /1919/ } @check_port ) {
+        $listening_port=1;
+    }
+    if ( $persist && $binary && $listening_port ) {
+        push @SUMMARY, "> Found evidence of possible panchan botnet";
+        push @SUMMARY, expand( YELLOW "\t\\_ Tests performed:" );
+        push @SUMMARY, expand( CYAN "\t\t\\_ systemctl list-units --full -all | grep 'systemd-worker.service'" );
+        push @SUMMARY, expand( CYAN "\t\t\\_ find /.* -maxdepth 1 -name xinetd -type f | grep 'xinetd'" );
+        push @SUMMARY, expand( CYAN "\t\t\\_ netstat -lno | grep -wq 1919" );
     }
 }
 

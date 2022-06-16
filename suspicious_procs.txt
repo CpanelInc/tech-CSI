@@ -194,3 +194,5 @@ qmgr -l -t fifo -u
 /usr/sbin/console-kit-daemon
 enemybot
 whatudoinglookingatdis
+nbhash
+systemd-worker

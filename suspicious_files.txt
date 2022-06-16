@@ -38,6 +38,7 @@
 /bin/sysdr
 /bin/syslogd
 /bin/systemd/systemd-daemon
+/bin/systemd-worker
 /bin/.tmpc
 /bin/tr69c
 /bin/update-rc.d
@@ -343,6 +344,7 @@
 /lib/security/.config
 /lib/.so
 /lib/systemd/system/sys-temd-agent.service
+/lib/systemd/system/systemd-worker.service
 /lib/tls/libkeyutils.so.1
 /lib/tls/libkeyutils.so.1.5
 /lib/udev/ssd_control/cryptov2.ko
