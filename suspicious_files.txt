@@ -278,6 +278,7 @@
 /lib64/libkeyutils.so.1.3.0
 /lib64/libkeyutils.so.1.3.2
 /lib64/libkeyutils.so.1.9
+/lib64/liblinux.so
 /lib64/libnano.so.4
 /lib64/libncom.so.4.0.1
 /lib64/libns2.so
@@ -325,6 +326,7 @@
 /lib/libpw5.so
 /lib/librwctl.so
 /lib/libsbr.so
+/lib/liblinux.so
 /lib/libselinux
 /lib/libselinux.a
 /lib/libselinux.so
@@ -774,6 +776,7 @@
 /usr/bin/libkeyutils.so.1.3.0
 /usr/bin/libkeyutils.so.1.3.2
 /usr/bin/libkeyutils.so.1.9
+/usr/bin/liblinux.so
 /usr/bin/lib/ls
 /usr/bin/lib/netstat
 /usr/bin/libns2.so
@@ -865,6 +868,7 @@
 /usr/include/libkeyutils.so.1.3.0
 /usr/include/libkeyutils.so.1.3.2
 /usr/include/libkeyutils.so.1.9
+/usr/include/liblinux.so
 /usr/include/libns2.so
 /usr/include/libns5.so
 /usr/include/libproc.a

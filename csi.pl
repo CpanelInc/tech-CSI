@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.16";
+my $version = "3.5.17";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1304,8 +1304,10 @@ sub dump_summary {
 
     create_summary();
     if (@SUMMARY) {
-        my @UniqSummary = uniq(@SUMMARY);
-        @SUMMARY = @UniqSummary;
+        # Can't recall what this Uniq is for... Removing for now, if it causes an issue I'll address it then.
+        # Right now, it is interfering with the cve checks.
+#        my @UniqSummary = uniq(@SUMMARY);
+#        @SUMMARY = @UniqSummary;
         print_warn('The following negative items were found:');
         foreach (@SUMMARY) {
             print BOLD YELLOW $_ . "\n" unless( $cron );
@@ -1730,7 +1732,7 @@ sub all_malware_checks {
     check_for_twink();
     check_for_cronRAT();
     check_for_ncom_rootkit();
-    check_for_azazel_rootkit();
+    check_env_for_susp_vars();
     check_for_xbash();
     check_for_cdorked_A();
     check_for_cdorked_B();
@@ -3819,7 +3821,7 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o );
+    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
@@ -3937,13 +3939,20 @@ expand( "\t\\_ /etc/ld.so.preload contains evidence of NCOM rootkit [ "
     }
 }
 
-sub check_for_azazel_rootkit {
+sub check_env_for_susp_vars {
     my @env = Cpanel::SafeRun::Timed::timedsaferun( 0, 'env' );
-    if ( grep { /HIDE_THIS_SHELL|I_AM_HIDDEN/ } @env ) {
-        push @SUMMARY,
-"> Found HIDE_THIS_SHELL/I_AM_HIDDEN environment variable. Could indicate Azazel/Hiddenwasp Rootkit";
+    if ( grep { /HIDE_THIS_SHELL/ } @env ) {
+        push @SUMMARY, "> Found HIDE_THIS_SHELL environment variable. Could indicate presence of the Azazel Rootkit";
+    }
+    if ( grep { /I_AM_HIDDEN/ } @env ) {
+        push @SUMMARY, "> Found I_AM_HIDDEN environment variable. Could indicate presence of the Hiddenwasp Rootkit";
+    }
+    if ( grep { /HTTP_SETTHIS/ } @env ) {
+        push @SUMMARY, "> Found HTTP_SETTHIS environment variable. Could indicate presence of the Symbiote Rootkit";
     }
 }
+
+# RIGHT HERE
 
 sub check_for_xbash {
     return if( ! -f '/etc/my.cnf' );
@@ -4067,6 +4076,7 @@ sub check_for_cve_vulnerabilities {
         $data = $json->decode(<$json_stream>);
         close($json_stream);
     }
+    my $showHeader=0;
     foreach my $line( @{ $data } ) {
         my $type = $line->{Package_Type};
         my $pkg = $line->{Package_Name};
@@ -4151,7 +4161,6 @@ sub check_for_cve_vulnerabilities {
             $pkgver = join( '.', $maj, $min, $patch, $sub1 );
         }
 
-        my $showHeader=0;
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         my $infoLink="";
@@ -4166,7 +4175,6 @@ sub check_for_cve_vulnerabilities {
             push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
         }
     }
-    return;
 }
 
 sub is_os_vulnerable {
