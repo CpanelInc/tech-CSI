@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.17";
+my $version = "3.5.18";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1892,6 +1892,21 @@ sub userscan {
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
         }
     }
+    # CX-395 new roottn check
+    my $chk_shadow_for_roottn = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $RealHome, '-name', 'shadow' );
+    my @chk_shadow_for_roottn = split /\n/, $chk_shadow_for_roottn;
+    my $found_roottn = "";
+    my $showHeader=0;
+    foreach my $file( @chk_shadow_for_roottn ) {
+        $found_roottn = Cpanel::SafeRun::Timed::timedsaferun( 0, 'egrep', '\$roottn\$', $file );
+        if ( $found_roottn ) {
+            push @SUMMARY, "> Found evidence of shadow.roottn hack in $file" unless( $showHeader );
+            push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php") unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( CYAN "\t\t\\_ " . $file . YELLOW " [ Check with " . BLUE "egrep '\\\$roottn\\\$' " . $file . YELLOW " ]" ) if ( $found_roottn );
+            $found_roottn = "";
+        }
+    }
 
     print_status("Checking cgi-bin directory for suspicious bash script");
     if ( -e ("$RealHome/$pubhtml/cgi-bin/jarrewrite.sh") ) {
@@ -2478,7 +2493,7 @@ sub check_cookieipvalidation {
     my $resultJSON = get_whmapi1( 'get_tweaksetting', 'key=cookieipvalidation' );
     my $result = $resultJSON->{data}->{tweaksetting}->{value};
     if ( $result ne 'strict' ) {
-        push @RECOMMENDATIONS, "> Cookie IP Validation isn't set to strict - Consider changins this in Tweak Settings.";
+        push @RECOMMENDATIONS, "> Cookie IP Validation isn't set to strict - Consider changing this in Tweak Settings.";
         return;
     }
 }
@@ -2894,6 +2909,21 @@ sub chk_shadow_hack {
             $showHeader=1;
             chomp($shadow_roottn_baks);
             push @SUMMARY, expand( CYAN "\t\t\\_ " . $shadow_roottn_baks );
+        }
+    }
+    # CX-395 new roottn check
+    my $chk_shadow_for_roottn = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-name', 'shadow' );
+    my @chk_shadow_for_roottn = split /\n/, $chk_shadow_for_roottn;
+    my $found_roottn = "";
+    my $showHeader=0;
+    foreach my $file( @chk_shadow_for_roottn ) {
+        $found_roottn = Cpanel::SafeRun::Timed::timedsaferun( 0, 'egrep', '\$roottn\$', $file );
+        if ( $found_roottn ) {
+            push @SUMMARY, "> Found evidence of shadow.roottn hack in $file" unless( $showHeader );
+            push @SUMMARY, expand( MAGENTA "\t \\_ See: https://github.com/bksmile/WebApplication/blob/master/smtp_changer/wbf.php") unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( CYAN "\t\t\\_ " . $file . YELLOW " [ Check with " . BLUE "egrep '\\\$roottn\\\$' " . $file . YELLOW " ]" ) if ( $found_roottn );
+            $found_roottn = "";
         }
     }
 }
