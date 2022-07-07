@@ -102,6 +102,7 @@
 /dev/shm/.kauditd/[kauditd]
 /dev/shm/kdmtmpflush
 /dev/shm/.linux
+/dev/shm/ldx/.l
 /dev/shm/.lwp
 /dev/shm/.lwp/.out
 /dev/shm/.lwp/.rsync
@@ -320,6 +321,18 @@
 /lib/libncom.so.4.0.1
 /lib/libns2.so
 /lib/libns5.so
+/lib/libntpVnQE6mk/.l
+/lib/libntpVnQE6mk/.logpam
+/lib/libntpVnQE6mk/sshpass.txt
+/lib/libntpVnQE6mk/sshpass2.txt
+/lib/libntpVnQE6mk/.ports
+/lib/libntpVnQE6mk/execlog
+/lib/libntpVnQE6mk/.net
+/lib/libntpVnQE6mk/.fw
+/lib/libntpVnQE6mk/.sys/.dmesg
+/lib/libntpVnQE6mk/.backup_ld.so
+/lib/libntpVnQE6mk/escalator
+/lib/libntpVnQE6mk/.profile
 /lib/libproc.a
 /lib/libproc.so.2.0.6
 /lib/libpw3.so
