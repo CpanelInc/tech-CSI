@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.18";
+my $version = "3.5.19";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -670,23 +670,18 @@ sub scan {
     print_header('[ Checking setting of Cookie IP Validation ]');
     logit("Checking setting of Cookie IP Validation");
     check_cookieipvalidation();
-    print_header(
-        '[ Checking setting of X-Frame/X-Content Type headers with cpsrvd ]');
+    print_header( '[ Checking setting of X-Frame/X-Content Type headers with cpsrvd ]');
     logit("Checking setting of X-Frame/X-Content Type headers with cpsrvd");
     check_xframe_content_headers();
     print_header('[ Checking for deprecated plugins/modules ]');
     logit("Checking for deprecated plugins");
     check_for_deprecated();
-    print_header(
-        '[ Gathering the IP addresses that logged on successfully as root ]');
+    print_header( '[ Gathering the IP addresses that logged on successfully as root ]');
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM("root");
     get_last_logins_SSH("root");
     get_root_pass_changes("root");
-    push( @INFO,
-        CYAN
-"\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist."
-    );
+    push( @INFO, CYAN "\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist.");
 
     if ( $full or $secadv ) {
         print_header( YELLOW '[ Additional check Security Advisor ]' );
@@ -3066,7 +3061,6 @@ sub build_libkeyutils_file_list {
 }
 
 sub get_cron_files {
-    #my @cronlist = glob( q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/crontabs/root });
     my @allcrons = glob( q{ /etc/cron.d/{.,}* /etc/cron.hourly/{.,}* /etc/cron.daily/{.,}* /etc/cron.weekly/{.,}* /etc/cron.monthly/{.,}* /etc/crontab /var/spool/cron/root /var/spool/cron/crontabs/root });
     my @cronlist;
     foreach my $cron( @allcrons ) {
@@ -3720,9 +3714,9 @@ sub has_ps_command {
 sub check_for_yara {
     return 1 if ( -e "/usr/local/bin/yara" );
     if ( $cron ) {
-		logit( 'Yara engine not installed, skipping Yara scans' );
-    	return 0;		## Don't ask to install Yara engine if running via cron
-	}
+        logit( 'Yara engine not installed, skipping Yara scans' );
+        return 0;       ## Don't ask to install Yara engine if running via cron
+    }
     my $continue_yara_install = "Yara engine not installed, OK to install?";
     if (
         !IO::Prompt::prompt(
@@ -3982,8 +3976,6 @@ sub check_env_for_susp_vars {
     }
 }
 
-# RIGHT HERE
-
 sub check_for_xbash {
     return if( ! -f '/etc/my.cnf' );
     my $XBash_Table;
@@ -4108,37 +4100,16 @@ sub check_for_cve_vulnerabilities {
     }
     my $showHeader=0;
     foreach my $line( @{ $data } ) {
-        my $type = $line->{Package_Type};
         my $pkg = $line->{Package_Name};
         my $cve = $line->{CVE_ID};
         my $notvuln = $line->{Patched_Version};
         my $os_vuln = $line->{OS_Vulnerable};
         my $url = $line->{Link};
 
-        if ( $distro eq 'ubuntu' ) {
-            if ( $type eq 'rpm' ) {
-                print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . GREEN ucfirst( $distro ) .  CYAN " and type is " . MAGENTA "RPM\n" if ( $debug );
-                next;
-            }
-        }
-        else {
-            if ( $type eq 'apt' ) {
-                print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . RED ucfirst( $distro ) .    CYAN " and type is " . MAGENTA "APT\n" if ( $debug );
-                next;
-            }
-        }
-
         if ( is_os_vulnerable( $os_vuln ) ==0 ) {
             print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . GREEN "NOT vulnerable\n" if ( $debug );
             next;
         }
-
-        # Check if package is kernel or linux-headers (if so, uname -r must be added)
-        print CYAN "Checking if " . YELLOW $pkg . " is a kernel/linux-header package: " if ( $debug );
-        my $pkg1 = is_kernel( $pkg );        ## Checks to see if $pkg is a kernel or linux-headers pacakge!
-        my $is_kernel = ( $pkg1 =~ m{kernel|linux-header} ) ? "Yes" : "No";
-        print GREEN $is_kernel . "\n" if ( $debug );
-        $pkg=$pkg1;
 
         # Check if package is installed
         print CYAN "Checking if " . YELLOW $pkg . " is installed: " if ( $debug );
@@ -4146,6 +4117,13 @@ sub check_for_cve_vulnerabilities {
         my $is_installed = ( $installed ) ? "Yes" : "No";
         print GREEN $is_installed . "\n" if ( $debug );
         next unless( $installed );
+
+        # Check if package is kernel or linux-headers (if so, uname -r must be added)
+        print CYAN "Checking if " . YELLOW $pkg . " is a kernel/linux-header package: " if ( $debug );
+        my $pkg1 = is_kernel( $pkg );        ## Checks to see if $pkg is a kernel or linux-headers pacakge!
+        my $is_kernel = ( $pkg1 =~ m{kernel|linux-header} ) ? "Yes" : "No";
+        print GREEN $is_kernel . "\n" if ( $debug );
+        $pkg=$pkg1;
 
         # If we get here, it is installed, now get the version number
         print CYAN "Getting version number of " . YELLOW $pkg . ": " if ( $debug );
