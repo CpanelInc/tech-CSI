@@ -227,6 +227,7 @@
 /etc/rc4.d/S04syslogd
 /etc/rc5.d/S04syslogd
 /etc/rc.d/init.d/DbSecuritySpt
+/etc/rc.d/init.d/elastisearch
 /etc/rc.d/init.d/.IptabLes
 /etc/rc.d/init.d/IptabLes
 /etc/rc.d/init.d/.IptabLex
@@ -394,6 +395,7 @@
 /proc/kset
 /proc/rtkit
 /proc/syslogk
+/proc/y.y
 /rescue/mount_fs
 /root/.a
 /root/aaa.log
@@ -587,6 +589,9 @@
 /tmp/.datass
 /tmp/ddgs.3012
 /tmp/ddgs.3013
+/tmp/deadbolt.pid
+/tmp/deadbolt.status
+/tmp/deadbolt.finish
 /tmp/__debuglady.log
 /tmp/derfiq
 /tmp/devfreq_wq
@@ -942,6 +947,14 @@
 /usr/.IptabLex
 /usr/lib/.../
 /usr/lib32/.X11/X0-lock
+/usr/lib64/seahorses/kbioset
+/usr/lib64/seahorses/cpc
+/usr/lib64/seahorses/kkdmflush
+/usr/lib64/seahorses/soss
+/usr/lib64/seahorses/sshod
+/usr/lib64/seahorses/nethoogs
+/usr/lib64/seahorses/iftoop
+/usr/lib64/seahorses/iftraof
 /usr/lib/.bkit-
 /usr/lib/.egcs
 /usr/lib/elm/arobia
