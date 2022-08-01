@@ -944,9 +944,7 @@ m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\
 }
 
 sub check_processes {
-    my $url = URI->new(
-'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt'
-    );
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt');
     my $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
     my $res = $ua->get($url);
     my $susp_procs  = $res->decoded_content;
@@ -1164,7 +1162,7 @@ sub check_lib {
     }
     my $rpmcnt = @notOwned;
     if ( $rpmcnt > 0 ) {
-        push @SUMMARY, "> Found library files that are not owned";
+        push @SUMMARY, "> Found library files that are not owned by any package manager";
     }
     my $file;
     foreach $file (@notOwned) {
@@ -1518,17 +1516,10 @@ sub check_for_ebury_ssh_shmem {
 }
 
 sub check_for_ebury_socket {
-    return
-      unless my $netstat_out =
-      Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-nap' );
-    my $found = 0;
+    return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-nap' );
     for my $line ( split( '\n', $netstat_out ) ) {
-        if ( $line =~ m{@/proc/udevd} ) {
-            push( @SUMMARY,
-                    "> [Possible Rootkit: Ebury] - "
-                  . CYAN "Ebury socket connection found: "
-                  . $line );
-            $found = 1;
+        if ( $line =~ m{@/proc/udevd|@/run/systemd/log} ) {
+            push( @SUMMARY, "> [Possible Rootkit: Ebury] - " . CYAN "Ebury socket connection found: " . $line );
             last;
         }
     }
@@ -1672,13 +1663,16 @@ sub check_for_suckit {
     if ( -e "$csidir/suckittest.xrk" ) { unlink("$csidir/suckittest.xrk"); }
 }
 
-sub check_for_redisHack {
+sub check_authorized_keys_file {
     my $keysfile = '/root/.ssh/authorized_keys';
     open( my $fh, '<', $keysfile ) or return;
     while( <$fh> ) {
+        chomp( $_ );
         if ( $_ =~ m/REDIS0006 crackitA/ ) {
             push( @SUMMARY, "> [Possible Rootkit: Redis Hack] - " . CYAN "Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys.");
-            last;
+        }
+        if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDSEuS/A5HLzAwCbs+fqxCv1rLZ+x4vCdzcfLppJuCHnD2EO58W4aNDxtn2IBooyr4zylBJrNa64nQ3L7MvxckQMMLWkN6owZPtJs7+BPIsljX+Kz0svqGHDYk5KyQQ+O/uWVUU96X4NkyE4BxeQnH6jCYw2FCcnudsS5GLseBUozQvQlQEErRq3ma3skzZGB4kOq6He7ksaEUFjzgyfAQHzr1hPX5KJ/du4z7fX0KqUphK4AXbPL4Pqkusw4PeQLDjZGO8hRkDMVjnaPNliAS2pV9Guw+L7SLvXGHsz1Q+tT54JaSHkJoN6a0lJ/L3IehVTi/ZLLh4GgZ1WpWH7EqL" ) {
+            push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
         }
     }
     close($fh);
@@ -1732,7 +1726,7 @@ sub all_malware_checks {
     check_for_cdorked_A();
     check_for_cdorked_B();
     check_for_suckit();
-    check_for_redisHack();
+    check_authorized_keys_file();
     check_for_libkeyutils_symbols();
     check_for_unowned_libkeyutils_files();
     check_for_evasive_libkey();
@@ -2218,8 +2212,7 @@ sub userscan {
         logit("Running a user scan for $lcUserToScan");
         my $yara_available = check_for_yara();
         if ($yara_available) {
-            my @yara_urls =
-              qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
+            my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
             print_header("Downloading yara rules to $csidir");
             my @data;
             for my $URL (@yara_urls) {
@@ -2306,11 +2299,8 @@ sub userscan {
         }
         else {
             ## grep scan (not Yara) a bit slower but should catch the same things.
-            my $url = URI->new(
-'https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt'
-            );
-            my $ua =
-              LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+            my $url = URI->new( 'https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt');
+            my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
             my $res         = $ua->get($url);
             my $definitions = $res->decoded_content;
             my @DEFINITIONS = $definitions;
@@ -2717,164 +2707,156 @@ sub misc_checks {
 }
 
 sub vtlink {
-    my @FileToChk = @_;
-    foreach my $FileToChk (@FileToChk) {
-        chomp($FileToChk);
-        next if ( !-e "$FileToChk" );
-        my $fStat = stat($FileToChk);
-        if ( -f _ or -d _ and not -z _ ) {
-            my ($FileU)  = getpwuid( ( $fStat->uid ) );
-            my ($FileG)  = getgrgid( ( $fStat->gid ) );
-            my $FileSize = $fStat->size;
-            my $ctime    = $fStat->ctime;
-            my $sha256   = Cpanel::SafeRun::Timed::timedsaferun( 2, 'sha256sum', $FileToChk );
-            ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
-            my $ignoreHash = ignoreHashes($sha256only);
-            my $knownHash  = known_sha256_hashes($sha256only);
+    my $FileToChk = shift;
+    chomp($FileToChk);
+    return if ( !-e "$FileToChk" );
+    my $fStat = stat($FileToChk);
+    if ( -f _ or -d _ and not -z _ ) {
+        my ($FileU)  = getpwuid( ( $fStat->uid ) );
+        my ($FileG)  = getgrgid( ( $fStat->gid ) );
+        $FileU = "UNKNOWN" if ( $FileU eq "" );
+        $FileG = "UNKNOWN" if ( $FileG eq "" );
+        my $FileSize = $fStat->size;
+        my $ctime    = $fStat->ctime;
+        my $sha256   = Cpanel::SafeRun::Timed::timedsaferun( 2, 'sha256sum', $FileToChk );
+        ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
+        my $ignoreHash = ignoreHashes($sha256only);
+        my $knownHash  = known_sha256_hashes($sha256only);
 
-            push @SUMMARY, expand( "> Suspicious file found: " . CYAN $FileToChk );
+        push @SUMMARY, expand( "> Suspicious file found: " . CYAN $FileToChk );
 
-            # First let's check Virustotal.com
-            my $ticketnum = $ENV{'TICKET'};
-            $ticketnum = "DEBUG" if ($debug);
-            my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', '-4', "https://myip.cpanel.net/v1.0/" );
-            chomp($ipaddr);
-            if ( $sha256only && $ipaddr && $ticketnum && iam('cptech') || $debug ) {
-                my $vtdata = Cpanel::SafeRun::Timed::timedsaferun( 10, 'curl', '-s', '-4', "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" );
-                my $output = decode_json($vtdata);
-                my $URL    = $output->{data}->{links}->{self};
-                $URL .= "/detection";
-                $URL =~ s/api/gui/g;
-                $URL =~ s/v3\///g;
-                $URL =~ s/files/file/g;
-                if ( !$ignoreHash ) {
-                    push @SUMMARY,
-                      "> Checking hash at VirusTotal.com (3rd party)"
-                      . expand( YELLOW "  [ Type: "
-                          . CYAN $output->{data}->{attributes}
-                          ->{type_description}
-                          . YELLOW " ]"
-                          . YELLOW "\n\t\\_ Size: "
-                          . CYAN $FileSize
-                          . YELLOW " Date Changed: "
-                          . CYAN scalar localtime($ctime)
-                          . YELLOW " Owned by U/G: "
-                          . CYAN $FileU . "/"
-                          . $FileG );
-                    if ( defined $output->{data}->{attributes}->{sha256} ) {
-                        push @SUMMARY,
-                          expand(
-                                YELLOW "\t \\_ 256hash: "
-                              . CYAN $output->{data}->{attributes}->{sha256}
-                              . YELLOW "\n\t\\_ Classification: "
-                              . CYAN $output->{data}->{attributes}
-                              ->{popular_threat_classification}
-                              ->{suggested_threat_label}
-                              . YELLOW "\n\t\\_ "
-                              . $output->{data}->{attributes}
-                              ->{last_analysis_stats}->{malicious}
-                              . CYAN
-" anti-virus engines detected this as malicious at VirusTotal.com"
-                              . YELLOW "\n\t\\_ First Seen: "
-                              . CYAN scalar localtime(
-                                $output->{data}->{attributes}
-                                  ->{first_submission_date}
-                              )
-                              . YELLOW
-                              . " / Last Analyzed: "
-                              . CYAN scalar localtime(
-                                $output->{data}->{attributes}
-                                  ->{last_analysis_date}
-                              )
-                          );
-                    }
-                    else {
-                        push @SUMMARY,
-                          expand( YELLOW
-                              "\t \\_ No matches found at VirusTotal.com" );
-                    }
-                }
-            }
-            else {
-                if ( !$ignoreHash ) {
-                    push @SUMMARY,
-                      "> Checking hash at VirusTotal.com (3rd party)"
-                      . expand( YELLOW "\n\t\\_ Size: "
-                          . CYAN $FileSize
-                          . YELLOW " Date Changed: "
-                          . CYAN scalar localtime($ctime)
-                          . YELLOW " Owned by U/G: "
-                          . CYAN $FileU . "/"
-                          . $FileG );
-                    push @SUMMARY,
-                      expand( RED
-"\t \\_ Unable to verify at virustotal.com. Please check manually by visiting:"
-                      );
-                    push @SUMMARY,
-                      expand( GREEN "\t \\_ "
-                          . WHITE
-"https://www.virustotal.com/#/file/$sha256only/detection"
-                      );
-                }
-            }
-
-            # Now let's also check malware.bazaar.com
-            push @SUMMARY,
-              "\n> Checking hash at malware.bazaar.com (3rd party)";
-            my $bazaardata = Cpanel::SafeRun::Timed::timedsaferun(
-                0, 'wget', '-q', '-O', '-', '--post-data',
-                "query=get_info&hash=$sha256only",
-                "https://mb-api.abuse.ch/api/v1/"
-            );
-            my $output = decode_json($bazaardata);
-            my $file_type =
-              ( $output->{data}->[0]->{file_type} )
-              ? $output->{data}->[0]->{file_type}
-              : "N/A";
-            my $sha256_hash =
-              ( $output->{data}->[0]->{sha256_hash} )
-              ? $output->{data}->[0]->{sha256_hash}
-              : "N/A";
-            my $first_seen =
-              ( $output->{data}->[0]->{first_seen} )
-              ? $output->{data}->[0]->{first_seen}
-              : "N/A";
-            my $last_seen =
-              ( $output->{data}->[0]->{last_seen} )
-              ? $output->{data}->[0]->{last_seen}
-              : "N/A";
-
+        # First let's check Virustotal.com
+        my $ticketnum = $ENV{'TICKET'};
+        $ticketnum = "DEBUG" if ($debug);
+        my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', '-4', "https://myip.cpanel.net/v1.0/" );
+        chomp($ipaddr);
+        if ( $sha256only && $ipaddr && $ticketnum && iam('cptech') || $debug ) {
+            my $vtdata = Cpanel::SafeRun::Timed::timedsaferun( 10, 'curl', '-s', '-4', "https://cpaneltech.ninja/cgi-bin/virustotal_check.pl?hash=$sha256only&ip=$ipaddr&ticket=$ticketnum" );
+            my $output = decode_json($vtdata);
+            my $URL    = $output->{data}->{links}->{self};
+            $URL .= "/detection";
+            $URL =~ s/api/gui/g;
+            $URL =~ s/v3\///g;
+            $URL =~ s/files/file/g;
             if ( !$ignoreHash ) {
-                if ( $output->{query_status} eq "ok" ) {
-                    my $alltags = "";
-                    for my $tag ( @{ $output->{data}->[0]->{tags} } ) {
-                        $alltags .= $tag . ' ';
-                    }
+                push @SUMMARY,
+                  "> Checking hash at VirusTotal.com (3rd party)"
+                  . expand( YELLOW "  [ Type: "
+                      . CYAN $output->{data}->{attributes}
+                      ->{type_description}
+                      . YELLOW " ]"
+                      . YELLOW "\n\t\\_ Size: "
+                      . CYAN $FileSize
+                      . YELLOW " Date Changed: "
+                      . CYAN scalar localtime($ctime)
+                      . YELLOW " Owned by U/G: "
+                      . CYAN $FileU . "/"
+                      . $FileG );
+                if ( defined $output->{data}->{attributes}->{sha256} ) {
                     push @SUMMARY,
-                      expand( YELLOW "\t \\_ 256hash: "
-                          . CYAN $sha256_hash
+                      expand(
+                            YELLOW "\t \\_ 256hash: "
+                          . CYAN $output->{data}->{attributes}->{sha256}
                           . YELLOW "\n\t\\_ Classification: "
-                          . CYAN $alltags
+                          . CYAN $output->{data}->{attributes}
+                          ->{popular_threat_classification}
+                          ->{suggested_threat_label}
+                          . YELLOW "\n\t\\_ "
+                          . $output->{data}->{attributes}
+                          ->{last_analysis_stats}->{malicious}
+                          . CYAN
+" anti-virus engines detected this as malicious at VirusTotal.com"
                           . YELLOW "\n\t\\_ First Seen: "
-                          . CYAN $first_seen
+                          . CYAN scalar localtime(
+                            $output->{data}->{attributes}
+                              ->{first_submission_date}
+                          )
                           . YELLOW
-                          . " / Last Seen "
-                          . CYAN $last_seen
-                          . "\n" );
+                          . " / Last Analyzed: "
+                          . CYAN scalar localtime(
+                            $output->{data}->{attributes}
+                              ->{last_analysis_date}
+                          )
+                      );
                 }
                 else {
                     push @SUMMARY,
-                      expand(
-                        YELLOW "\t \\_ No matches found at bazaar.abuse.ch\n" );
+                      expand( YELLOW
+                          "\t \\_ No matches found at VirusTotal.com" );
                 }
             }
-            if ($knownHash) {
+        }
+        else {
+            if ( !$ignoreHash ) {
                 push @SUMMARY,
-                    MAGENTA "> The hash "
-                  . GREEN
-                  . $sha256only
-                  . MAGENTA " is known to be suspicious!";
+                  "> Checking hash at VirusTotal.com (3rd party)"
+                  . expand( YELLOW "\n\t\\_ Size: "
+                      . CYAN $FileSize
+                      . YELLOW " Date Changed: "
+                      . CYAN scalar localtime($ctime)
+                      . YELLOW " Owned by U/G: "
+                      . CYAN $FileU . "/"
+                      . $FileG );
+                push @SUMMARY, expand( RED "\t \\_ Unable to verify at virustotal.com. Please check manually by visiting:");
+                push @SUMMARY, expand( GREEN "\t \\_ " . WHITE "https://www.virustotal.com/#/file/$sha256only/detection");
             }
+        }
+        # Now let's also check malware.bazaar.com
+        push @SUMMARY,
+          "\n> Checking hash at malware.bazaar.com (3rd party)";
+        my $bazaardata = Cpanel::SafeRun::Timed::timedsaferun(
+            0, 'wget', '-q', '-O', '-', '--post-data',
+            "query=get_info&hash=$sha256only",
+            "https://mb-api.abuse.ch/api/v1/"
+        );
+        my $output = decode_json($bazaardata);
+        my $file_type =
+          ( $output->{data}->[0]->{file_type} )
+          ? $output->{data}->[0]->{file_type}
+          : "N/A";
+        my $sha256_hash =
+          ( $output->{data}->[0]->{sha256_hash} )
+          ? $output->{data}->[0]->{sha256_hash}
+          : "N/A";
+        my $first_seen =
+          ( $output->{data}->[0]->{first_seen} )
+          ? $output->{data}->[0]->{first_seen}
+          : "N/A";
+        my $last_seen =
+          ( $output->{data}->[0]->{last_seen} )
+          ? $output->{data}->[0]->{last_seen}
+          : "N/A";
+
+        if ( !$ignoreHash ) {
+            if ( $output->{query_status} eq "ok" ) {
+                my $alltags = "";
+                for my $tag ( @{ $output->{data}->[0]->{tags} } ) {
+                    $alltags .= $tag . ' ';
+                }
+                push @SUMMARY,
+                  expand( YELLOW "\t \\_ 256hash: "
+                      . CYAN $sha256_hash
+                      . YELLOW "\n\t\\_ Classification: "
+                      . CYAN $alltags
+                      . YELLOW "\n\t\\_ First Seen: "
+                      . CYAN $first_seen
+                      . YELLOW
+                      . " / Last Seen "
+                      . CYAN $last_seen
+                      . "\n" );
+            }
+            else {
+                push @SUMMARY,
+                  expand(
+                    YELLOW "\t \\_ No matches found at bazaar.abuse.ch\n" );
+            }
+        }
+        if ($knownHash) {
+            push @SUMMARY,
+                MAGENTA "> The hash "
+              . GREEN
+              . $sha256only
+              . MAGENTA " is known to be suspicious!";
         }
     }
 }
@@ -3227,6 +3209,8 @@ sub check_api_tokens_log {
 
 sub check_file_for_elf {
     my $tcFile  = shift;
+    $tcFile =~ s/'//g;
+    chomp($tcFile);
     my $ELFfile = Cpanel::SafeRun::Timed::timedsaferun( 0, 'file', "$tcFile" );
     return 1 if ( $ELFfile =~ m/ ELF / );
     return 0;
@@ -3322,21 +3306,20 @@ sub getAWS_IPs {
 }
 
 sub look_for_suspicious_files {
-    my $url = URI->new(
-'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt'
-    );
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt');
     my $ua      = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
     my $res     = $ua->get($url);
     my $content = $res->decoded_content;
     my @files   = split /\n/, $content;
     for my $file (@files) {
+        $file =~ s/'//g;
         my $fileType;
         chomp($file);
         next unless ( -f $file or -d $file and not -z $file and not -l $file );
         my $fStat = lstat($file) or die($!);
         $fileType = "file"      unless ( -d $file );
         $fileType = "directory" unless ( -f $file );
-        $file="'$file'";
+        #$file="'$file'";
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         my $FileSize = $fStat->size;
@@ -3354,6 +3337,7 @@ sub look_for_suspicious_files {
         my $RPMowned = ( $isNOTowned eq "no path found matching pattern" || $isNOTowned eq "" || $isNOTowned =~ m/not owned by/ ) ? "No" : "Yes";
         my $isImmutable = ( isImmutable($file) ) ? MAGENTA " [IMMUTALBE]" : "";
         my $isELF = check_file_for_elf($file);
+        my $ignoreHash = ignoreHashes($sha256only);
         if ($isELF) {
             my $contains_bash = Cpanel::SafeRun::Timed::timedsaferun( 0, 'hexdump', '-C', "$file" );
             if ( $contains_bash =~ m/bin.*bash/ ) {
@@ -3366,7 +3350,6 @@ sub look_for_suspicious_files {
             vtlink($file) unless ($ignoreHash);
         }
         else {
-            $file =~ s/'//g;
             push @SUMMARY,
               expand( "> Suspicious $fileType found: "
                   . CYAN $file
@@ -4182,6 +4165,7 @@ sub check_for_cve_vulnerabilities {
             push @SUMMARY, expand( YELLOW "\t\\_ rpm -q --changelog " . $pkg . " | grep -E '" . $cve ."'");
             push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
         }
+        print "-----\n";
     }
 }
 
@@ -4443,7 +4427,6 @@ sub send_email {
     );
     $msg->send;
 }
-
 
 =encoding utf-8
 

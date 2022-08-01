@@ -27,6 +27,7 @@
 /bin/.login
 /bin/.lpstree
 /bin/mjy
+/bin/monitor
 /bin/netdns
 /bin/note
 /bin/.olog

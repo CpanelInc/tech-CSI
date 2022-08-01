@@ -954,7 +954,7 @@ rule APT_MAL_LNX_RedMenshen_BPFDoor_Controller_Generic_May22_1 {
       filesize < 200KB and 2 of them or 4 of them
 }
 
-ule panchan {
+rule panchan {
     meta:
         author = "Stiv Kupchik"
         filetype = "ELF"
@@ -971,5 +971,21 @@ ule panchan {
 
     condition:
         $go_magic and (all of ($str*) or $public_key)
+}
+
+rule Linux_Ebury_172_173_Apr2021 {
+    meta:
+        description = "Detects Linux/Ebury 1.7.2-3"
+        date = " 2021"
+        author = "CSIRT Italy"
+    strings:
+        $a1 = "ctors"
+        $a2 = "seccomp_load"
+        $a3 = "popen"
+        $a4 = "system"
+        $a5 = "keyctl_"
+    condition:
+        uint32(0) == 0x464c457f // Generic ELF header
+        and uint8(16) == 0x000
 }
 
