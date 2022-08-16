@@ -196,3 +196,5 @@ enemybot
 whatudoinglookingatdis
 nbhash
 systemd-worker
+bwmmtyh
+/dev/shm/system1

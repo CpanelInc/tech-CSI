@@ -607,6 +607,7 @@
 /tmp/ext4-rsv-conver
 /tmp/fdsfsfvff
 /tmp/.FILE/stak /
+/tmp/filer
 /tmp/flush-199:13000
 /tmp/flush-199:25000
 /tmp/flush-199:30000
@@ -666,6 +667,7 @@
 /tmp/.orbit
 /tmp/pamdicks
 /tmp/passwd.bak
+/tmp/payload.py
 /tmp/pc
 /tmp/.pfile
 /tmp/pools.txt

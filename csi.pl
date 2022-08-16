@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.19";
+my $version = "3.5.21";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -442,6 +442,8 @@ sub disclaimer {
     print_normal('');
 }
 
+# BEGIN DEFAULT SCAN HERE!
+
 sub scan {
     print_normal('');
     print_header('[ Starting cPanel Security Investigator SCAN Mode ]');
@@ -496,6 +498,9 @@ sub scan {
     print_header('[ Checking if root bash history has been tampered with ]');
     logit("Checking roots bash_history for tampering");
     check_history();
+    print_header('[ Checking for open files that have been deleted ]');
+    logit("Checking for open files that have been deleted");
+    check_lsof_deleted();
     print_header('[ Checking /etc/ld.so.preload for compromised library ]');
     check_preload();
     print_header('[ Checking process list for suspicious processes ]');
@@ -520,6 +525,11 @@ sub scan {
     logit("Checking api_tokens_log for passwd changes");
     check_api_tokens_log();
 
+    print_header(
+        '[ Obtaining API Tokens ]'
+    );
+    logit("Obtaining api tokens");
+    get_api_tokens();
     print_header('[ Checking for PHP backdoors in unprotected path ]');
     logit("Checking /usr/local/cpanel/base/unprotected for PHP backdoors");
     check_for_unprotected_backdoors();
@@ -847,6 +857,12 @@ sub check_modsecurity {
 "> Using $modsec_vendor->{description} YAML rules - Please consider using the RPM\n"
                   . CYAN expand( "\t\\_ yum install ea-modsec2-rules-owasp-crs" )
                   unless ( $distro eq "ubuntu" );
+            }
+            if ( !defined( $modsec_vendor->{is_pkg} ) ) {
+                push @RECOMMENDATIONS,
+"> Using $modsec_vendor->{description} YAML rules - Please consider using the RPM\n"
+                  . CYAN expand( "\t\\_ apt install ea-modsec2-rules-owasp-crs" )
+                  unless ( $distro ne "ubuntu" );
             }
             if ( $modsec_vendor->{enabled} == 0 ) {
                 push @RECOMMENDATIONS,
@@ -1672,6 +1688,9 @@ sub check_authorized_keys_file {
             push( @SUMMARY, "> [Possible Rootkit: Redis Hack] - " . CYAN "Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys.");
         }
         if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDSEuS/A5HLzAwCbs+fqxCv1rLZ+x4vCdzcfLppJuCHnD2EO58W4aNDxtn2IBooyr4zylBJrNa64nQ3L7MvxckQMMLWkN6owZPtJs7+BPIsljX+Kz0svqGHDYk5KyQQ+O/uWVUU96X4NkyE4BxeQnH6jCYw2FCcnudsS5GLseBUozQvQlQEErRq3ma3skzZGB4kOq6He7ksaEUFjzgyfAQHzr1hPX5KJ/du4z7fX0KqUphK4AXbPL4Pqkusw4PeQLDjZGO8hRkDMVjnaPNliAS2pV9Guw+L7SLvXGHsz1Q+tT54JaSHkJoN6a0lJ/L3IehVTi/ZLLh4GgZ1WpWH7EqL" ) {
+            push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
+        }
+        if ( $_ eq "ssh-rsaAAAAB3NzaC1yc2EAAAADAQABAAACAQC/yU0iqklqw6etPlUon4mZzxslFWq8G8sRyluQMD3i8tpQWT2cX/mwGgSRCz7HMLyxt87olYIPemTIRBiyqk8SLD3ijQpfZwQ9vsHc47hdTBfj89FeHJGGm1KpWg8lrXeMW+5jIXTFmEFhbJ18wc25Dcds4QCM0DvZGr/Pg4+kqJ0gLyqYmB2fdNzBcU05QhhWW6tSuYcXcyAz8Cp73JmN6TcPuVqHeFYDg05KweYqTqThFFHbdxdqqrWy6fNt8q/cgI30NBa5W2LyZ4b1v6324IEJuxImARIxTc96Igaf30LUza8kbZyc3bewY6IsFUN1PjQJcJi0ubVLyWyyJ554Tv8BBfPdY4jqCr4PzaJ2Rc1JFJYUSVVT4yX2p7L6iRpW212eZmqLMSoR5a2a/tO2s1giIlb+0EHtFWc2QH7yz/ZBjnun7opIoslLVvYJ9cxMoLeLr5Ig+zny+IEA3x090xtcL62X0jea6btVnYo7UN2BARziisZze6oVuOTCBijuyvOM6ROZ6s/wl4CQAOSLDeFIP5L1paP9V1XLaYLDBAodNaUPFfTxggH3tZrnnU8Dge5/1JNa08F3WNUPM1S1x8L2HMatwc82x35jXyBSp3AMbdxMPhvyYI8v2J1PqJH8OqGTVjdWe40mD2osRgLo1EOfP/SFBTD5VEo95K2ZLQ== helloworld" ) {
             push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
         }
     }
@@ -3410,6 +3429,22 @@ sub check_apitokens_json {
     }
 }
 
+sub get_api_tokens {
+    my $list_tokensJSON = get_whmapi1( 'api_token_list' );
+    my $showHeader=0;
+    for my $token_hr ( values %{ $list_tokensJSON->{data}->{tokens} // {} } ) {
+        my $expires_at = ( $token_hr->{'expires_at'} ) ? scalar(localtime( $token_hr->{'expires_at'} )) : "Never";
+        push @INFO, "> The following API Tokens are present (hopefully you are aware of them)?" unless( $showHeader );
+        $showHeader=1;
+        push @INFO, expand( CYAN "\t\\_ Token Name: " . GREEN $token_hr->{'name'} . CYAN "  Created: " . GREEN scalar(localtime($token_hr->{'create_time'})) . CYAN "  Expires: " . GREEN $expires_at );
+        push @INFO, expand( BLUE "\t\t\\_ACLS:\t" . YELLOW , join(", ", map { "" . $_ } grep { $token_hr->{'acls'}->{$_} } keys %{ $token_hr->{'acls'} // {} }) );
+        my $x=join("", map { " " . $_ } grep { $token_hr->{'acls'}->{$_} } keys %{ $token_hr->{'acls'} // {} }), "\n";
+        if ( $x =~ m{ all } ) {
+            push @INFO, expand( RED "\tDANGER! - The " . GREEN $token_hr->{name} . RED " API Token has the ALL ACL enabled!" );
+        }
+    }
+}
+
 sub check_for_junglesec {
     my $iptables_rules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
     my @iptables_rules = split /\n/, $iptables_rules;
@@ -3828,7 +3863,7 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon );
+    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
@@ -4127,7 +4162,14 @@ sub check_for_cve_vulnerabilities {
         }
         else {
             chomp( $pkgver );
-            print GREEN "$pkgver\n" if ( $debug );
+            if ( $pkgver eq "" ) {
+                print RED "\n\t\\_ WARNING! - Version undefined/missing for $pkg\n";
+                print MAGENTA "\t\\_ THIS SHOULD NOT BE POSSIBLE IF THE PACKAGE IS PROPERLY INSTALLED - Exiting.\n";
+                exit;
+            }
+            else {
+                print GREEN "$pkgver\n" if ( $debug );
+            }
         }
 
         # check changelog for the CVE
@@ -4165,7 +4207,7 @@ sub check_for_cve_vulnerabilities {
             push @SUMMARY, expand( YELLOW "\t\\_ rpm -q --changelog " . $pkg . " | grep -E '" . $cve ."'");
             push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
         }
-        print "-----\n";
+        push @SUMMARY, expand( BOLD BLUE "\t-----" );
     }
 }
 
@@ -4216,10 +4258,16 @@ sub found_in_changelog {
     my $in_chglog=0;
     my $in_chglog1=0;
     if ($distro eq 'ubuntu' ) {
-        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        $in_chglog1 = ( Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) ) ? 1 : 0;
-        close( STDERR ) if ( ! $debug );
-        $in_chglog=1 unless( $in_chglog1 == 0 );
+        if ( ! -f "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) {
+            print RED "\n\t\\_ WARNING! - /usr/share/doc/$tcPkg/changelog.Debian.gz IS MISSING!!! - ";
+            $in_chglog1=0;
+        }
+        else {
+            open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+            $in_chglog1 = ( Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) ) ? 1 : 0;
+            close( STDERR ) if ( ! $debug );
+            $in_chglog=1 unless( $in_chglog1 == 0 );
+        }
     }
     else {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
@@ -4348,6 +4396,23 @@ sub check_for_cve_2021_4034 {
         }
     }
     close($fh);
+}
+
+sub check_lsof_deleted {
+    my @suspicious_binaries = qw( memfd );
+    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
+    my @lsof = split /\n/, $lsof;
+    my $showHeader=0;
+    foreach my $line(@lsof) {
+        next unless( $line =~ m{(deleted)} );
+        foreach my $suspbin(@suspicious_binaries) {
+            if ( $line =~ m/$suspbin/ ) {
+                push @SUMMARY, "> Found deleted files/binaries running in memory that could be suspicious" unless( $showHeader );
+                $showHeader=1;
+                push @SUMMARY, "\t\\_  $line";
+            }
+        }
+    }
 }
 
 sub check_for_bpfdoor {
