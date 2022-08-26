@@ -973,22 +973,6 @@ rule panchan {
         $go_magic and (all of ($str*) or $public_key)
 }
 
-rule Linux_Ebury_172_173_Apr2021 {
-    meta:
-        description = "Detects Linux/Ebury 1.7.2-3"
-        date = " 2021"
-        author = "CSIRT Italy"
-    strings:
-        $a1 = "ctors"
-        $a2 = "seccomp_load"
-        $a3 = "popen"
-        $a4 = "system"
-        $a5 = "keyctl_"
-    condition:
-        uint32(0) == 0x464c457f // Generic ELF header
-        and uint8(16) == 0x000
-}
-
 rule Linux_Trojan_Ebury_7b13e9b6 {
     meta:
         id = "7b13e9b6-ce96-4bd3-8196-83420280bd1f"
