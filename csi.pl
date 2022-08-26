@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.21";
+my $version = "3.5.22";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1110,11 +1110,11 @@ sub check_ssh {
                 $rpmBuildHost = $rpmLine if( $rpmLine =~ m/Build Host/ );
                 $rpmSignature = $rpmLine if( $rpmLine =~ m/Signature/ );
             }
-            $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc./) );
+            $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc.|Rocky/) );
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com/));
+            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com|rockylinux.org/));
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea/));
+            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60/));
             $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) );
         }
     }
@@ -3283,7 +3283,7 @@ sub check_sudoers_file {
             next if ( $sudoerline =~ m/ec2-user/ && $isAWS_IP );
             next
               if ( $sudoerline =~
-                m/cloudlinux|centos|ubuntu|wp-toolkit|cloud-user/ );
+                m/cloudlinux|centos|ubuntu|wp-toolkit|cloud-user|rocky/ );
             next unless ( $sudoerline =~ m/ALL$/ );
             push @SUMMARY,
               "Found non-root users with insecure privileges in a sudoer file."
