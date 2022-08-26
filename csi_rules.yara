@@ -991,3 +991,332 @@ rule Linux_Trojan_Ebury_7b13e9b6 {
         all of them
 }
 
+rule Dacls_Trojan_Linux {
+    meta:
+        Author = "Adam M. Swanda"
+        Repo = "https://github.com/deadbits/yara-rules"
+
+    strings:
+        $cls00 = "c_2910.cls" ascii fullword
+        $cls01 = "k_3872.cls" ascii fullword
+
+        $str00 = "{\"result\":\"ok\"}" ascii fullword
+        $str01 = "SCAN  %s  %d.%d.%d.%d %d" ascii fullword
+        $str02 = "/var/run/init.pid" ascii fullword
+        $str03 = "/flash/bin/mountd" ascii fullword
+        $str04 = "Name:" ascii fullword
+        $str05 = "Uid:" ascii fullword
+        $str06 = "Gid:" ascii fullword
+        $str08 = "PPid:" ascii fullword
+        $str09 = "session_id" ascii fullword
+
+    condition:
+        uint32be(0x0) == 0x7f454c46
+        and
+        (
+            (all of ($cls*))
+
+            or
+
+            (all of ($str*))
+
+        )
+}
+
+rule ACBackdoor_ELF: linux malware backdoor {
+    meta:
+        author = "Adam M. Swanda"
+        date = "Nov 2019"
+        reference = "https://www.intezer.com/blog-acbackdoor-analysis-of-a-new-multiplatform-backdoor/"
+
+    strings:
+        $ua_str = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; .NET CLR 1.1.4322)" ascii fullword
+        $header1 = "Access-Control:" ascii fullword
+        $header2 = "X-Access" ascii
+
+        $initd = "/etc/init.d/update-notifier" ascii fullword
+        $str001 = "#!/bin/sh -e" ascii fullword
+        $str002 = "### BEGIN INIT INFO" ascii fullword
+        $str003 = "# Provides:          update-notifier" ascii fullword
+        $str004 = "# Required-Start:    $local_fs" ascii fullword
+        $str005 = "# Required-Stop:" ascii fullword
+        $str006 = "# Default-Start:     S" ascii fullword
+        $str007 = "# Default-Stop:" ascii fullword
+        $str008 = "### END INIT INFO" ascii fullword
+        $str010 = "  *) echo \"Usage: $0 {start|stop|restart|force-reload}\" >&2; ;;" ascii fullword
+        $str011 = "esac" ascii fullword
+        $str012 = "[ -x /usr/local/bin/update-notifier ] \\" ascii fullword
+        $str013 = "    && exec /usr/local/bin/update-notifier" ascii fullword
+        $rcd01 = "/etc/rc2.d/S01update-notifier" ascii fullword
+        $rcd02 = "/etc/rc3.d/S01update-notifier" ascii fullword
+        $rcd03 = "/etc/rc5.d/S01update-notifier" ascii fullword
+
+    condition:
+        /* trigger = '{7f 45 4c 46}' - ELF magic bytes */
+        (uint32be(0x0) == 0x7f454c46)
+        and
+        (
+            ($ua_str and all of ($header*) and $initd and all of ($rcd*))
+            or
+            (
+                $ua_str and all of ($header*) and 10 of ($str*)
+            )
+        )
+}
+
+rule Linux_Golang_Ransomware: linux ransomware golang {
+    meta:
+        author = "Adam M. Swanda"
+        reference = "https://www.fortinet.com/blog/threat-research/new-golang-ransomware-targeting-linux-systems.html"
+
+    strings:
+        $str001 = "1) Email: fullofdeep@protonmail.com" ascii fullword
+        $str002 = "https://ipapi.com/json/idna:" ascii
+        $str003 = "%s.encrypted.localhost" ascii
+        $str004 = ".local.onion" ascii
+        $str005 = "DO NOT TRY TO DO SOMETHING TO YOUR FILES YOU WILL BRAKE YOUR DATA" ascii fullword
+        $str006 = "4.We can decrypt few files in quality the evidence that we have the decoder." ascii fullword
+
+    condition:
+        uint32be(0x0) == 0x7f454c46
+        and all of them
+}
+
+rule GodLua_Linux: linuxmalware {
+   meta:
+      Author = "Adam M. Swanda"
+      Website = "https://www.deadbits.org"
+      Repo = "https://github.com/deadbits/yara-rules"
+      Date = "2019-07-18"
+
+   strings:
+
+      $tmp0 = "/tmp" ascii fullword
+      $tmp1 = "TMPDIR" ascii
+
+      $str1 = "\"description\": \"" ascii fullword
+      $str2 = "searchers" ascii fullword
+      $str3 = "/dev/misc/watchdog" ascii fullword
+      $str4 = "/dev/wdt" ascii fullword
+      $str5 = "/dev/misc/wdt"
+      $str6 = "lcurl.safe" ascii fullword
+      $str7 = "luachild" ascii fullword
+      $str8 = "cjson.safe" ascii fullword
+      $str9 = "HostUrl" ascii fullword
+      $str10 = "HostConnect" ascii fullword
+      $str11 = "LUABOX" ascii fullword
+      $str12 = "Infinity" ascii fullword
+      $str13 = "/bin/sh" ascii fullword
+      $str14 = /\.onion(\.)?/ ascii fullword
+      $str15 = "/etc/resolv.conf" ascii fullword
+      $str16 = "hosts:" ascii fullword
+
+      $resolvers = /([0-9]{1,3}\.){3}[0-9]{1,3}:53,([0-9]{1,3}\.){3}[0-9]{1,3},([0-9]{1,3}\.){3}[0-9]{1,3}:5353,([0-9]{1,3}\.){3}[0-9]{1,3}:443/ ascii
+
+      $identifier0 = "$LuaVersion: God " ascii
+      $identifier1 = /fbi\/d\.\/d.\/d/ ascii
+      $identifier2 = "Copyright (C) FBI Systems, 2012-2019, https://fbi.gov" fullword ascii
+      $identifier3 = "God 5.1"
+
+   condition:
+      uint16(0) == 0x457f
+      and
+      (
+         all of them
+         or
+         (
+            any of ($identifier*)
+            and $resolvers
+            and any of ($tmp*)
+            and 4 of ($str*)
+         )
+         or
+         (
+            any of ($identifier*)
+            and any of ($tmp*)
+            and 4 of ($str*)
+         )
+      )
+}
+
+rule Winnti_Linux: linuxmalware {
+   meta:
+      Author = "Adam M. Swanda"
+      Website = "https://www.deadbits.org"
+      Repo = "https://github.com/deadbits/yara-rules"
+      Date = "2019-07-18"
+
+   strings:
+      $str0 = "HIDE_THIS_SHELL=x"
+      $str1 = "/usr/sbin/dmidecode  | grep -i 'UUID' |cut -d' ' -f2 2>/dev/null" ascii fullword
+      $str2 = "mutex.max:  %lu" ascii fullword
+      $str3 = "mutex.err:  %lu" ascii fullword
+      $str4 = "/tmp/ans.log" ascii fullword
+      $str5 = "mutex.used: %lu" ascii fullword
+      $str6 = "Warning: Some of the worker threads may have failed to exit." ascii fullword
+      $str7 = "line %d - " ascii fullword
+      $str8 = "Warning an error has occurred when trying to obtain a worker task." ascii fullword
+      $str9 = "6CMutex" ascii fullword
+      $str10 = "Failed to obtain an empty task from the free tasks queue." ascii fullword
+      $str11 = "A problem was detected in the queue (expected NULL, but found a different value)." ascii fullword
+      $str12 = "Failed to a task to the free tasks queue during initialization." ascii fullword
+      $str13 = "/var/run/libudev1.pid" ascii fullword
+      $str14 = "__pthread_key_create" ascii fullword
+      $str15 = "The threadpool received as argument is NULL." ascii fullword
+      $str16 = "Failed to enqueue a task to free tasks queue." ascii fullword
+      $str17 = "Failed to obtain a task from the jobs queue." ascii fullword
+      $str18 = "Failed to add a new task to the tasks queue." ascii fullword
+      $str19 = "setsockopt  failed" ascii fullword
+      $str20 = "libxselinux.so" ascii fullword
+      $str21 = "/lib/libxselinux" ascii fullword
+
+    condition:
+      uint16(0) == 0x457f
+      and
+      8 of them
+}
+
+rule WatchDog_Botnet: botnet linuxmalware exploitation cve_2019_11581 cve_2019_10149 {
+    meta:
+
+        Author = "Adam M. Swanda"
+        Website = "https://www.deadbits.org"
+        Repo = "https://github.com/deadbits/yara-rules"
+        Date = "2019-07-22"
+        Reference = "https://twitter.com/polarply/status/1153232987762376704"
+
+    strings:
+
+        // $email = "jeff4r@watchbog.com"
+        $py0 = "libpython" ascii
+        //$py1 = "jail.py" ascii fullword
+
+        //$rcpt1 = "RCPT TO:<${run{\x2Fbin\x2Fsh\t-c\t\x22bash\x20\x2Ftmp\x2Fbaby\x22}}@localhost>" ascii fullword
+        //$rcpt2 = /RCPT TO:<\$\{run\{\\x2Fbin\\x2Fsh\\t-c\\t\\x22curl\\x20https\\x3a\\x2F\\x2Fpastebin.com\\x2Fraw/
+
+        $str0 = "*/3 * * * * root wget -q -O- https://pastebin.com/raw/" ascii
+        $str1 = "*/1 * * * * root curl -fsSL https://pastebin.com/raw/" ascii
+        $str6 = "onion.to"
+        $str7 = /https?:\/\/pastebin.com\/raw/ nocase
+        $str8 = "http://icanhazip.com/"
+        $str9 = "http://ident.me/"
+
+        $scan0 = "Scan_run"
+        $scan1 = "scan_nexus"
+        $scan2 = "scan_couchdb"
+        $scan3 = "scan_jenkins"
+        $scan4 = "scan_laravel"
+        $scan5 = "scan_redis"
+
+        $exploit01 = "CVE_2015_4335"
+        $exploit02 = "CVE_2018_1000861"
+        $exploit03 = "CVE_2018_8007"
+        $exploit04 = "CVE_2019_1014"
+        $exploit05 = "CVE_2019_11581"
+        $exploit06 = "CVE_2019_7238"
+
+        $pwn0 = "pwn_couchdb"
+        $pwn1 = "pwn_jenkins"
+        $pwn2 = "pwn_jira"
+        $pwn3 = "pwn_nexus"
+        $pwn4 = "pwn_redis"
+        $pwn5 = "pwn_exim"
+
+        $payload = /payload(s)/ nocase
+        $jira_token = "atlassian.xsrf.token=%s" ascii fullword
+        $jira_cmd = "set ($cmd=\"%s\")" ascii fullword
+        $jira_id = "JSESSIONID=%s" ascii fullword
+
+        /*
+        dont know if i really want to add these
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_6_0"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_6_0_2"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_6_0_3"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_7_0"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_7_0_2"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_7_0_3"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_7_0_4"
+            $user_agent00 = "Mozilla_4_0_compatible_MSIE_7_0b"
+            $user_agent00 = "Mozilla_5_0_Macintosh_Intel_Mac"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_5_1_Apple"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_WOW64"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_WOW64_2"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_WOW64_3"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_WOW64_4"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_WOW64_5"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_WOW64_6"
+            $user_agent00 = "Mozilla_5_0_Windows_NT_6_1_Win64"
+            $user_agent00 = "Mozilla_5_0_Windows_U_MSIE_9_0_W"
+            $user_agent00 = "Mozilla_5_0_Windows_U_Windows_NT"
+            $user_agent00 = "Mozilla_5_0_Windows_U_Windows_NT_2"
+            $user_agent00 = "Mozilla_5_0_Windows_U_Windows_NT_3"
+            $user_agent00 = "Mozilla_5_0_X11_Linux_i686_U_Gec"
+            $user_agent00 = "Mozilla_5_0_X11_U_Linux_en_US_Ap"
+            $user_agent00 = "Mozilla_5_0_X11_U_Linux_i686_en"
+            $user_agent00 = "Mozilla_5_0_X11_U_Linux_x86_64_z"
+            $user_agent00 = "Mozilla_5_0_X11_Ubuntu_Linux_x86"
+            $user_agent00 = "Mozilla_5_0_compatible_MSIE_8_0"
+            $user_agent00 = "Mozilla_5_0_compatible_MSIE_9_0"
+            $user_agent00 = "Mozilla_5_0_compatible_MSIE_9_0_2"
+            $user_agent00 = "Mozilla_5_0_compatible_MSIE_9_0_3"
+            $user_agent00 = "Mozilla_5_0_iPad_U_CPU_OS_4_2_1"
+        */
+
+    condition:
+        uint32be(0x0) == 0x7f454c46
+        and $py0
+        and
+        (
+            (all of ($pwn*) and all of ($scan*))
+            or
+            ($payload and all of ($jira*) and 5 of ($str*))
+            or
+            (all of ($str*) and all of ($exploit*))
+        )
+}
+
+rule RedGhost_Linux: postexploitation linuxmalware {
+    meta:
+
+        Author = "Adam M. Swanda"
+        Website = "https://www.deadbits.org"
+        Repo = "https://github.com/deadbits/yara-rules"
+        Date = "2019-08-07"
+        Reference = "https://github.com/d4rk007/RedGhost/"
+
+    strings:
+        $name = "[ R E D G H O S T - P O S T  E X P L O I T - T O O L]" ascii
+
+        $feature0 = "Payloads" ascii
+        $feature1 = "SudoInject" ascii
+        $feature2 = "lsInject" ascii
+        $feature3 = "Crontab" ascii
+        $feature4 = "GetRoot" ascii
+        $feature5 = "Clearlogs" ascii
+        $feature6 = "MassinfoGrab" ascii
+        $feature7 = "CheckVM" ascii
+        $feature8 = "MemoryExec" ascii
+        $feature9 = "BanIP" ascii
+
+        $func0 = "checkVM(){" ascii
+        $func1 = "memoryexec(){" ascii
+        $func2 = "banip(){" ascii
+        $func3 = "linprivesc(){" ascii
+        $func4 = "dirty(){" ascii
+        $func5 = "Ocr(){" ascii
+        $func6 = "clearlog(){" ascii
+        $func7 = "conmethods(){" ascii
+        $func8 = "add2sys(){" ascii
+
+        //$header = "#!/bin/bash" ascii
+
+    condition:
+      // #!/bin/bash header
+      (uint16be(0x0) == 0x2321 and 
+      for any i in (0..64) : (
+          uint16be(i) == 0x2f62 and uint8(i+2) == 0x68
+      ))
+      and
+      ($name or 5 of them)
+}
+
