@@ -680,6 +680,7 @@ rule EXPL_JNDI_Exploit_Patterns_Dec21_1 {
       $x20 = "/WebsphereBypass/Upload/"
 
       $fp1 = "<html"
+      $fp2 = "GET / HTTP/1.1"
    condition:
       1 of ($x*) and not 1 of ($fp*)
 }
@@ -693,7 +694,7 @@ rule EXPL_Log4j_CVE_2021_44228_JAVA_Exception_Dec21_1 {
       score = 60
    strings:
       $xa1 = "header with value of BadAttributeValueException: "
-      
+
       $sa1 = ".log4j.core.net.JndiManager.lookup(JndiManager"
       $sa2 = "Error looking up JNDI resource"
    condition:
