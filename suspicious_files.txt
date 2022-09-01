@@ -465,6 +465,7 @@
 /root/.ldrnu
 /root/.liaq
 /root/.lkl
+/root/.local/toxssin
 /root/.lvagq
 /root/.lwk
 /root/moneroocean

@@ -628,7 +628,7 @@ sub scan {
                     print YARAFILE $yara_line . "\n";
                 }
                 close(YARAFILE);
-                my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /var /usr /tmp );
+                my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /usr /tmp );
                 my ( @results, $results );
                 for my $dir (@dirs) {
                     chomp($dir);
