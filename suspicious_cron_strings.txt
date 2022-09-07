@@ -55,3 +55,9 @@ givemexyz
 oracleservice
 .Library/SystemServices/updateSystem
 fczyo-cron
+unix.sh
+brict.sh
+politrict.sh
+truct.sh
+restrict.sh
+/var/tmp/vm.lock

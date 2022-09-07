@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.22";
+my $version = "3.5.23";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -3131,7 +3131,7 @@ sub get_last_logins_SSH {
     my $mon  = $dt->month_abbr;
     my $year = $dt->year;
 
-    my $LastSSHRootLogins = Cpanel::SafeRun::Timed::timedsaferun( 4, 'last', '-F' );
+    my $LastSSHRootLogins = Cpanel::SafeRun::Timed::timedsaferun( 4, 'last', '-F', 'root' );
     my @LastSSHRootLogins = split /\n/, $LastSSHRootLogins;
     my $SSHLogins         = "";
     my @SSHIPs            = undef;
