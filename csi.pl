@@ -643,8 +643,9 @@ sub scan {
                         my $showHeader = 0;
                         foreach my $yara_result (@results) {
                             chomp($yara_result);
+                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb} );
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
-                            push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb/ or $showHeader );
+                            push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $showHeader );
                             $showHeader = 1;
                             push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK/ );
                         }
