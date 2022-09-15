@@ -1048,6 +1048,7 @@
 /usr/local/sbin/bin/upd
 /usr/local/share/. /ita
 /usr/local/share/. /ita/ita.gz
+/usr/local/share/. /Mailer/
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
 /usr/local/__UMBREON__
