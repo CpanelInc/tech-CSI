@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.23";
+my $version = "3.5.24";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -4017,15 +4017,17 @@ sub check_for_xbash {
         closedir $dh;
         foreach my $database (@mysql_databases) {
             chomp $database;
-            next unless ( $database =~ m/PLEASE_READ|README_TO_RECOVER/ );
+            next unless ( $database =~ m/PLEASE_READ|README_TO_RECOVER|GODRANSOM/ );
             push( @SUMMARY, "> Possible Xbash variant ransomware detected. Database's missing? Database " . CYAN $database . YELLOW " exists!" );
-            $XBash_Table = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SHOW TABLES FROM $database;" );
-            chomp($XBash_Table);
-            if ($XBash_Table) {
-                $RansomwareNote = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SELECT * FROM $database.$XBash_Table;" );
-                if ($RansomwareNote) {
-                    chomp($RansomwareNote);
-                    push( @SUMMARY, expand( CYAN "\t\\_ Ransomeware Note: $RansomwareNote" ) );
+            if ( -e '/run/mysqld/mysqld.pid' ) {
+                $XBash_Table = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SHOW TABLES FROM $database;" );
+                chomp($XBash_Table);
+                if ($XBash_Table) {
+                    $RansomwareNote = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SELECT * FROM $database.$XBash_Table;" );
+                    if ($RansomwareNote) {
+                        chomp($RansomwareNote);
+                        push( @SUMMARY, expand( CYAN "\t\\_ Ransomeware Note: $RansomwareNote" ) );
+                    }
                 }
             }
         }
@@ -4312,7 +4314,7 @@ sub get_pkg_version {
     }
     else {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        $pkgversion=Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', "$tcPkg" );
+        $pkgversion=Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', '--queryformat', '%{Version}-%{Release}', $tcPkg );
         close( STDERR ) if ( ! $debug );
     }
     if ( $gl_is_kernel == 0 ) {
@@ -4320,8 +4322,7 @@ sub get_pkg_version {
     }
     chomp($pkgversion);
     return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
-    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.noarch|ubuntu.*|\.cp98.*|\.cp11.*|[A-Za-z])//g;
-    $pkgversion =~ s/\+/\./g;
+    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.noarch|ubuntu.*|\.cp98.*|\.cp11.*|\.el.*|\+.*)//g;
     $pkgversion =~ s/\-/\./g;
     $pkgversion =~ s/^\.//;
     $pkgversion =~ s/^\.//;
