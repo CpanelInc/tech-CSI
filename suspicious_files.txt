@@ -158,6 +158,7 @@
 /etc/cron.d/apache.bak
 /etc/cron.d/apachecat
 /etc/cron.d/.cd
+/etc/cron.d/ebpfbackdoor
 /etc/cron.d/.editorinfo
 /etc/cron.d/.editorinfo[a-zA-Z0-9]+
 /etc/cron.d/.favicon.ico
@@ -253,6 +254,7 @@
 /etc/ssh/notepad++
 /etc/ssh/.sshd_auth
 /etc/ssh.tar
+/etc/sudoers.d/ebpfbackdoor
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
 /etc/systemb
