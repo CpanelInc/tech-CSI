@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.24";
+my $version = "3.5.25";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -249,7 +249,7 @@ my $findRPMissues =
   Cpanel::SafeRun::Timed::timedsaferun( 0,
     '/usr/local/cpanel/scripts/find_and_fix_rpm_issues' )
   unless ( $distro eq "ubuntu" );
-my $isRPMYUMrunning = rpm_yum_running_chk() unless ( $distro eq "ubuntu" );
+my $isRPMYUMrunning = rpm_yum_running_chk();
 
 if ($binscan) {
     bincheck();
@@ -512,22 +512,13 @@ sub scan {
     print_header('[ Checking reseller ACLs ]');
     logit("Checking reseller ACLs");
     check_resellers_for_all_ACL();
-    print_header(
-'[ Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE ]'
-    );
-    logit(
-"Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE"
-    );
+    print_header( '[ Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE ]');
+    logit( "Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE");
     check_apitokens_json();
-    print_header(
-        '[ Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes ]'
-    );
+    print_header( '[ Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes ]');
     logit("Checking api_tokens_log for passwd changes");
     check_api_tokens_log();
-
-    print_header(
-        '[ Obtaining API Tokens ]'
-    );
+    print_header( '[ Obtaining API Tokens ]');
     logit("Obtaining api tokens");
     get_api_tokens();
     print_header('[ Checking for PHP backdoors in unprotected path ]');
@@ -556,9 +547,7 @@ sub scan {
     logit("Checking /root/.bash_history");
     check_for_TTY_shell_spawns();
     check_roots_history();
-    print_header(
-'[ Checking for non-root users with ALL privileges in /etc/sudoers file ]'
-    );
+    print_header( '[ Checking for non-root users with ALL privileges in /etc/sudoers file ]');
     logit("Checking /etc/sudoers file");
     check_sudoers_file();
     print_header('[ Checking for spam sending script in /tmp ]');
@@ -573,32 +562,29 @@ sub scan {
     print_header('[ Checking for ransomwareEXX ]');
     logit("Checking for ransomwareEXX");
     check_for_ransomwareEXX();
-
     print_header('[ Checking kernel status ]');
     logit("Checking kernel status");
     check_kernel_updates();
-    print_header(
-        '[ Checking for suspicious MySQL users (Including Super privileges) ]');
+    print_header( '[ Checking for suspicious MySQL users (Including Super privileges) ]');
     logit("Checking for suspicious MySQL users including Super privileges");
     check_for_Super_privs();
     check_for_mysqlbackups_user();
-
     print_header('[ Checking for unowned files/libraries ]');
     logit("Checking for non-owned files/libraries");
     check_lib();
-
     print_header('[ Checking /etc/group for suspicious users ]');
     logit("Checking /etc/group for suspicious users");
     check_etc_group();
-
+    print_header('[ Checking for suspicious Email Filters ]');
+    logit("Checking for suspicious Email Filters");
+    check_email_filters();
     if ( $full or $symlink ) {
         print_header( YELLOW '[ Additional check for symlink hacks ]' );
         logit("Checking for symlink hacks");
         check_for_symlinks();
     }
     if ( $full or $shadow ) {
-        print_header(
-            YELLOW '[ Additional check for shadow.roottn.bak hacks ]' );
+        print_header( YELLOW '[ Additional check for shadow.roottn.bak hacks ]' );
         logit("Checking for shadow.roottn.bak hacks");
         chk_shadow_hack();
     }
@@ -690,6 +676,7 @@ sub scan {
     print_header( '[ Gathering the IP addresses that logged on successfully as root ]');
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM("root");
+    get_whm_terminal_logins("root");
     get_last_logins_SSH("root");
     get_root_pass_changes("root");
     push( @INFO, CYAN "\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist.");
@@ -923,6 +910,7 @@ sub check_uids {
         foreach (@baduids) {
             push( @SUMMARY, expand( CYAN "\t \\_ " . $_ ) );
             get_last_logins_WHM($_);
+            get_whm_terminal_logins($_);
             get_last_logins_SSH($_);
             get_root_pass_changes($_);
         }
@@ -2882,14 +2870,14 @@ sub vtlink {
 }
 
 sub rpm_yum_running_chk {
-    return if ( $distro eq "ubuntu" );
     my $continue = has_ps_command();
     return unless ($continue);
     for my $process (@process_list) {
-        next unless( $process =~ m{/usr/bin/rpm|/usr/bin/yum} );
-        next unless( ! $process =~ m{grep|wp-toolkit-cpanel} );
-        logit("An rpm/yum process may be running");
-        print_warn( "An rpm/yum process may be running. Could cause some checks to hang waiting for process to complete.");
+        # CX-482
+        next unless( $process =~ m{/usr/bin/rpm|/usr/bin/yum|apt upgrade|/usr/lib/apt/apt.systemd.daily update|lock_is_held update} );
+        next if( $process =~ m{grep|wp-toolkit-cpanel} );
+        logit("An rpm/yum or apt process may be running");
+        print_warn( "An rpm/yum or apt process may be running (possible lock exists). Could cause some checks to hang waiting for process to complete.");
         exit;
     }
 }
@@ -3111,13 +3099,7 @@ sub get_last_logins_WHM {
         $times = "time";
         my $dispDate = "";
         if ( $num > 1 ) { $times = "times"; }
-        if ( $num == 1 ) {
-            my $dispDateLine = Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', '--text', "$success", '/usr/local/cpanel/logs/access_log' );
-            ($dispDate) = ( split( /\s+/, $dispDateLine ) )[3];
-            $dispDate =~ s/\[/On: /;
-        }
-        push( @INFO, expand( CYAN "\t\\_ $success ($num $times) " . MAGENTA $dispDate ) )
-          unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
+        push( @INFO, expand( CYAN "\t\\_ $success ($num $times)" ) ) unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
     }
 }
 
@@ -3146,14 +3128,48 @@ sub get_last_logins_SSH {
     my $headerPrinted = 0;
     foreach $SSHLogins (@sortedIPs) {
         if ( $headerPrinted == 0 ) {
-            push( @INFO,
-"> The following IP address(es) logged on via SSH successfully as "
-                  . CYAN $lcUser
-                  . YELLOW " (in $mon):" );
+            push( @INFO, "> The following IP address(es) logged on via SSH successfully as " . CYAN $lcUser . YELLOW " (in $mon):" );
             $headerPrinted = 1;
         }
-        push( @INFO, expand( CYAN "\t\\_ IP: $SSHLogins" ) )
-          unless ( $SSHLogins =~ m/208.74.12|184.94.197./ );
+        push( @INFO, expand( CYAN "\t\\_ IP: $SSHLogins" ) ) unless ( $SSHLogins =~ m/208.74.12|184.94.197./ );
+    }
+}
+
+sub get_whm_terminal_logins {
+    # RIGHT HERE
+    my $lcUser = $_[0];
+    my $dt     = DateTime->now;
+    my $year   = $dt->year;
+    print "DEBUG: year=$year\n";
+    open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
+    my @ACCESSLOG = <ACCESSLOG>;
+    close(ACCESSLOG);
+    my $accessline;
+    my @Success;
+
+    foreach $accessline (@ACCESSLOG) {
+        chomp($accessline);
+        my ( $ipaddr, $user, $date, $haslogin, $status ) = ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8 ];
+        if ( $user eq "$lcUser" and $status eq "200" and $haslogin =~ m{scripts12/terminal} and $date =~ m/$year/ ) {
+            push( @Success, "$ipaddr" );
+        }
+    }
+    my @unique_ips = uniq @Success;
+    my $num;
+    my $success;
+    my $times;
+    my $headerPrinted = 0;
+    foreach $success (@unique_ips) {
+        if ( $headerPrinted == 0 ) {
+            push( @INFO, "> The following IP address(es) logged on via the WHM terminal (SSH) successfully as " . CYAN $lcUser );
+            $headerPrinted = 1;
+        }
+        chomp($success);
+        $num   = grep { $_ eq $success } @Success;
+        $times = "time";
+        my $dispDate = "";
+        if ( $num > 1 ) { $times = "times"; }
+        push( @INFO, expand( CYAN "\t\\_ $success ($num $times)" ) ) unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
     }
 }
 
@@ -3186,23 +3202,15 @@ sub get_root_pass_changes {
     my $headerPrinted = 0;
     foreach $success (@unique_ips) {
         if ( $headerPrinted == 0 ) {
-            push( @INFO,
-"> The following IP address(es) changed roots password via WHM (in $year):"
-            );
+            push( @INFO, "> The following IP address(es) changed roots password via WHM (in $year):");
             $headerPrinted = 1;
         }
         chomp($success);
         my $dispDate = "";
         $num   = grep { $_ eq $success } @Success;
         $times = "time";
-        if ( $num == 1 ) {
-            my $dispDateLine = Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', '--text', "$success", '/usr/local/cpanel/logs/access_log' );
-            ($dispDate) = ( split( /\s+/, $dispDateLine ) )[3];
-            $dispDate =~ s/\[/On: /;
-        }
         if ( $num > 1 ) { $times = "times"; }
-        push( @INFO, expand( CYAN "\t\\_ $success ($num $times) " . MAGENTA $dispDate ) )
-          unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
+        push( @INFO, expand( CYAN "\t\\_ $success ($num $times)" ) ) unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
     }
 }
 
@@ -3339,7 +3347,6 @@ sub look_for_suspicious_files {
         my $fStat = lstat($file) or die($!);
         $fileType = "file"      unless ( -d $file );
         $fileType = "directory" unless ( -f $file );
-        #$file="'$file'";
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         my $FileSize = $fStat->size;
@@ -4322,12 +4329,8 @@ sub get_pkg_version {
     }
     chomp($pkgversion);
     return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
-    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.noarch|ubuntu.*|\.cp98.*|\.cp11.*|\.el.*|\+.*)//g;
     $pkgversion =~ s/\-/\./g;
-    $pkgversion =~ s/^\.//;
-    $pkgversion =~ s/^\.//;
-    $pkgversion =~ s/^\-//;
-    $pkgversion =~ s/^\-//;
+    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp108.*|\.cp98.*|\.cp11.*|\.el.*|\+.*  )//g;
     return $pkgversion;
 }
 
@@ -4460,6 +4463,17 @@ sub get_apt_href {
         };
     }
     return \%rpms;
+}
+
+sub check_email_filters {
+    my $susp_filter1 = Cpanel::SafeRun::Timed::timedsaferun( 0, "grep -srl '\$header_from: contains \"@\"' $HOMEDIR/*/etc/*/*/filter" );
+    chomp($susp_filter1);
+    push @SUMMARY, ">Found possible suspicious email filter in $susp_filter1" if ( $susp_filter1 );
+    push @SUMMARY, expand( "\t\\_ filter contains only an @, indicating all email to be forwarded/filtered" ) if ( $susp_filter1 );
+    my $susp_filter2 = Cpanel::SafeRun::Timed::timedsaferun( 0, "grep -srl '\$header_from: contains \"mailer-daemon\"' $HOMEDIR/*/etc/*/*/filter" );
+    chomp($susp_filter2);
+    push @SUMMARY, ">Found possible suspicious email filter in $susp_filter2" if ( $susp_filter2 );
+    push @SUMMARY, expand( "\t\\_ filter contains possible redirect of mailer-daemon" ) if ( $susp_filter2 );
 }
 
 sub send_email {
