@@ -3140,7 +3140,6 @@ sub get_whm_terminal_logins {
     my $lcUser = $_[0];
     my $dt     = DateTime->now;
     my $year   = $dt->year;
-    print "DEBUG: year=$year\n";
     open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
     my @ACCESSLOG = <ACCESSLOG>;
     close(ACCESSLOG);
