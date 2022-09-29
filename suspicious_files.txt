@@ -229,6 +229,10 @@
 /etc/rc3.d/S04syslogd
 /etc/rc4.d/S04syslogd
 /etc/rc5.d/S04syslogd
+/etc/rc{1-5}.d/S97DbSecuritySpt
+/etc/rc{1-5}.d/S99selinux
+/etc/init.d/selinux
+/etc/init.d/DbSecuritySpt
 /etc/rc.d/init.d/DbSecuritySpt
 /etc/rc.d/init.d/elastisearch
 /etc/rc.d/init.d/.IptabLes
@@ -240,6 +244,7 @@
 /etc/rc.d/rsha
 /etc/rc-Zobk0jpi/PgSD93ql
 /etc/rewgtf3er4t
+/etc/s66
 /etc/sbin/ava
 /etc/sdf3fslsdf15
 /etc/sdmfdsfhjfe
@@ -1053,6 +1058,7 @@
 /usr/local/share/. /Mailer/
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
+/usr/local/www/xui/common/css/
 /usr/local/__UMBREON__
 /usr/local/UMBREON
 /usr/man/.man10
