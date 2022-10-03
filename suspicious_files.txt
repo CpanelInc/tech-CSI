@@ -1,7 +1,6 @@
 /.a/
 /.a/mass2ip/
 /.a/mass2ip/masscan
-/.cmc
 /bin/config.json
 /bin/config.txt
 /bin/cpu.txt
@@ -58,6 +57,7 @@
 /boot/proh
 /boot/.stabip
 /chernobyl.sh
+/.cmc
 /dev/...
 /dev/.arctic
 /dev/chr
@@ -140,6 +140,7 @@
 /dev/.xman
 /drgjghsaef.txt
 /etc/1ssue.net
+/etc/32678
 /etc/atdd
 /etc/atddd
 /etc/audisp/plugins.d/6hsnefbp
@@ -153,6 +154,7 @@
 /etc/cpu.txt
 /etc/cron.d/0systemd-service
 /etc/cron.d/.a
+/etc/cron.daily/0
 /etc/cron.daily/pwnrig
 /etc/cron.d/apache
 /etc/cron.d/apache.bak
@@ -174,11 +176,16 @@
 /etc/cron.d/systemdd
 /etc/cron.d/.sysud
 /etc/cron.d/tmp00
+/etc/cron.hourly.0
+/etc/cron.hourly/1
 /etc/cron.hourly/gcc.sh
+/etc/cron.hourly/.placeholder
 /etc/cron.hourly/pwnrig
 /etc/cron.hourly/syslogd
 /etc/cron.hourly/udev.sh
+/etc/cron.monthly/0
 /etc/cron.monthly/pwnrig
+/etc/cron.weekly/0
 /etc/cron.weekly/pwnrig
 /etc/cupsdd
 /etc/cupsddd
@@ -194,11 +201,14 @@
 /etc/gshadow--
 /etc/host.ph1
 /etc/httpdns
+/etc/id.services.conf
+/etc/init.d/DbSecuritySpt
 /etc/init.d/kworker
 /etc/init.d/po1kitd-update
 /etc/init.d/pwnrig
 /etc/init.d/python3.O
 /etc/init.d/S67
+/etc/init.d/selinux
 /etc/init.d/syslogd
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
@@ -224,15 +234,13 @@
 /etc/profile.d/.h
 /etc/profile.d/.helpdd
 /etc/profile.d/kacpi_notify
+/etc/rc{1-5}.d/S97DbSecuritySpt
+/etc/rc{1-5}.d/S99selinux
 /etc/rc2.d/S04syslogd
 /etc/rc2.d/S99po1kitd-update
 /etc/rc3.d/S04syslogd
 /etc/rc4.d/S04syslogd
 /etc/rc5.d/S04syslogd
-/etc/rc{1-5}.d/S97DbSecuritySpt
-/etc/rc{1-5}.d/S99selinux
-/etc/init.d/selinux
-/etc/init.d/DbSecuritySpt
 /etc/rc.d/init.d/DbSecuritySpt
 /etc/rc.d/init.d/elastisearch
 /etc/rc.d/init.d/.IptabLes
@@ -249,6 +257,9 @@
 /etc/sdf3fslsdf15
 /etc/sdmfdsfhjfe
 /etc/security/pam_env
+/etc/sedCOFNwo
+/etc/sedP1wQG5
+/etc/sedtYcyoe
 /etc/sfewfesfs
 /etc/sfewfesfsh
 /etc/sksapd
@@ -471,6 +482,7 @@
 /root/.lbqmz
 /root/.ldrnu
 /root/.liaq
+/root/Linuxs
 /root/.lkl
 /root/.local/toxssin
 /root/.lvagq
@@ -599,9 +611,9 @@
 /tmp/.datass
 /tmp/ddgs.3012
 /tmp/ddgs.3013
+/tmp/deadbolt.finish
 /tmp/deadbolt.pid
 /tmp/deadbolt.status
-/tmp/deadbolt.finish
 /tmp/__debuglady.log
 /tmp/derfiq
 /tmp/devfreq_wq
@@ -615,8 +627,8 @@
 /tmp/emacs.sh
 /tmp/ext4-rsv-conver
 /tmp/fdsfsfvff
-/tmp/.FILE/stak /
 /tmp/filer
+/tmp/.FILE/stak /
 /tmp/flush-199:13000
 /tmp/flush-199:25000
 /tmp/flush-199:30000
@@ -655,6 +667,7 @@
 /tmp/kidd0
 /tmp/kidd0.c
 /tmp/kinsing
+/tmp/korkut2
 /tmp/kworkerds
 /tmp/libapache
 /tmp/libselinux.0
@@ -691,6 +704,7 @@
 /tmp/.salted
 /tmp/salt-minions
 /tmp/sdf3fslsdf13
+/tmp/sdxsdf
 /tmp/seeintlog
 /tmp/.session-unix
 /tmp/sess.rotat
@@ -959,18 +973,23 @@
 /usr/.IptabLex
 /usr/lib/.../
 /usr/lib32/.X11/X0-lock
-/usr/lib64/seahorses/kbioset
 /usr/lib64/seahorses/cpc
-/usr/lib64/seahorses/kkdmflush
-/usr/lib64/seahorses/soss
-/usr/lib64/seahorses/sshod
-/usr/lib64/seahorses/nethoogs
 /usr/lib64/seahorses/iftoop
 /usr/lib64/seahorses/iftraof
+/usr/lib64/seahorses/kbioset
+/usr/lib64/seahorses/kkdmflush
+/usr/lib64/seahorses/nethoogs
+/usr/lib64/seahorses/soss
+/usr/lib64/seahorses/sshod
 /usr/lib/.bkit-
 /usr/lib/.egcs
 /usr/lib/elm/arobia
 /usr/libexec/ssh-keysign
+/usr/libexec/x
+/usr/libexec/xmrig-2.4.3
+/usr/libexec/xmrig-2.4.3/config.json
+/usr/libexec/xmrig-2.4.3/sedfiUMzC
+/usr/libexec/xmrig-2.4.3/xmrig
 /usr/lib/.fx
 /usr/lib/gcc/x86_64-redhat-linux/.0
 /usr/lib/jlib.h
@@ -1058,9 +1077,9 @@
 /usr/local/share/. /Mailer/
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
-/usr/local/www/xui/common/css/
 /usr/local/__UMBREON__
 /usr/local/UMBREON
+/usr/local/www/xui/common/css/
 /usr/man/.man10
 /usr/man/man1/lib/.lib
 /usr/man/man2/.man8

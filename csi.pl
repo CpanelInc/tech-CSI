@@ -26,6 +26,7 @@ use Cpanel::IONice         ();
 use Cpanel::PwCache        ();
 use Cpanel::PwCache::Get   ();
 use Cpanel::SafeRun::Timed ();
+use utf8;
 use JSON::PP;
 use List::MoreUtils qw(uniq);
 use Math::Round;
@@ -1543,7 +1544,7 @@ sub check_for_hiddenwasp {
             push @SUMMARY, "> Found HIDE_THIS_SHELL in the /lib/libselinux.a file. Could indicate HiddenWasp Rootkit";
         }
     }
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 );
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 );
     foreach my $port (@ports) {
         chomp($port);
         my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
@@ -1676,6 +1677,9 @@ sub check_authorized_keys_file {
         if ( $_ =~ m/REDIS0006 crackitA/ ) {
             push( @SUMMARY, "> [Possible Rootkit: Redis Hack] - " . CYAN "Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys.");
         }
+        if ( $_ =~ m/rbdYSfTEtykGg/ ) {
+            push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Strange string [rbdYSfTEtykGg] found within /root/.ssh/authorized_keys.");
+        }
         if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDSEuS/A5HLzAwCbs+fqxCv1rLZ+x4vCdzcfLppJuCHnD2EO58W4aNDxtn2IBooyr4zylBJrNa64nQ3L7MvxckQMMLWkN6owZPtJs7+BPIsljX+Kz0svqGHDYk5KyQQ+O/uWVUU96X4NkyE4BxeQnH6jCYw2FCcnudsS5GLseBUozQvQlQEErRq3ma3skzZGB4kOq6He7ksaEUFjzgyfAQHzr1hPX5KJ/du4z7fX0KqUphK4AXbPL4Pqkusw4PeQLDjZGO8hRkDMVjnaPNliAS2pV9Guw+L7SLvXGHsz1Q+tT54JaSHkJoN6a0lJ/L3IehVTi/ZLLh4GgZ1WpWH7EqL" ) {
             push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
         }
@@ -1750,6 +1754,7 @@ sub all_malware_checks {
     check_for_lilocked_ransomware();
     check_for_junglesec();
     check_for_panchan();
+    check_for_chaos();
 }
 
 sub get_httpd_path {
@@ -3136,7 +3141,6 @@ sub get_last_logins_SSH {
 }
 
 sub get_whm_terminal_logins {
-    # RIGHT HERE
     my $lcUser = $_[0];
     my $dt     = DateTime->now;
     my $year   = $dt->year;
@@ -3467,6 +3471,13 @@ sub check_for_junglesec {
         push( @SUMMARY, "> Found possible JungleSec Ransomware - found several encrypted files with the junglesec extension.");
         push( @SUMMARY, expand( CYAN "\t\\_ Run: " . MAGENTA "find / -xdev -maxdepth 3 -name '*junglesec*'" ) );
     }
+}
+
+sub check_for_chaos {
+    my $uname_output = Cpanel::SafeRun::Timed::timedsaferun( 4, 'uname', '-a' );
+    return unless( $uname_output =~ m/获取失败/ );
+    push( @SUMMARY, "> Found possible evidence of Chaos Rootkit" );
+    push( @SUMMARY, expand( "\t\\_ uname -a command returned 获取失败 which translates to GET failed and is evidence of this rootkit" ));
 }
 
 sub check_for_panchan {
@@ -3870,7 +3881,7 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper );
+    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper sudev jewbags );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
