@@ -121,6 +121,8 @@
 /dev/shm/sys.png
 /dev/shm/.systemd/.systemd
 /dev/shm/www-shared
+/dev/shm/.X867123/.rsync/a/kswapd0
+/dev/shm/.X867123/.rsync/c/lib/64/tsm
 /dev/shm/.X99910/
 /dev/shm/.X99910/.rsync/
 /dev/shm/.X99910/.rsync/c
@@ -738,6 +740,8 @@
 /tmp/whitptabil
 /tmp/wnTKYg
 /tmp/wsnbb
+/tmp/.X2ss-unix/.rsync/c/lib/64/tsm
+/tmp/.X2ss-unix/dota3.tar.gz
 /tmp/.X11-unix/01
 /tmp/.X11-unix/22
 /tmp/.X11-unix/sshd
