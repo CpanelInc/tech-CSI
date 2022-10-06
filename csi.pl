@@ -4340,7 +4340,7 @@ sub get_pkg_version {
     chomp($pkgversion);
     return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
     $pkgversion =~ s/\-/\./g;
-    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp108.*|\.cp98.*|\.cp11.*|\.el.*|\+.*  )//g;
+    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp108.*|\.cp98.*|\.cp11.*|\.el.*|\+.*)//g;
     return $pkgversion;
 }
 
