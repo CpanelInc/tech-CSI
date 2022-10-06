@@ -179,7 +179,6 @@
 /etc/cron.hourly.0
 /etc/cron.hourly/1
 /etc/cron.hourly/gcc.sh
-/etc/cron.hourly/.placeholder
 /etc/cron.hourly/pwnrig
 /etc/cron.hourly/syslogd
 /etc/cron.hourly/udev.sh
