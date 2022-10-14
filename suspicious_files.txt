@@ -261,6 +261,7 @@
 /etc/sedCOFNwo
 /etc/sedP1wQG5
 /etc/sedtYcyoe
+/etc/selinux/targeted/plugins
 /etc/sfewfesfs
 /etc/sfewfesfsh
 /etc/sksapd
@@ -700,6 +701,8 @@
 /tmp/ramen.tgz
 /tmp/rewgtf3er4t
 /tmp/.rewt
+/tmp/Res/
+/tmp/Res/Payload
 /tmp/root.sh
 /tmp.russ
 /tmp/.salted

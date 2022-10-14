@@ -61,3 +61,5 @@ politrict.sh
 truct.sh
 restrict.sh
 /var/tmp/vm.lock
+bioset
+/etc/selinux/targeted/plugins
