@@ -576,6 +576,7 @@
 /tmp/.a
 /tmp/a7b104c270
 /tmp/angel_bc.c
+/tmp/anu.txt
 /tmp/ata_sff
 /tmp/.b
 /tmp/baby
@@ -642,12 +643,14 @@
 /tmp/flush-253:21
 /tmp/.font-unix/.cinik
 /tmp/fsnotify_mark
+/tmp/gas.sh
 /tmp/gates.lock
 /tmp/gdmorpen
 /tmp/gfhjrtfyhuf
 /tmp/gitaly
 /tmp/.h
 /tmp/.helpdd
+/tmp/hi
 /tmp/httpd
 /tmp/httpd.conf
 /tmp/ib_addr
