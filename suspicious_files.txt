@@ -721,6 +721,7 @@
 /tmp/.ssh/redis.sh
 /tmp/.stabip
 /tmp/syslogspid
+/tmp/system/Linux_amd64
 /tmp/systemdo
 /tmp/systemd-private-afjdhdicjijo473skiosoohxiskl573q-systemd-timesyncc.service-g1g5qf/cred/fghhhh/data
 /tmp/.systemd-salt

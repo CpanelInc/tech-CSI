@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.25";
+my $version = "3.5.26";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -479,8 +479,11 @@ sub scan {
     logit("Checking installed packages for CVEs");
     check_for_cve_vulnerabilities();
     print_header('[ Checking if polkit/policykit has been exploited by CVE-2021-4034 ]');
-    logit("Checking if polkit/policykit has been exploited by CVE-2021-403");
+    logit("Checking if polkit/policykit has been exploited by CVE-2021-4034");
     check_for_cve_2021_4034();
+    print_header('[ Checking if cpanel-dovecot-solr-server has commons-text-1.6.jar CVE-2022-42889 ]');
+    logit("Checking if cpanel-dovecot-solr-server has commons-text-1.6.jar CVE-2022-42889");
+    check_for_cve_2022_42889();
     print_header('[ Checking for BPFDoor ]');
     logit("Checking for BPFDoor");
     check_for_bpfdoor();
@@ -4411,6 +4414,19 @@ sub check_for_cve_2021_4034 {
         }
     }
     close($fh);
+}
+
+sub check_for_cve_2022_42889 {
+    return unless( -d '/home/cpanelsolr/server' );
+    my $solr_files;
+    if ( $distro eq 'ubuntu' ) {
+       $solr_files = Cpanel::SafeRun::Timed::timedsaferun( 3, 'dpkg', '-L', 'cpanel-dovecot-solr-server' );
+    }
+    else {
+        $solr_files = Cpanel::SafeRun::Timed::timedsaferun( 3, 'rpm', '-ql', 'cpanel-dovecot-solr-server' );
+    }
+    my $isVuln = grep( { /commons-text-1.6.jar/ } $solr_files );
+    push @SUMMARY, "> Found common-text-1.6.jar within cpanel-dovecot-solr-server package. Vulnerable to CVE-2022-42889." if ( $isVuln );
 }
 
 sub check_lsof_deleted {
