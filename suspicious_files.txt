@@ -521,6 +521,12 @@
 /root/.ssh/./xL
 /root/.sysud
 /root/.tas
+/root/tenc/main.go
+/root/tenc/tinylist/tinylist.go
+/root/tenc/tinyfilescr/tinyfilescr.go
+/root/tenc/tinyfilescr/common.go
+/root/tenc/tinyunlock/tinyunlock.go
+/root/tenc/tinycrypto/tinycrypto.go
 /root/.tijd
 /root/.trqf
 /root/.tue
