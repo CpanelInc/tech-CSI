@@ -198,3 +198,4 @@ nbhash
 systemd-worker
 bwmmtyh
 /dev/shm/system1
+./cp -o
