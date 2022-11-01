@@ -521,6 +521,7 @@
 /root/.ssh/.sshd
 /root/.ssh/./xL
 /root/.sysud
+/root/.tmp/run/cp
 /root/.tas
 /root/tenc/main.go
 /root/tenc/tinycrypto/tinycrypto.go
@@ -1229,6 +1230,7 @@
 /var/tmp/dota3.tar.gz
 /var/tmp/find
 /var/tmp/god*
+/var/tmp/kinsing
 /var/tmp/kworkerds
 /var/tmp/.ladyg0g0
 /var/tmp/.ladyg0g0/.pr1nc35
