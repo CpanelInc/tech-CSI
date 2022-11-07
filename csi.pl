@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.26";
+my $version = "3.5.27";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1957,7 +1957,17 @@ sub userscan {
         return if( -d $File::Find::name );
         my $hassmtpF0x = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', 'anonymousfox-|smtpf0x-|anonymousfox|smtpf', "$File::Find::name" );
         if ( $hassmtpF0x ) {
-            push @SUMMARY, "> Found suspicious smtpF0x vulnerability in " . CYAN $File::Find::name;
+            push @SUMMARY, "> Found suspicious smtpF0x/AnonymousF0x vulnerability in " . CYAN $File::Find::name;
+        }
+    }
+
+    my @smtpF0x_files = qw( F.py f.php llsjxdcr.php mblircic.php vfmuqyvp.php bkV7.txt );
+    foreach my $smtpF0xFile(@smtpF0x_files) {
+        chomp($smtpF0xFile);
+        if ( -e "$RealHome/$smtpF0xFile" || -e "$RealHome/$pubhtml/$smtpF0xFile" ) {
+            my $outputline=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $RealHome, '-name', $smtpF0xFile );
+            chomp($outputline);
+            push @SUMMARY, "> Found suspicious smtpF0x/AnonymousF0x file: " . CYAN $outputline;
         }
     }
 
@@ -2731,7 +2741,7 @@ sub vtlink {
         $FileG = "UNKNOWN" if ( $FileG eq "" );
         my $FileSize = $fStat->size;
         my $ctime    = $fStat->ctime;
-        my $sha256   = Cpanel::SafeRun::Timed::timedsaferun( 2, 'sha256sum', $FileToChk );
+        my $sha256   = Cpanel::SafeRun::Timed::timedsaferun( 4, 'sha256sum', $FileToChk );
         ($sha256only) = ( split( /\s+/, $sha256 ) )[0];
         my $ignoreHash = ignoreHashes($sha256only);
         my $knownHash  = known_sha256_hashes($sha256only);
@@ -2812,56 +2822,6 @@ sub vtlink {
                       . $FileG );
                 push @SUMMARY, expand( RED "\t \\_ Unable to verify at virustotal.com. Please check manually by visiting:");
                 push @SUMMARY, expand( GREEN "\t \\_ " . WHITE "https://www.virustotal.com/#/file/$sha256only/detection");
-            }
-        }
-        # Now let's also check malware.bazaar.com
-        push @SUMMARY,
-          "\n> Checking hash at malware.bazaar.com (3rd party)";
-        my $bazaardata = Cpanel::SafeRun::Timed::timedsaferun(
-            0, 'wget', '-q', '-O', '-', '--post-data',
-            "query=get_info&hash=$sha256only",
-            "https://mb-api.abuse.ch/api/v1/"
-        );
-        my $output = decode_json($bazaardata);
-        my $file_type =
-          ( $output->{data}->[0]->{file_type} )
-          ? $output->{data}->[0]->{file_type}
-          : "N/A";
-        my $sha256_hash =
-          ( $output->{data}->[0]->{sha256_hash} )
-          ? $output->{data}->[0]->{sha256_hash}
-          : "N/A";
-        my $first_seen =
-          ( $output->{data}->[0]->{first_seen} )
-          ? $output->{data}->[0]->{first_seen}
-          : "N/A";
-        my $last_seen =
-          ( $output->{data}->[0]->{last_seen} )
-          ? $output->{data}->[0]->{last_seen}
-          : "N/A";
-
-        if ( !$ignoreHash ) {
-            if ( $output->{query_status} eq "ok" ) {
-                my $alltags = "";
-                for my $tag ( @{ $output->{data}->[0]->{tags} } ) {
-                    $alltags .= $tag . ' ';
-                }
-                push @SUMMARY,
-                  expand( YELLOW "\t \\_ 256hash: "
-                      . CYAN $sha256_hash
-                      . YELLOW "\n\t\\_ Classification: "
-                      . CYAN $alltags
-                      . YELLOW "\n\t\\_ First Seen: "
-                      . CYAN $first_seen
-                      . YELLOW
-                      . " / Last Seen "
-                      . CYAN $last_seen
-                      . "\n" );
-            }
-            else {
-                push @SUMMARY,
-                  expand(
-                    YELLOW "\t \\_ No matches found at bazaar.abuse.ch\n" );
             }
         }
         if ($knownHash) {
@@ -3411,7 +3371,7 @@ sub check_proc_sys_vm {
         && $sysctl->{'net.ipv4.tcp_timestamps'} == 0 )
     {
         push( @SUMMARY,
-"> Found net.ipv4.tcp_timestamps is disabled - Possible BrickerBot DDoS malware?"
+"> Found net.ipv4.tcp_timestamps is disabled - Possible BrickerBot DDoS #malware?"
         );
     }
 }
