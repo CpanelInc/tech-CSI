@@ -179,6 +179,7 @@
 /etc/cron.d/.sysud
 /etc/cron.d/tmp00
 /etc/cron.hourly.0
+/etc/cron.hourly/0
 /etc/cron.hourly/1
 /etc/cron.hourly/gcc.sh
 /etc/cron.hourly/pwnrig
@@ -909,6 +910,7 @@
 /usr/bin/util
 /usr/bin/vadim
 /usr/bin/volc
+/usr/bin/w-
 /usr/bin/wdt
 /usr/bin/where
 /usr/bin/xchk

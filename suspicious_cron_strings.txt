@@ -64,3 +64,5 @@ restrict.sh
 bioset
 /etc/selinux/targeted/plugins
 195.3.146.118/ae.sh
+seed prng gs-bd-kernel
+DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
