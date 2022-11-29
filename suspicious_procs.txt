@@ -99,7 +99,7 @@ kill_miner_proc
 kinsing
 ksoftirqds
 ./kswapd0
-kthreaddk
+kthreadd
 kthrotlds
 kworker34
 \[kworker /u8:7-ev\]
@@ -212,3 +212,4 @@ zhuabcn@yahoo.com
 zigw
 .zte_error
 \[kcache/0\]
+pas.pl

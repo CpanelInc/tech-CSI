@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.27";
+my $version = "3.5.28";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -632,11 +632,20 @@ sub scan {
                             chomp($yara_result);
                             next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb} );
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
+                            my $ignore = _ignore( $triggered_rule );
+                            next unless( $ignore );
                             push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $showHeader );
                             $showHeader = 1;
                             push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK/ );
                         }
                     }
+                }
+                sub _ignore {
+                    my $rule2ignore = shift;
+                    if ( $rule2ignore =~ m{/usr/local/cpanel/logs/access_log|/root/.bash_history} ) {
+                        return 1;
+                    }
+                    return 0;
                 }
             }
         }
@@ -679,6 +688,7 @@ sub scan {
     get_last_logins_WHM("root");
     get_whm_terminal_logins("root");
     get_last_logins_SSH("root");
+    check_secure_log("root");
     get_root_pass_changes("root");
     push( @INFO, CYAN "\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist.");
 
@@ -913,6 +923,7 @@ sub check_uids {
             get_last_logins_WHM($_);
             get_whm_terminal_logins($_);
             get_last_logins_SSH($_);
+            check_secure_log($_);
             get_root_pass_changes($_);
         }
     }
@@ -3026,7 +3037,7 @@ sub get_cron_files {
 }
 
 sub get_last_logins_WHM {
-    my $lcUser = $_[0];
+    my $lcUser = shift;
     my $dt     = DateTime->now;
     my $year   = $dt->year;
     open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
@@ -3069,7 +3080,7 @@ sub get_last_logins_WHM {
 }
 
 sub get_last_logins_SSH {
-    my $lcUser = $_[0];
+    my $lcUser = shift;
     if ( !-e "/var/log/wtmp" ) {
         push @SUMMARY,
 "> /var/log/wtmp is missing - last command won't work - could not check for root SSH logins";
@@ -3100,8 +3111,55 @@ sub get_last_logins_SSH {
     }
 }
 
+sub check_secure_log {
+    my $lcUser = shift;
+    my $max_output = 3;
+    my $hasJctl = ( -x '/usr/bin/journalctl' ) ? 1 : 0;
+    my $secure_log_file;
+    if ( $distro eq 'ubuntu' ) {
+        $secure_log_file = '/var/log/auth.log';
+    }
+    else {
+        $secure_log_file = '/var/log/secure';
+    }
+    if ( -f $secure_log_file ) {
+        my $output_line=0;
+        my $showHeader=0;
+        open( my $fh, '<', $secure_log_file );
+        while( <$fh> ) {
+            chomp($_);
+            next unless( $_ =~ m/Accepted publickey|Accepted password/ );
+            if ( $_ =~ m/for $lcUser from/ ) {
+                next if( $_ =~ m/208\.74\.123|184\.94\.197/ );
+                push( @INFO, "> The following entries for $lcUser were found in $secure_log_file:" ) unless( $showHeader );;
+                $showHeader=1;
+                push @INFO, expand( CYAN "\t\\_ $_") unless( $output_line > $max_output );
+                $output_line++;
+            }
+        }
+        close( $fh );
+    }
+    if ( $hasJctl ) {
+        my $showHeader=0;
+        my $output_line=0;
+        my $jctl_info = Cpanel::SafeRun::Timed::timedsaferun( 0, 'journalctl', '-u', 'sshd', '--no-pager' );
+        my @jctl_info = split /\n/, $jctl_info;
+        foreach my $line(@jctl_info) {
+            chomp($line);
+            next unless( $line =~ m/Accepted publickey|Accepted password/ );
+            if ( $line =~ m/for $lcUser from/ ) {
+                next if( $line =~ m/208\.74\.123|184\.94\.197/ );
+                push( @INFO, "> The following entries were found via a journalctl call:" ) unless( $showHeader );
+                $showHeader=1;
+                push @INFO, expand( CYAN "\t\\_ $line" ) unless( $output_line > $max_output );
+                $output_line++;
+            }
+        }
+    }
+}
+
 sub get_whm_terminal_logins {
-    my $lcUser = $_[0];
+    my $lcUser = shift;
     my $dt     = DateTime->now;
     my $year   = $dt->year;
     open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
@@ -3137,7 +3195,7 @@ sub get_whm_terminal_logins {
 }
 
 sub get_root_pass_changes {
-    my $lcUser = $_[0];
+    my $lcUser = shift;
     my $dt     = DateTime->now;
     my $year   = $dt->year;
     open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );

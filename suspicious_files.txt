@@ -1106,6 +1106,8 @@
 /usr/local/sbin/bin/start
 /usr/local/sbin/bin/t
 /usr/local/sbin/bin/upd
+/usr/local/share/. 
+/usr/local/share/. /fs
 /usr/local/share/. /ita
 /usr/local/share/. /ita/ita.gz
 /usr/local/share/. /Mailer/
