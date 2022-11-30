@@ -99,7 +99,8 @@ kill_miner_proc
 kinsing
 ksoftirqds
 ./kswapd0
-kthreadd
+kthreaddk
+kthreadd1
 kthrotlds
 kworker34
 \[kworker /u8:7-ev\]
