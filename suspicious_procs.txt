@@ -94,13 +94,14 @@ jsextension
 jweri
 .k4m310t
 .k93
+\[kcache/0\]
 kdevtmpfsi
 kill_miner_proc
 kinsing
 ksoftirqds
 ./kswapd0
-kthreaddk
 kthreadd1
+kthreaddk
 kthrotlds
 kworker34
 \[kworker /u8:7-ev\]
@@ -135,6 +136,8 @@ NXLAi
 one-lin.jsp
 os.system\(\"/bin/bash\"\)
 os.system\(\"/bin/sh\"\)
+pas.pl
+\[pdflush-0\]
 performedl
 pocosow
 pool.t00ls.ru
@@ -212,5 +215,3 @@ zcash
 zhuabcn@yahoo.com
 zigw
 .zte_error
-\[kcache/0\]
-pas.pl

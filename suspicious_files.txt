@@ -115,6 +115,7 @@
 /dev/shm/php-shared
 /dev/shm/sd
 /dev/shm/server-worker-shared
+/dev/shm/sh10
 /dev/shm/sql-shared
 /dev/shm/.ssh/./x86_64
 /dev/shm/sud
@@ -522,7 +523,6 @@
 /root/.ssh/.sshd
 /root/.ssh/./xL
 /root/.sysud
-/root/.tmp/run/cp
 /root/.tas
 /root/tenc/main.go
 /root/tenc/tinycrypto/tinycrypto.go
@@ -531,6 +531,7 @@
 /root/tenc/tinylist/tinylist.go
 /root/tenc/tinyunlock/tinyunlock.go
 /root/.tijd
+/root/.tmp/run/cp
 /root/.trqf
 /root/.tue
 /root/.tzr
@@ -603,6 +604,7 @@
 /tmp/bond0
 /tmp/.bugtraq
 /tmp/.bugtraq.c
+/tmp/cache_init
 /tmp/cback
 /tmp/.ccw
 /tmp/.cheese
@@ -669,6 +671,7 @@
 /tmp/ib_mcast
 /tmp/.ICE-unix/error.log
 /tmp/.init
+/tmp/init10
 /tmp/iproute.ko
 /tmp/.IptabLes
 /tmp/IptabLes
@@ -1047,6 +1050,8 @@
 /usr/lib/libt
 /usr/lib/libtix.so.1.5
 /usr/lib/libtools.x
+/usr/lib/libu.a
+/usr/lib/libu.a/safe_scr
 /usr/lib/locale/uboot
 /usr/lib/mozilla/extensions/mozzlia.ini
 /usr/lib/pt07
@@ -1126,6 +1131,7 @@
 /usr/sbin/.../
 /usr/sbin/arobia
 /usr/sbin/atd2
+/usr/sbin/events
 /usr/sbin/httpdns
 /usr/sbin/initcheck
 /usr/sbin/initdl
@@ -1140,6 +1146,7 @@
 /usr/sbin/minerd
 /usr/sbin/netdns
 /usr/sbin/ntp
+/usr/sbin/ptty
 /usr/sbin/xntps
 /usr/sdf3fslsdf14
 /usr/share/accounts-daemon/accounts-daemon.so
@@ -1200,6 +1207,7 @@
 /var/lib/t
 /var/lib/up
 /var/local/.lpd
+/var/lock/bash10
 /var/log/.log
 /var/log/.login
 /var/log/utmp
@@ -1234,6 +1242,7 @@
 /var/tmp/dota3.tar.gz
 /var/tmp/find
 /var/tmp/god*
+/var/tmp/init10
 /var/tmp/kinsing
 /var/tmp/kworkerds
 /var/tmp/.ladyg0g0
