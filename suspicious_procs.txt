@@ -109,6 +109,7 @@ kw.sh
 kxjd
 libapache
 linux_avp
+./linuxsys
 log4j
 .login-n.jsp
 Loopback
