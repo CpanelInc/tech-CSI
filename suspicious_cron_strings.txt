@@ -66,3 +66,5 @@ bioset
 195.3.146.118/ae.sh
 seed prng gs-bd-kernel
 DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
+base64 --decode
+base64 -d
