@@ -216,3 +216,4 @@ zcash
 zhuabcn@yahoo.com
 zigw
 .zte_error
+proot
