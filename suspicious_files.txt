@@ -1272,3 +1272,5 @@
 /XxJynx/jynx2.so
 /XxJynx/reality.so
 /usr/lib64/libkeyutils.so.1.6.1
+/etc/rc.local.d/local.sh
+/bin/hostd-probe.sh
