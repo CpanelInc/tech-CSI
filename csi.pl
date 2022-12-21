@@ -26,6 +26,7 @@ use Cpanel::IONice         ();
 use Cpanel::PwCache        ();
 use Cpanel::PwCache::Get   ();
 use Cpanel::SafeRun::Timed ();
+use Cpanel::SafeRun::Errors();
 use utf8;
 use JSON::PP;
 use List::MoreUtils qw(uniq);
@@ -1763,6 +1764,7 @@ sub all_malware_checks {
     check_for_ngioweb();
     check_for_dirtycow_passwd();
     check_for_lilocked_ransomware();
+    check_for_filenew_ransomware();
     check_for_junglesec();
     check_for_panchan();
     check_for_chaos();
@@ -1882,7 +1884,8 @@ sub userscan {
     my @susp_cron_strings;
     my $susp_crons_ref = get_suspicious_cron_strings();
     push @susp_cron_strings, @$susp_crons_ref;
-    my @usercrontab = Cpanel::SafeRun::Timed::timedsaferun( 3, 'crontab', '-l', '-u', "$lcUserToScan" );
+    print_status( "Checking crontab for user: $lcUserToScan" );
+    my @usercrontab = Cpanel::SafeRun::Errors::saferunnoerror( 3, 'crontab', '-l', '-u', "$lcUserToScan" );
     foreach my $susp_cron_string (@susp_cron_strings) {
         chomp($susp_cron_string);
         if ( grep { /$susp_cron_string/ } @usercrontab ) {
@@ -2202,43 +2205,19 @@ sub userscan {
         }
     }
 
-# Check if Exiftool is installed and if so, use it to check for any favicon.ico files.
-# See https://www.bleepingcomputer.com/news/security/hackers-hide-credit-card-stealing-scripts-in-favicon-exif-data/
-    my $isExifInstalled=0;
-    my $rpms = get_rpm_href();
-    if ( $distro eq "ubuntu" ) {
-        $isExifInstalled = ( grep { /^libimage-exiftool-perl*/ } keys(%{$rpms} ) ) ? 1 : 0;
-    }
-    else {
-        $isExifInstalled = Cpanel::SafeRun::Timed::timedsaferun( 3, 'rpm','-q', 'perl-Image-ExifTool' );
-        $isExifInstalled = (grep ( { /is not installed/ } $isExifInstalled )) ? 0 : 1;
-    }
-    if ( $isExifInstalled and -e "/usr/bin/exiftool" ) {
-        my $favIcon;
-        my $favicons = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome", '-iname', 'favicon.ico' );
-        my @favicons = split /\n/, $favicons;
-        foreach $favIcon (@favicons) {
-            chomp($favIcon);
-            my $exifScanLine;
-            my $exifScan = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/bin/exiftool', "$favIcon" );
-            my @exifScan = split /\n/, $exifScan;
-            foreach $exifScanLine (@exifScan) {
-                if ( $exifScanLine =~ m/eval|function|String\.from|CharCode/ ) {
-                    push @SUMMARY,
-                        "> Found suspicious JavaScript code within the "
-                      . CYAN $favIcon
-                      . YELLOW " file";
-                }
+    # Check images and favicon.ico files for shellcode/malware
+    find( { wanted => \&imagefiles, }, "$RealHome/$pubhtml/");
+    my $showHeader=0;
+    sub imagefiles {
+        return if( -d $File::Find::name );
+        if ( $File::Find::name =~ m{.jpg$|.jpeg$|.gif$|.png$|.ico$} ) {
+            my $header = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', $File::Find::name );
+            my $found=0;
+            if ( $header =~ m{eval|function|String.from|CharCode|<?php|halt_compiler|bin.*bash} ) {
+                push @SUMMARY, "> Possible malware/shellcode injection found within the following files:" unless( $showHeader );
+                $showHeader=1;
+                push @SUMMARY, "\t\\_ $File::Find::name";
             }
-        }
-    }
-    else {
-# On Ubuntu it's: apt install libimage-exiftool-perl [ https://linoxide.com/install-use-exiftool-linux-ubuntu-centos/ ]
-        if ( $distro eq "ubuntu" ) {
-            push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "apt install libimage-exiftool-perl " . YELLOW "and running this scan again for additional checks." unless( $isExifInstalled );
-        }
-        else {
-            push @RECOMMENDATIONS, "> ExifTool not installed, please consider running " . MAGENTA "yum install perl-Image-ExifTool" . YELLOW " (might require the EPEL repo) and running this scan again for additional checks." unless( $isExifInstalled );
         }
     }
 
@@ -2979,7 +2958,7 @@ sub user_crons {
                         expand( CYAN "> Found suspicious cron entry [ $susp_cron_string ] in the "
                     . MAGENTA $usercron
                     . CYAN " user account:"
-                    . YELLOW "\n\t\\_ $cronline" );
+                    . YELLOW "\n\t\\_ $susp_cron_string" );
                 }
             }
         }
@@ -3293,6 +3272,22 @@ sub check_for_lilocked_ransomware {
     }
 }
 
+sub check_for_filenew_ransomware {
+    my $filenewFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.filenew", '-print' );
+    my @filenewFound = split /\n/, $filenewFound;
+    if ($filenewFound) {
+        push( @SUMMARY, "> Evidence of ransomware detected." );
+        foreach $filenewFound (@filenewFound) {
+            chomp($filenewFound);
+            push( @SUMMARY, expand( CYAN "\t\\_ $filenewFound" ) );
+        }
+    }
+    if ( -e '/root/How-To-Restore-Your-Files.txt' ) {
+        push( @SUMMARY, "> Evidence of ransomware detected." );
+        push( @SUMMARY, expand( CYAN "\t\\_ How-To-Restore-Your-Files.txt ransome note found in /root." ) );
+    }
+}
+
 sub check_sudoers_file {
     my @sudoersfiles = glob(q{/etc/sudoers.d/*});
     push @sudoersfiles, "/etc/sudoers" unless ( !-e "/etc/sudoers" );
@@ -3388,8 +3383,8 @@ sub look_for_suspicious_files {
         my $ignoreHash = ignoreHashes($sha256only);
         if ($isELF) {
             my $contains_bash = Cpanel::SafeRun::Timed::timedsaferun( 0, 'hexdump', '-C', "$file" );
-            if ( $contains_bash =~ m/bin.*bash/ ) {
-                push @SUMMARY, expand( "> $file contains shellcode within the header - Found via hexdump -C $file | grep 'bin.*bash'");
+            if ( $contains_bash =~ m/bin.*bash|<\?php/ ) {
+                push @SUMMARY, expand( "> $file contains shell/php code within the header - Found via hexdump -C $file | egrep 'bin.*bash|<\?php'");
             }
             my $sha256 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha256sum', "$file" );
             chomp($sha256);
@@ -3952,9 +3947,9 @@ sub check_binaries_for_shell {
         next unless ($isELF);
         my $contains_bash =
           Cpanel::SafeRun::Timed::timedsaferun( 0, 'hexdump', '-C', "$binary" );
-        if ( $contains_bash =~ m/bin.*bash/ ) {
+        if ( $contains_bash =~ m/bin.*bash|<\?php/ ) {
             push @SUMMARY,
-"> The $binary program contains hidden malware in header (hexdump -C $binary | grep 'bin.*bash')";
+"> The $binary program contains hidden malware in header (hexdump -C $binary | egrep 'bin.*bash|<\?php')";
         }
     }
 }
@@ -4202,8 +4197,8 @@ sub check_for_cve_vulnerabilities {
             chomp( $pkgver );
             if ( $pkgver eq "" ) {
                 print RED "\n\t\\_ WARNING! - Version undefined/missing for $pkg\n";
-                print MAGENTA "\t\\_ THIS SHOULD NOT BE POSSIBLE IF THE PACKAGE IS PROPERLY INSTALLED - Exiting.\n";
-                exit;
+                print MAGENTA "\t\\_ THIS SHOULD NOT BE POSSIBLE IF THE PACKAGE IS PROPERLY INSTALLED!\n";
+                next;
             }
             else {
                 print GREEN "$pkgver\n" if ( $debug );
