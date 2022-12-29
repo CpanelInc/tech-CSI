@@ -283,7 +283,6 @@
 .lesli
 .letmetrydecfiles
 .like
-.lock
 .lock93
 .*locked
 .locked
