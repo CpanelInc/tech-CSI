@@ -158,7 +158,6 @@
 .dyatel@qq_com
 .ecc
 .edgel
-.*enc*
 .enc
 .encedRSA
 .enciphered
