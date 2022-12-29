@@ -64,7 +64,6 @@
 .bleepYourFiles
 .bloc
 .blocatto
-.block
 .boom
 .braincrypt
 .breaking_bad
