@@ -186,6 +186,7 @@
 .file0locked
 .filegofprencrp
 .fileiscryptedhard
+.filenew
 .filock
 .firecrypt
 .flamingo
