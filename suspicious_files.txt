@@ -307,7 +307,6 @@
 /lib64/libkeyutils-1.2.so.2
 /lib64/libkeyutils.so.1.3.0
 /lib64/libkeyutils.so.1.3.2
-/lib64/libkeyutils.so.1.9
 /lib64/liblinux.so
 /lib64/libnano.so.4
 /lib64/libncom.so.4.0.1
@@ -1094,6 +1093,8 @@
 /usr/local/cpanel/backup/mkpasswd
 /usr/local/cpanel/backup/run
 /usr/local/cpanel/backup/xh
+/usr/local/games/snunewa.tar
+/usr/local/games/.cache
 /usr/local/include/uconf.h
 /usr/local/lib/libjdk.so
 /usr/local/lib/libprocesshider2.so
