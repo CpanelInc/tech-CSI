@@ -749,6 +749,9 @@
 /tmp/tmp.l
 /tmp/tmpnam_[a-zA-Z]{5}
 /tmp/.tmp_XXXXXX
+/tmp/.tmp/mem.gz
+/tmp/.tmp/mem.gzip
+/tmp/.tmp/mem
 /tmp/twink
 /tmp/.unlock
 /tmp/up
