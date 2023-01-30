@@ -621,6 +621,7 @@ sub scan {
                 for my $dir (@dirs) {
                     chomp($dir);
                     next unless -d $dir;
+                    next if -l $dir;
                     print_status("\tScanning $dir directory");
                     my $loadavg = get_loadavg();
                     print_status( expand( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]") );
@@ -1116,7 +1117,7 @@ sub check_ssh {
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
             $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com|rockylinux.org/));
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60/));
+            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716/));
             $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) );
         }
     }
@@ -1891,6 +1892,17 @@ sub userscan {
         if ( grep { /$susp_cron_string/ } @usercrontab ) {
             push @SUMMARY, "> $lcUserToScan crontab contains a suspicious entry that should be investigated";
             push @SUMMARY, expand( CYAN "\t\\_ $susp_cron_string" );
+        }
+    }
+    # check users .bashrc file - CX-590
+    if ( -s "$HOMEDIR/$lcUserToScan/.bashrc" ) {
+        my @usersbashrc = Cpanel::SafeRun::Timed::timedsaferun(2, 'cat', "$HOMEDIR/$lcUserToScan/.bashrc" );
+        foreach my $susp_cron_string (@susp_cron_strings) {
+            chomp($susp_cron_string);
+            if ( grep { /$susp_cron_string/ } @usersbashrc ) {
+                push @SUMMARY, "> Suspicious entry found within users .bashrc file [ $HOMEDIR/$lcUserToScan/.bashrc ]";
+                push @SUMMARY, expand( CYAN "\t\\_ $susp_cron_string\n" );
+            }
         }
     }
 
@@ -4153,9 +4165,9 @@ sub check_for_cve_vulnerabilities {
     foreach my $line( @{ $data } ) {
         my $pkg = $line->{Package_Name};
         my $cve = $line->{CVE_ID};
-        my $notvuln = $line->{Patched_Version};
+        my $patchedver = $line->{Patched_Version};
+        my $firstvuln = $line->{First_Vulnerable_Version};
         my $os_vuln = $line->{OS_Vulnerable};
-        my $url = $line->{Link};
 
         if ( is_os_vulnerable( $os_vuln ) ==0 ) {
             print CYAN "Skipping " . YELLOW $pkg . CYAN " checks because this OS is " . GREEN "NOT vulnerable\n" if ( $debug );
@@ -4205,6 +4217,9 @@ sub check_for_cve_vulnerabilities {
             }
         }
 
+        # report first vulnerable version (if verbose or debug is enabled)
+        print CYAN "First vulnerable reported version: " . GREEN $firstvuln . "\n" if ( $debug );
+
         # check changelog for the CVE
         print CYAN "Checking to see if " . BOLD RED $cve . CYAN " for " . YELLOW $pkg . CYAN " is in the changelogs: "  if ( $debug );
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
@@ -4215,11 +4230,25 @@ sub check_for_cve_vulnerabilities {
         # check version against the nonvuln variable
         my $op='>=';
         chomp($pkgver);
-        chomp($notvuln);
-        print CYAN "Checking if " . YELLOW $pkgver . " " . MAGENTA $op . " " . YELLOW $notvuln . ": " if ( $debug );
-        my $vercmp = ( version_compare( $pkgver, $op, $notvuln ) ) ? "Yes" : "No";
+        chomp($patchedver);
+        print CYAN "Checking if " . YELLOW $pkgver . " " . MAGENTA $op . " " . YELLOW $patchedver . ": " if ( $debug );
+        my $vercmp = ( version_compare( $pkgver, $op, $patchedver ) ) ? "Yes" : "No";
         print GREEN $vercmp . "\n" if ( $debug );
-        next if ( version_compare( $pkgver, $op, $notvuln ) );
+        next if ( version_compare( $pkgver, $op, $patchedver ) );
+        my @letters = ("a".."z");
+        if ( $pkg =~ m{openssl} ) {
+            my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
+            my $sub1 = $letters[$sub -1];
+            $pkgver = join( '.', $maj, $min, $patch, $sub1 );
+        }
+
+        # check to see if version is less than the firstvuln variable
+        my $op2='<';
+        chomp($firstvuln);
+        print CYAN "Checking if " . YELLOW $pkgver . " is " . MAGENTA $op2 . CYAN " the first vulnerable reported  version of: " . YELLOW $firstvuln . ": " if ( $debug );
+        my $vercmp = ( version_compare( $pkgver, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
+        print GREEN $vercmp . "\n" if ( $debug );
+        next if ( version_compare( $pkgver, $op2, $firstvuln ) );
         my @letters = ("a".."z");
         if ( $pkg =~ m{openssl} ) {
             my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
@@ -4294,12 +4323,14 @@ sub found_in_changelog {
         if ( ! -f "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) {
             print RED "\n\t\\_ WARNING! - /usr/share/doc/$tcPkg/changelog.Debian.gz IS MISSING!!! - ";
             $in_chglog1=0;
+            return $in_chglog;
         }
         else {
             open( STDERR, '>', '/dev/null' ) if ( ! $debug );
             $in_chglog1 = ( Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) ) ? 1 : 0;
             close( STDERR ) if ( ! $debug );
             $in_chglog=1 unless( $in_chglog1 == 0 );
+            return $in_chglog;
         }
     }
     else {
@@ -4307,8 +4338,19 @@ sub found_in_changelog {
         $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', "$tcPkg", '--changelog' );
         close( STDERR ) if ( ! $debug );
         $in_chglog = ( grep { /$tcCVE/ } $in_chglog1 ) ? 1 : 0;
+        return $in_chglog;
     }
-    return $in_chglog;
+    if ( $in_chglog == 0 && $gl_is_kernel == 1 ) {
+        return $in_chglog unless( -x '/usr/bin/kcarectl' );
+        print BOLD GREEN "\n\t\\_ Not found via regular changelog, KernelCare detected - Checking with --patch-info: " if ( $debug );
+        open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+        my $patchinfo = Cpanel::SafeRun::Timed::timedsaferun(3, 'kcarectl', '--patch-info' );
+        close( STDERR ) if ( ! $debug );
+        my @patchinfo = split /\n/, $patchinfo;
+        my $in_chglog = ( grep { /$tcCVE/ } @patchinfo ) ? 1 : 0;
+        return $in_chglog;
+    }
+    #return $in_chglog;
 }
 
 sub is_installed {
@@ -4536,7 +4578,7 @@ sub send_email {
 
 =head1 COPYRIGHT
 
-Copyright 2022, cPanel, L.L.C.
+Copyright 2023, cPanel, L.L.C.
 All rights reserved.
 http://cpanel.net
 
