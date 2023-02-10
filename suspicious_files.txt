@@ -100,6 +100,7 @@
 /dev/shm/cfgas
 /dev/shm/config.json
 /dev/shm/devs_mx_cache
+/dev/shm/ngrok
 /dev/shm/.kauditd
 /dev/shm/.kauditd/[kauditd]
 /dev/shm/kdmtmpflush
@@ -116,6 +117,7 @@
 /dev/shm/sd
 /dev/shm/server-worker-shared
 /dev/shm/sh10
+/dev/shm/socat
 /dev/shm/sql-shared
 /dev/shm/.ssh/./x86_64
 /dev/shm/sud
@@ -204,6 +206,8 @@
 /etc/gshadow--
 /etc/host.ph1
 /etc/httpdns
+/etc/ice9j
+/etc/init.d/ice9j
 /etc/id.services.conf
 /etc/init.d/DbSecuritySpt
 /etc/init.d/HFLgGwYfSC.elf
@@ -661,6 +665,7 @@
 /tmp/gfhjrtfyhuf
 /tmp/gitaly
 /tmp/.h
+/tmp/headcrab
 /tmp/.helpdd
 /tmp/hi
 /tmp/httpd
