@@ -700,6 +700,16 @@
 /tmp/.main
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
+/tmp/medusa_stealer.mipsel
+/tmp/medusa_stealer.mips
+/tmp/medusa_stealer.sh4
+/tmp/medusa_stealer.x86
+/tmp/medusa_stealer.armv6
+/tmp/medusa_stealer.i686
+/tmp/medusa_stealer.i586
+/tmp/medusa_stealer.powerpc
+/tmp/medusa_stealer.m86k
+/tmp/medusa_stealer.sparc
 /tmp/miner2
 /tmp/moni.lock
 /tmp/.mountfs
