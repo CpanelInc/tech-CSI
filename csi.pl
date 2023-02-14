@@ -4258,9 +4258,7 @@ sub check_for_cve_vulnerabilities {
 
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
-        my $infoLink="";
-        $infoLink = expand( CYAN "\n\t\t\\_ See $url" ) if ($url);
-        push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve $infoLink" );
+        push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve" );
         push @SUMMARY, expand( GREEN "\t\\_ The following check was used to verify this");
         if ( $distro eq 'ubuntu' ) {
             push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
