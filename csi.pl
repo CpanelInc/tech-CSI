@@ -1115,9 +1115,9 @@ sub check_ssh {
             }
             $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc.|Rocky/) );
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com|rockylinux.org/));
+            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com|rockylinux.org|pb-cd3f2807/));
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716/));
+            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716|702d426d350d275d/));
             $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) );
         }
     }
@@ -4475,6 +4475,7 @@ sub check_lsof_deleted {
         next unless( $line =~ m{(deleted)} );
         foreach my $suspbin(@suspicious_binaries) {
             if ( $line =~ m/$suspbin/ ) {
+                next if ( $line =~ m{dbus-brok} );
                 push @SUMMARY, "> Found deleted files/binaries running in memory that could be suspicious" unless( $showHeader );
                 $showHeader=1;
                 push @SUMMARY, "\t\\_  $line";
