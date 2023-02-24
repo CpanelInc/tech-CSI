@@ -27,6 +27,7 @@ use Cpanel::PwCache        ();
 use Cpanel::PwCache::Get   ();
 use Cpanel::SafeRun::Timed ();
 use Cpanel::SafeRun::Errors();
+use Cpanel::Validate::IP   ();
 use utf8;
 use JSON::PP;
 use List::MoreUtils qw(uniq);
@@ -3087,8 +3088,13 @@ sub get_last_logins_SSH {
     my @SSHIPs            = undef;
     foreach $SSHLogins (@LastSSHRootLogins) {
         my ( $lastIP, $cDay, $cMonth, $cDate, $cTime, $cYear ) = ( split( /\s+/, $SSHLogins ) )[ 2, 3, 4, 5, 6, 7 ];
-        next unless ( $cMonth eq $mon && $cYear eq $year );
-        push @SSHIPs, $lastIP unless ( $lastIP =~ /[a-zA-Z]/ );
+        next unless( $lastIP );
+        if ( $lastIP =~ m{:} ) {
+            $lastIP .= "::";
+            push @SSHIPs, $lastIP if( Cpanel::Validate::IP::is_valid_ipv6( $lastIP ));
+            next;
+        }
+        push @SSHIPs, $lastIP unless ( ! Cpanel::Validate::IP::v4::is_valid_ipv4( $lastIP ) );
     }
     splice( @SSHIPs, 0, 1 );
     my @sortedIPs     = uniq @SSHIPs;
