@@ -4473,7 +4473,7 @@ sub check_for_cve_2021_4034 {
 }
 
 sub check_lsof_deleted {
-    my @suspicious_binaries = qw( memfd );
+    my @suspicious_binaries = qw( memfd perfctl );
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
     my @lsof = split /\n/, $lsof;
     my $showHeader=0;
