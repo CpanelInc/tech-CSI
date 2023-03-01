@@ -447,6 +447,7 @@
 /root/.cache/root
 /root/.cache/.sysud
 /root/.cd
+/root/.config/cron/perfcc
 /root/.config/.accounts-daemon/accounts-daemon.login.conf
 /root/.config/polkitd/polkitd
 /root/.configrc/a
@@ -724,6 +725,7 @@
 /tmp/passwd.bak
 /tmp/payload.py
 /tmp/pc
+/tmp/.perf.c/perfctl
 /tmp/.pfile
 /tmp/pools.txt
 /tmp/.psy

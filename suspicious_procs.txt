@@ -218,3 +218,4 @@ zigw
 .zte_error
 proot
 client-tcp
+perfcc
