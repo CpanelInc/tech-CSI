@@ -68,3 +68,6 @@ seed prng gs-bd-kernel
 DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
 base64 --decode
 base64 -d
+/bin/systemctl stop imunify360.service
+/bin/systemctl stop imunify-antivirus.service
+bash /etc/csf/uninstall.sh
