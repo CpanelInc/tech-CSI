@@ -2151,7 +2151,7 @@ sub userscan {
     my $showHeader=0;
     foreach $susp_dir(@susp_dir) {
         chomp($susp_dir);
-        if ( $susp_dir =~ m{wp-content/plugins/[a-zA-Z]{10}} ) {
+        if ( $susp_dir =~ m{wp-content/plugins/[a-zA-Z]{10}$} ) {
             push @SUMMARY, "> Found suspicious randomized 10 character directory name in a WordPress plugins folder:" unless( $showHeader );
             $showHeader=1;
             push @SUMMARY, expand( CYAN "\t\\_ $susp_dir" );
@@ -2226,7 +2226,7 @@ sub userscan {
         if ( $File::Find::name =~ m{.jpg$|.jpeg$|.gif$|.png$|.ico$} ) {
             my $header = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', $File::Find::name );
             my $found=0;
-            if ( $header =~ m{eval|function|String.from|CharCode|<?php|halt_compiler|bin.*bash} ) {
+            if ( $header =~ m{eval|function|String.from|CharCode|<\?php|halt_compiler|bin.*bash} ) {
                 push @SUMMARY, "> Possible malware/shellcode injection found within the following files:" unless( $showHeader );
                 $showHeader=1;
                 push @SUMMARY, "\t\\_ $File::Find::name";
