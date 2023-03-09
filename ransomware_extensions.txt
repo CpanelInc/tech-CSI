@@ -236,6 +236,7 @@
 .hush
 .hydracrypt*
 .iaufkakfhsaraf
+.ifire
 .ifuckedyou
 .iloveworld
 .infected
