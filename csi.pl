@@ -1270,7 +1270,7 @@ sub check_preload {
     push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
     push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
     push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );
-    push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libprochider_so );
+    push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.\n\t\\_ ps output and lsof output may not be conclusive.") if( $libprochider_so );
 }
 
 sub create_summary {
