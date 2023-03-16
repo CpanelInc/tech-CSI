@@ -646,6 +646,7 @@
 /tmp/e3ac24a0bcddfacd010a6c10f4a814bc
 /tmp/EB93A6/996E.elf
 /tmp/emacs.sh
+/tmp/entrypoint.sh
 /tmp/ext4-rsv-conver
 /tmp/fdsfsfvff
 /tmp/filer
@@ -724,6 +725,7 @@
 /tmp/.orbit
 /tmp/pamdicks
 /tmp/passwd.bak
+/tmp/pause
 /tmp/payload.py
 /tmp/pc
 /tmp/.perf.c/perfctl

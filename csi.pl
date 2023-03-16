@@ -3726,7 +3726,7 @@ sub check_for_unprotected_backdoors {
         push @SUMMARY, "> Found suspicious PHP files (possible backdoor) in /usr/local/cpanel/base/unprotected";
         foreach $UNP_backdoors (@UNP_backdoors) {
             chomp($UNP_backdoors);
-            push @SUMMARY, expand( CYAN "\t\\_ " . $UNP_backdoors );
+            vtlink($UNP_backdoors);
         }
     }
 }

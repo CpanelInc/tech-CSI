@@ -91,7 +91,7 @@ rule webshell_php_generic
     strings:
         $wfp_tiny1 = "escapeshellarg" fullword
         $wfp_tiny2 = "addslashes" fullword
-    
+
         //strings from private rule php_false_positive_tiny
         // try to use only strings which would be flagged by themselves as suspicous by other rules, e.g. eval 
         //$gfp_tiny1 = "addslashes" fullword
@@ -104,7 +104,7 @@ rule webshell_php_generic
         $gfp_tiny8 = "echo shell_exec($aspellcommand . ' 2>&1');"
         $gfp_tiny9 = "throw new Exception('Could not find authentication source with id ' . $sourceId);"
         $gfp_tiny10= "return isset( $_POST[ $key ] ) ? $_POST[ $key ] : ( isset( $_REQUEST[ $key ] ) ? $_REQUEST[ $key ] : $default );"
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -119,7 +119,7 @@ rule webshell_php_generic
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
         //strings from private rule capa_php_input
         $inp1 = "php://input" wide ascii
         $inp2 = /_GET\s?\[/ wide ascii
@@ -135,7 +135,7 @@ rule webshell_php_generic
         $inp17 = /getenv[\t ]{0,20}\([\t ]{0,20}['"]HTTP_/ wide ascii
         $inp18 = "array_values($_SERVER)" wide ascii
         $inp19 = /file_get_contents\("https?:\/\// wide ascii
-    
+
         //strings from private rule capa_php_payload
         // \([^)] to avoid matching on e.g. eval() in comments
         $cpayload1 = /\beval[\t ]*\([^)]/ nocase wide ascii
@@ -156,7 +156,7 @@ rule webshell_php_generic
         $m_cpayload_preg_filter1 = /\bpreg_filter[\t ]*\([^\)]/ nocase wide ascii
         $m_cpayload_preg_filter2 = "'|.*|e'" nocase wide ascii
         // TODO backticks
-    
+
         //strings from private rule capa_gen_sus
 
         // these strings are just a bit suspicious, so several of them are needed, depending on filesize
@@ -282,7 +282,7 @@ rule webshell_php_generic
 
         $gif = { 47 49 46 38 }
 
-    
+
         //strings from private rule capa_php_payload_multiple
         // \([^)] to avoid matching on e.g. eval() in comments
         $cmpayload1 = /\beval[\t ]*\([^)]/ nocase wide ascii
@@ -299,7 +299,7 @@ rule webshell_php_generic
         $cmpayload12 = /\bmb_ereg_replace[\t ]*\([^\)]{1,100}'e'/ nocase wide ascii
         $cmpayload20 = /\bcreate_function[\t ]*\([^)]/ nocase wide ascii
         $cmpayload21 = /\bReflectionFunction[\t ]*\([^)]/ nocase wide ascii
-    
+
     condition:
         not ( 
             any of ( $gfp_tiny* ) 
@@ -397,7 +397,7 @@ rule webshell_php_generic_callback
         $gfp10 = "[][}{;|]\\|\\\\[+=]\\|<?=>?"
         $gfp11 = "(eval (getenv \"EPROLOG\")))"
         $gfp12 = "ZmlsZV9nZXRfY29udGVudHMoJ2h0dHA6Ly9saWNlbnNlLm9wZW5jYXJ0LWFwaS5jb20vbGljZW5zZS5waHA/b3JkZXJ"
-    
+
         //strings from private rule php_false_positive_tiny
         // try to use only strings which would be flagged by themselves as suspicous by other rules, e.g. eval 
         //$gfp_tiny1 = "addslashes" fullword
@@ -410,7 +410,7 @@ rule webshell_php_generic_callback
         $gfp_tiny8 = "echo shell_exec($aspellcommand . ' 2>&1');"
         $gfp_tiny9 = "throw new Exception('Could not find authentication source with id ' . $sourceId);"
         $gfp_tiny10= "return isset( $_POST[ $key ] ) ? $_POST[ $key ] : ( isset( $_REQUEST[ $key ] ) ? $_REQUEST[ $key ] : $default );"
-    
+
         //strings from private rule capa_php_input
         $inp1 = "php://input" wide ascii
         $inp2 = /_GET\s?\[/ wide ascii
@@ -426,7 +426,7 @@ rule webshell_php_generic_callback
         $inp17 = /getenv[\t ]{0,20}\([\t ]{0,20}['"]HTTP_/ wide ascii
         $inp18 = "array_values($_SERVER)" wide ascii
         $inp19 = /file_get_contents\("https?:\/\// wide ascii
-    
+
         //strings from private rule capa_php_callback
         $callback1 = /\bob_start[\t ]*\([^)]/ nocase wide ascii
         $callback2 = /\barray_diff_uassoc[\t ]*\([^)]/ nocase wide ascii
@@ -468,7 +468,7 @@ rule webshell_php_generic_callback
         $cfp1 = /ob_start\(['\"]ob_gzhandler/ nocase wide ascii
         $cfp2 = "IWPML_Backend_Action_Loader" ascii wide
         $cfp3 = "<?phpclass WPML" ascii
-    
+
         //strings from private rule capa_gen_sus
 
         // these strings are just a bit suspicious, so several of them are needed, depending on filesize
@@ -594,7 +594,7 @@ rule webshell_php_generic_callback
 
         $gif = { 47 49 46 38 }
 
-    
+
     condition:
         not ( 
             any of ( $gfp* ) 
@@ -757,7 +757,7 @@ rule webshell_php_base64_encoded_payloads
         // Log files
         $fp3 = "GET /"
         $fp4 = "POST /" 
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -772,7 +772,7 @@ rule webshell_php_base64_encoded_payloads
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 300KB and ( 
             (
@@ -824,7 +824,7 @@ rule webshell_php_generic_eval
     strings:
         // new: eval($GLOBALS['_POST'
         $geval = /\b(exec|shell_exec|passthru|system|popen|proc_open|pcntl_exec|eval|assert)[\t ]*(\(base64_decode)?(\(stripslashes)?[\t ]*(\(trim)?[\t ]*\(\$(_POST|_GET|_REQUEST|_SERVER\s?\[['"]HTTP_|GLOBALS\[['"]_(POST|GET|REQUEST))/ wide ascii
-    
+
         //strings from private rule php_false_positive
         // try to use only strings which would be flagged by themselves as suspicous by other rules, e.g. eval 
         // a good choice is a string with good atom quality = ideally 4 unusual characters next to each other
@@ -866,7 +866,7 @@ rule webshell_php_double_eval_tiny
         $fp1 = "clone" fullword wide ascii
         $fp2 = "* @assert" ascii
         $fp3 = "*@assert" ascii
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -881,7 +881,7 @@ rule webshell_php_double_eval_tiny
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize > 70 and filesize < 300 and ( 
             (
@@ -922,7 +922,7 @@ rule webshell_php_obfuscated
         $gfp10 = "[][}{;|]\\|\\\\[+=]\\|<?=>?"
         $gfp11 = "(eval (getenv \"EPROLOG\")))"
         $gfp12 = "ZmlsZV9nZXRfY29udGVudHMoJ2h0dHA6Ly9saWNlbnNlLm9wZW5jYXJ0LWFwaS5jb20vbGljZW5zZS5waHA/b3JkZXJ"
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -937,7 +937,7 @@ rule webshell_php_obfuscated
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
         //strings from private rule capa_php_obfuscation_multi
         $o1 = "chr(" nocase wide ascii
         $o2 = "chr (" nocase wide ascii
@@ -951,7 +951,7 @@ rule webshell_php_obfuscated
         $o8 = "\\112" wide ascii
         $o9 = "\\120" wide ascii
         $fp1 = "$goto" wide ascii
-    
+
         //strings from private rule capa_php_payload
         // \([^)] to avoid matching on e.g. eval() in comments
         $cpayload1 = /\beval[\t ]*\([^)]/ nocase wide ascii
@@ -972,7 +972,7 @@ rule webshell_php_obfuscated
         $m_cpayload_preg_filter1 = /\bpreg_filter[\t ]*\([^\)]/ nocase wide ascii
         $m_cpayload_preg_filter2 = "'|.*|e'" nocase wide ascii
         // TODO backticks
-    
+
     condition:
         not ( 
             any of ( $gfp* ) 
@@ -1008,13 +1008,13 @@ rule webshell_php_obfuscated
                 )
             )
 
- 
+
         )
-        and ( 
+        and (
             any of ( $cpayload* ) or
-        all of ( $m_cpayload_preg_filter* ) 
+        all of ( $m_cpayload_preg_filter* )
         )
-        
+
 }
 
 rule webshell_php_obfuscated_encoding
@@ -1032,7 +1032,7 @@ rule webshell_php_obfuscated_encoding
         // one without plain a, one without plain s, to avoid hitting on plain "assert("
         $enc_assert1 = /(a|\\97|\\x61)(\\115|\\x73)(s|\\115|\\x73)(e|\\101|\\x65)(r|\\114|\\x72)(t|\\116|\\x74)(\(|\\x28|\\40)/ wide ascii nocase
         $enc_assert2 = /(\\97|\\x61)(s|\\115|\\x73)(s|\\115|\\x73)(e|\\101|\\x65)(r|\\114|\\x72)(t|\\116|\\x74)(\(|\\x28|\\40)/ wide ascii nocase
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1047,7 +1047,7 @@ rule webshell_php_obfuscated_encoding
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 700KB and ( 
             (
@@ -1075,7 +1075,7 @@ rule webshell_php_obfuscated_encoding_mixed_dec_and_hex
         //$mix = /['"]\\x?[0-9a-f]{2,3}[\\\w]{2,20}\\\d{1,3}[\\\w]{2,20}\\x[0-9a-f]{2}\\/ wide ascii nocase
         $mix = /['"](\w|\\x?[0-9a-f]{2,3})[\\x0-9a-f]{2,20}\\\d{1,3}[\\x0-9a-f]{2,20}\\x[0-9a-f]{2}\\/ wide ascii nocase
 
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1090,7 +1090,7 @@ rule webshell_php_obfuscated_encoding_mixed_dec_and_hex
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 700KB and ( 
             (
@@ -1118,7 +1118,7 @@ rule webshell_php_obfuscated_tiny
         $obf1 = /\w'\.'\w/ wide ascii
         $obf2 = /\w\"\.\"\w/ wide ascii
         $obf3 = "].$" wide ascii
-    
+
         //strings from private rule php_false_positive
         // try to use only strings which would be flagged by themselves as suspicous by other rules, e.g. eval 
         // a good choice is a string with good atom quality = ideally 4 unusual characters next to each other
@@ -1134,7 +1134,7 @@ rule webshell_php_obfuscated_tiny
         $gfp10 = "[][}{;|]\\|\\\\[+=]\\|<?=>?"
         $gfp11 = "(eval (getenv \"EPROLOG\")))"
         $gfp12 = "ZmlsZV9nZXRfY29udGVudHMoJ2h0dHA6Ly9saWNlbnNlLm9wZW5jYXJ0LWFwaS5jb20vbGljZW5zZS5waHA/b3JkZXJ"
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1149,7 +1149,7 @@ rule webshell_php_obfuscated_tiny
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
         //strings from private rule capa_php_payload
         // \([^)] to avoid matching on e.g. eval() in comments
         $cpayload1 = /\beval[\t ]*\([^)]/ nocase wide ascii
@@ -1170,7 +1170,7 @@ rule webshell_php_obfuscated_tiny
         $m_cpayload_preg_filter1 = /\bpreg_filter[\t ]*\([^\)]/ nocase wide ascii
         $m_cpayload_preg_filter2 = "'|.*|e'" nocase wide ascii
         // TODO backticks
-    
+
     condition:
         filesize < 500 and not ( 
             any of ( $gfp* ) 
@@ -1215,7 +1215,7 @@ rule webshell_php_obfuscated_str_replace
         $chr1  = "\\61" wide ascii
         $chr2  = "\\112" wide ascii
         $chr3  = "\\120" wide ascii
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1230,7 +1230,7 @@ rule webshell_php_obfuscated_str_replace
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 300KB and ( 
             (
@@ -1273,7 +1273,7 @@ rule webshell_php_obfuscated_fopo
         $two4 = "sAQABhAHMAcwBlAHIAdAAoA" wide ascii
         $two5 = "7AEAAYQBzAHMAZQByAHQAKA" wide ascii
         $two6 = "OwBAAGEAcwBzAGUAcgB0ACgA" wide ascii
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1288,7 +1288,7 @@ rule webshell_php_obfuscated_fopo
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 3000KB and ( 
             (
@@ -1322,7 +1322,7 @@ rule webshell_php_gzinflated
 
         // api.telegram
         $fp1 = "YXBpLnRlbGVncmFtLm9" 
-    
+
         //strings from private rule php_false_positive
         // try to use only strings which would be flagged by themselves as suspicous by other rules, e.g. eval 
         // a good choice is a string with good atom quality = ideally 4 unusual characters next to each other
@@ -1338,7 +1338,7 @@ rule webshell_php_gzinflated
         $gfp10 = "[][}{;|]\\|\\\\[+=]\\|<?=>?"
         $gfp11 = "(eval (getenv \"EPROLOG\")))"
         $gfp12 = "ZmlsZV9nZXRfY29udGVudHMoJ2h0dHA6Ly9saWNlbnNlLm9wZW5jYXJ0LWFwaS5jb20vbGljZW5zZS5waHA/b3JkZXJ"
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1353,7 +1353,7 @@ rule webshell_php_gzinflated
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 700KB and not ( 
             any of ( $gfp* ) 
@@ -1381,7 +1381,7 @@ rule webshell_php_obfuscated_3
 
     strings:
         $obf1 = "chr(" wide ascii
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1396,7 +1396,7 @@ rule webshell_php_obfuscated_3
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
         //strings from private rule capa_php_callback
         $callback1 = /\bob_start[\t ]*\([^)]/ nocase wide ascii
         $callback2 = /\barray_diff_uassoc[\t ]*\([^)]/ nocase wide ascii
@@ -1735,7 +1735,7 @@ rule webshell_php_includer_tiny
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
     condition:
         filesize < 100 and ( 
             (
@@ -1765,7 +1765,7 @@ rule webshell_php_dynamic
     strings:
         $pd_fp1 = "whoops_add_stack_frame" wide ascii
         $pd_fp2 = "new $ec($code, $mode, $options, $userinfo);" wide ascii
-    
+
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
         // prevent xml and asp from hitting with the short tag
@@ -1780,7 +1780,7 @@ rule webshell_php_dynamic
         $php_new1 = /<\?=[^?]/ wide ascii
         $php_new2 = "<?php" nocase wide ascii
         $php_new3 = "<script language=\"php" nocase wide ascii
-    
+
         //strings from private rule capa_php_dynamic
         // php variable regex from https://www.php.net/manual/en/language.variables.basics.php
         $dynamic1 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(\$/ wide ascii
@@ -1790,7 +1790,7 @@ rule webshell_php_dynamic
         $dynamic5 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(\)/ wide ascii
         $dynamic6 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(@/ wide ascii
         $dynamic7 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(base64_decode/ wide ascii
-    
+
     condition:
         filesize > 20 and filesize < 200 and ( 
             (
@@ -1822,13 +1822,13 @@ rule webshell_php_dynamic_big
         //strings from private rule capa_bin_files
         $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
-    
+
         //strings from private rule capa_php_new_long
         // no <?=
         $new_php2 = "<?php" nocase wide ascii
         $new_php3 = "<script language=\"php" nocase wide ascii
         $php_short = "<?"
-    
+
         //strings from private rule capa_php_dynamic
         // php variable regex from https://www.php.net/manual/en/language.variables.basics.php
         $dynamic1 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(\$/ wide ascii
@@ -1838,7 +1838,7 @@ rule webshell_php_dynamic_big
         $dynamic5 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(\)/ wide ascii
         $dynamic6 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(@/ wide ascii
         $dynamic7 = /\$[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\[\]'"]{0,20}\(base64_decode/ wide ascii
-    
+
         //strings from private rule capa_gen_sus
 
         // these strings are just a bit suspicious, so several of them are needed, depending on filesize
