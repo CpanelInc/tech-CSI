@@ -144,6 +144,9 @@
 /dev/xdf2
 /dev/.xman
 /drgjghsaef.txt
+/etc/intel_audio/intel_audio.ko
+/etc/intel_audio/audio
+/etc/intel_audio/id
 /etc/1ssue.net
 /etc/32678
 /etc/atdd
@@ -242,6 +245,7 @@
 /etc/profile.d/.h
 /etc/profile.d/.helpdd
 /etc/profile.d/kacpi_notify
+/etc/rc.modules
 /etc/rc{1-5}.d/S97DbSecuritySpt
 /etc/rc{1-5}.d/S99selinux
 /etc/rc2.d/S04syslogd
@@ -1268,6 +1272,7 @@
 /var/tmp/find
 /var/tmp/god*
 /var/tmp/init10
+/var/tmp/installer
 /var/tmp/kinsing
 /var/tmp/kworkerds
 /var/tmp/.ladyg0g0
@@ -1284,6 +1289,7 @@
 /var/tmp/.SQL-Unix/.SQL
 /var/tmp/.SQL-Unix/.SQL/.db
 /var/tmp/udev*
+/var/tmp/usbd
 /var/tmp/v3
 /var/tmp/worker_cache
 /var/tmp/wunder*

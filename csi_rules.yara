@@ -1361,4 +1361,96 @@ rule Rootkit_Linux_Libprocesshider {
         all of them
 }
 
+rule UNK_APT_MelofeeImplant {
+    meta:
+        author = "Exatrack"
+        date =   "2023-03-03"
+        update =   "2023-03-03"
+        description = "Detects the Melofee implant"
+        tlp =  "CLEAR"
+        sample_hash = "a5a4284f87fd475b9474626040d289ffabba1066fae6c37bd7de9dabaf65e87a,f3e35850ce20dfc731a6544b2194de3f35101ca51de4764b8629a692972bef68,8d855c28744dd6a9c0668ad9659baf06e5e448353f54d2f99beddd21b41390b7"
+
+    strings:
+        $str_melofee_implant_01 = "10PipeSocket"
+        $str_melofee_implant_02 = "ikcp_ack_push"
+        $str_melofee_implant_03 = "TLSSocketEE"
+        $str_melofee_implant_04 = "/tmp/%s.lock"
+        $str_melofee_implant_05 = "neosmart::WaitForMultipleEvents"
+        $str_melofee_implant_06 = "9TLSSocket"
+        $str_melofee_implant_07 = "7VServer"
+        $str_melofee_implant_08 = "N5boost6detail13sp_ms_deleterI13UdpSocketWrapEE"
+        $str_melofee_implant_09 = "UdpServerWrap"
+        $str_melofee_implant_10 = "KcpUpdater"
+        $str_melofee_implant_11 = "SelfForwardServer"
+
+        $str_command_parsing_01 = {3? 01 00 05 00 ?? ?? ?? ?? 00 00 3? 01 00 05 00 ?? ?? 3? 05 00 04 00}
+        $str_command_parsing_02 = {3? 04 00 04 00 ?? ?? ?? ?? 00 00 3? 04 00 04 00 ?? ?? 3? 05 00 01 00}
+        $str_command_parsing_03 = {3? 01 00 07 00 ?? ?? ?? ?? 00 00 3? 01 00 09 00 ?? ?? ?? ?? ?? 00 3? 01 00 06 00 }
+
+    condition:
+        3 of them
+}
+
+rule UNK_APT_Melofee_Installer {
+    meta:
+        author = "Exatrack"
+        date =   "2023-03-15"
+        update =   "2023-03-15"
+        description = "Detects the installer for melofee malware"
+        score =   80
+        tlp =  "AMBER"
+        source =  "Exatrack"
+        sample_hash = "758b0934b7adddb794951d15a6ddcace1fa523e814aa40b55e2d071cf2df81f0"
+
+    strings:
+        $str_melofee_installer_01 = "#Script for starting modules"
+        $str_melofee_installer_02 = "#End script"
+        $str_melofee_installer_03 = "/etc/intel_audio/"
+        $str_melofee_installer_04 = "rm -fr /etc/rc.modules"
+        $str_melofee_installer_05 = "-i <data file>      Install"
+        $str_melofee_installer_06 = "cteate home folder failed"
+        $str_melofee_installer_07 = "create rootkit file failed"
+        $str_melofee_installer_08 = "create auto start file failed"
+        $str_melofee_installer_09 = "Remove Done!" // only 3 files on VT with this :D
+        $str_melofee_installer_10 = "Unkown option %c\n"
+
+    condition:
+        any of them
+}
+
+rule UNK_APT_Alien_Implant {
+    meta:
+        author = "Exatrack"
+        date =   "2023-03-03"
+        update =   "2023-03-03"
+        description = "Detects an unknown implant from AlienManager family, maybe related to melofee"
+        tlp =  "CLEAR"
+        sample_hash = "3535f45bbfafda863665c41d97d894c39277dfd9af1079581d28015f76669b88,"
+
+    strings:
+        $str_alien_01 = "[+]  Connect %s Successed,Start Transfer..."
+        $str_alien_02 = "Alloc buffer to decrypt data error, length == %d."
+        $str_alien_03 = "pel_decrypt_msg data error, error"
+        $str_alien_04 = "encrypt data error, length == %d."
+        $str_alien_05 = "DoRecvOverlapInternal error!"
+        $str_alien_06 = "Socks Listen port is %d,Username is %s, password is %s"
+        $str_alien_07 = "Start port mapping error! remoteAddr=%s remotePort=%d localAddr=%s localPort=%d"
+        $str_alien_08 = "OnCmdSocksStart error!"
+        $str_alien_09 = "The master isn't readable!"
+        $str_alien_10 = "ConnectBypassSocks proxy:%s:%d error!"
+        $str_alien_11 = "ConnectBypassSocks to %s %d"
+        $str_alien_12 = "now datetime: %d-%d-%d %d:%d:%d"
+        $str_alien_13 = "Not during working hours! Disconnect!"
+        $str_alien_14 = "Example: ./AlienReverse --reverse-address=192.168.1.101:80 --reverse-password=123456"
+        $str_alien_15 = "Not during working hours! Disconnect!"
+        $str_alien_16 = "SocksManager.cpp"
+        $str_alien_17 = "connect() in app_connect"
+        $str_alien_18 = "They send us %hhX %hhX"
+        $str_alien_19 = "your input directory is not exist!"
+        $str_alien_20 = "Send data to local error ==> %d.\n"
+
+    condition:
+        any of them
+}
+
 
