@@ -398,10 +398,12 @@
 /.Library/SystemServices/updateSystem
 /lib/security/.config
 /lib/.so
+/lib/security/update.so
 /lib/systemd/system/sys-temd-agent.service
 /lib/systemd/system/systemd-worker.service
 /lib/tls/libkeyutils.so.1
 /lib/tls/libkeyutils.so.1.5
+/lib/libudev.so.6
 /lib/udev/ssd_control/cryptov2.ko
 /lib/udev/ssd_control/iproute.ko
 /lib/udev/ssd_control/kauditd
@@ -946,6 +948,7 @@
 /usr/bin/xchk
 /usr/bin/xsf
 /usr/bin/xstat
+/usr/bin/ygljglkjgfg0
 /usr/bin/zalkpggsgh
 /usr/bin/zvcarxfquk
 /usr/doc/.dnif
