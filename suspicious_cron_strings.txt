@@ -71,3 +71,8 @@ base64 -d
 /bin/systemctl stop imunify360.service
 /bin/systemctl stop imunify-antivirus.service
 bash /etc/csf/uninstall.sh
+kavachelf
+bfdrive
+usbdriver
+/dev/shm/mycron
+opentab

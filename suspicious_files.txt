@@ -103,6 +103,7 @@
 /dev/shm/ngrok
 /dev/shm/.kauditd
 /dev/shm/.kauditd/[kauditd]
+/dev/shm/kavachelf
 /dev/shm/kdmtmpflush
 /dev/shm/.lck
 /dev/shm/ldx
@@ -113,6 +114,7 @@
 /dev/shm/.lwp/.out
 /dev/shm/.lwp/.rsync
 /dev/shm/mnem
+/dev/shm/mycron
 /dev/shm/php-shared
 /dev/shm/sd
 /dev/shm/server-worker-shared
@@ -304,6 +306,7 @@
 /etc/xinetd.d/asp
 /etc/xmrig
 /etc/zigw
+/home/.config/apdl.cf
 /home/.local
 /home/ ./root
 /home//.ssh/authorized_keys
@@ -786,6 +789,7 @@
 /tmp/up.txt
 /tmp/.user
 /tmp/.uua
+/tmp/vgauthsvclog
 /tmp/watchbog.txt.sh
 /tmp/whitptabil
 /tmp/wnTKYg
