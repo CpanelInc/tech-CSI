@@ -763,7 +763,7 @@ rule SUSP_JDNIExploit_Indicators_Dec21 {
       filesize < 100MB and $xr1
 }
 
-rule SUSP_EXPL_OBFUSC_Dec21_1{
+rule SUSP_EXPL_OBFUSC_Dec21_1 {
    meta:
       description = "Detects obfuscation methods used to evade detection in log4j exploitation attempt of CVE-2021-44228"
       author = "Florian Roth"
@@ -1960,5 +1960,21 @@ rule Linux_Trojan_Xorddos_bef22375 {
         $a = { C5 35 9D 8D 6D CB 8B 12 9C 83 C5 17 9D 8D 6D E9 6A 04 F7 14 24 FF }
     condition:
         all of them
+}
+
+rule Uptycs_Ransomware_RTM_Locker {
+    meta:
+        malware_name = "RANSOMWARE"
+        description = "Ransomware is a malware that encrypts sensitive information on your system and asks for ransom in exchange for restoring the encrypted data."
+        author = "Uptycs Inc"
+        version = "1"
+    strings:
+        $Ransomware_RTM_Locker_0 = "esxcli vm process list"  ascii wide
+        $Ransomware_RTM_Locker_1 = "vmlist.tmp.txt"  ascii wide
+        $Ransomware_RTM_Locker_2 = "esxcli vm process kill"  ascii wide
+        $Ransomware_RTM_Locker_3 = "!!! Warning!!!"  ascii wide
+        $Ransomware_RTM_Locker_4 = "Your network is infected by the RTM Locker command"  ascii wide
+    condition:
+        all of ($Ransomware_RTM_Locker*)
 }
 

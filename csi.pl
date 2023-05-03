@@ -1558,7 +1558,7 @@ sub check_for_hiddenwasp {
             push @SUMMARY, "> Found HIDE_THIS_SHELL in the /lib/libselinux.a file. Could indicate HiddenWasp Rootkit";
         }
     }
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 );
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 );
     foreach my $port (@ports) {
         chomp($port);
         my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );

@@ -403,6 +403,7 @@ nuclear
 .rrk
 .RSNSlocked
 .RSplited
+.RTM
 .ruby
 .sage
 .salsa222
