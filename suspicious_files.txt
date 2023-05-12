@@ -519,7 +519,6 @@
 /root/.ovrv
 /root/.pglnpt
 /root/.pkphf
-/root/.pm2
 /root/.pzf
 /root/.qip
 /root/README_DECRYPT
