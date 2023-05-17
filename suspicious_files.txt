@@ -599,6 +599,7 @@
 /tmp/4004.db
 /tmp/.../a
 /tmp/.a
+/tmp/.abchello
 /tmp/a7b104c270
 /tmp/angel_bc.c
 /tmp/anu.txt
@@ -689,6 +690,8 @@
 /tmp/.init
 /tmp/init10
 /tmp/iproute.ko
+/tmp/iptablesupdate
+/tmp/iptableupdate.sh
 /tmp/.IptabLes
 /tmp/IptabLes
 /tmp/.IptabLex
@@ -1311,3 +1314,9 @@
 /usr/lib64/libkeyutils.so.1.6.1
 /etc/rc.local.d/local.sh
 /bin/hostd-probe.sh
+/usr/bin/wgettnt
+/bin/TNTwget
+/usr/bin/TNTwget
+/var/tmp/.apache/
+/bin/httpd-crypto
+/usr/share/.apache
