@@ -1978,3 +1978,95 @@ rule Uptycs_Ransomware_RTM_Locker {
         all of ($Ransomware_RTM_Locker*)
 }
 
+rule sliver_binary_native {
+    meta:
+        author = "Kev Breen @kevthehermit"
+        description = "Detects unmodified Sliver implant generated for Windows, Linux or MacOS"
+    strings: 
+        $sliverpb = "sliverpb"
+        $bishop_git = "github.com/bishopfox/"
+        $encryption = "chacha20poly1305"
+    condition:
+        // This detects Go Headers for PE, ELF, Macho
+        (
+            (uint16(0) == 0x5a4d) or 
+            (uint32(0)==0x464c457f) or 
+            (uint32(0) == 0xfeedfacf) or 
+            (uint32(0) == 0xcffaedfe) or 
+            (uint32(0) == 0xfeedface) or 
+            (uint32(0) == 0xcefaedfe) 
+        )
+        // String matches
+        and $sliverpb
+        and $bishop_git
+        and $encryption
+}
+
+rule sliver_memory {
+    meta:
+        author = "Kev Breen @kevthehermit"
+        description = "Detects Sliver running in memory"
+    strings:
+        $str1 = "sliverpb"
+    condition:
+        all of them
+}
+
+rule Doki_Attack {
+    meta:
+        copyright = "Intezer Labs"
+        author = "Intezer Labs"
+        reference = "https://www.intezer.com"
+    strings:
+        $a1 = /curl --retry 3 -m 60 -o \/tmp\w{6}\/tmp\/tmp.{37}.*\\{3}\"http:\/{2}.*\.ngrok\.io[\s\S]*\\{3}\";/ nocase
+        $a2 = /rm -rf \/tmp\w{6}\/etc\/crontab;/ nocase
+        $s1 = /echo \\{3}\"(\*\s){4}\* root sh \/tmp\/tmp.*\\{3}\" \\{2}u003e\/tmp\w{6}\/etc\/cron.d\/1m;/ nocase
+        $s2 = /echo \\{3}\"(\*\s){4}\* root sh \/tmp\/tmp\w*\\{3}\" \\{2}u003e\/tmp\w{6}\/etc\/crontab;/ nocase
+        $s3 = /chroot \/tmp\w{6} sh -c \\{3}\"cron \|\| crond/ nocase
+    condition:
+       all of them
+}
+
+rule onimiki {
+  meta:
+    description = "Linux/Onimiki malicious DNS server"
+    malware = "Linux/Onimiki"
+    operation = "Windigo"
+    author = "Olivier Bilodeau <bilodeau@eset.com>"
+    created = "2014-02-06"
+    reference = "http://www.welivesecurity.com/wp-content/uploads/2014/03/operation_windigo.pdf"
+    contact = "windigo@eset.sk"
+    source = "https://github.com/eset/malware-ioc/"
+    license = "BSD 2-Clause"
+  strings:
+    // code from offset: 0x46CBCD
+    $a1 = {43 0F B6 74 2A 0E 43 0F  B6 0C 2A 8D 7C 3D 00 8D}
+    $a2 = {74 35 00 8D 4C 0D 00 89  F8 41 F7 E3 89 F8 29 D0}
+    $a3 = {D1 E8 01 C2 89 F0 C1 EA  04 44 8D 0C 92 46 8D 0C}
+    $a4 = {8A 41 F7 E3 89 F0 44 29  CF 29 D0 D1 E8 01 C2 89}
+    $a5 = {C8 C1 EA 04 44 8D 04 92  46 8D 04 82 41 F7 E3 89}
+    $a6 = {C8 44 29 C6 29 D0 D1 E8  01 C2 C1 EA 04 8D 04 92}
+    $a7 = {8D 04 82 29 C1 42 0F B6  04 21 42 88 84 14 C0 01}
+    $a8 = {00 00 42 0F B6 04 27 43  88 04 32 42 0F B6 04 26}
+    $a9 = {42 88 84 14 A0 01 00 00  49 83 C2 01 49 83 FA 07}
+  condition:
+    all of them
+}
+
+rule IPStorm {
+    meta:
+        copyright = "Intezer Labs"
+        author = "Intezer Labs"
+        reference = "https://www.intezer.com"
+    strings:
+        $package1 = "storm/backshell"
+        $package2 = "storm/filetransfer"
+        $package3 = "storm/scan_tools"
+        $package4 = "storm/malware-guard"
+        $package5 = "storm/avbypass"
+        $package6 = "storm/powershell"
+        $lib2b = "libp2p/go-libp2p"
+    condition:
+        4 of ($package*) and $lib2b
+}
+

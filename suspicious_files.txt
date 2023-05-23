@@ -10,7 +10,9 @@
 /bin/gmbpr
 /bin/good
 /bin/home
+/bin/hostd-probe.sh
 /bin/host.ph1
+/bin/httpd-crypto
 /bin/httpdns
 /bin/httpntp
 /bin/.ilog
@@ -41,6 +43,7 @@
 /bin/systemd/systemd-daemon
 /bin/systemd-worker
 /bin/.tmpc
+/bin/TNTwget
 /bin/tr69c
 /bin/update-rc.d
 /bin/watchbog
@@ -100,7 +103,6 @@
 /dev/shm/cfgas
 /dev/shm/config.json
 /dev/shm/devs_mx_cache
-/dev/shm/ngrok
 /dev/shm/.kauditd
 /dev/shm/.kauditd/[kauditd]
 /dev/shm/kavachelf
@@ -115,6 +117,7 @@
 /dev/shm/.lwp/.rsync
 /dev/shm/mnem
 /dev/shm/mycron
+/dev/shm/ngrok
 /dev/shm/php-shared
 /dev/shm/sd
 /dev/shm/server-worker-shared
@@ -146,9 +149,6 @@
 /dev/xdf2
 /dev/.xman
 /drgjghsaef.txt
-/etc/intel_audio/intel_audio.ko
-/etc/intel_audio/audio
-/etc/intel_audio/id
 /etc/1ssue.net
 /etc/32678
 /etc/atdd
@@ -158,6 +158,7 @@
 /etc/.bmbl
 /etc/.bmbl/sk
 /etc/cmd.n
+/etc/com.json
 /etc/config.json
 /etc/config.txt
 /etc/conf.n
@@ -212,10 +213,10 @@
 /etc/host.ph1
 /etc/httpdns
 /etc/ice9j
-/etc/init.d/ice9j
 /etc/id.services.conf
 /etc/init.d/DbSecuritySpt
 /etc/init.d/HFLgGwYfSC.elf
+/etc/init.d/ice9j
 /etc/init.d/kworker
 /etc/init.d/po1kitd-update
 /etc/init.d/pwnrig
@@ -225,6 +226,9 @@
 /etc/init.d/syslogd
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
+/etc/intel_audio/audio
+/etc/intel_audio/id
+/etc/intel_audio/intel_audio.ko
 /etc/.ip
 /etc/iptablesupdate
 /etc/ksapd
@@ -240,6 +244,7 @@
 /etc/mysql5
 /etc/mysql/lib/mysql
 /etc/netdns
+/etc/pd.d/proxy.conf
 /etc/pools.txt
 /etc/pprt
 /etc/profile.d/diskmanagerd
@@ -247,7 +252,6 @@
 /etc/profile.d/.h
 /etc/profile.d/.helpdd
 /etc/profile.d/kacpi_notify
-/etc/rc.modules
 /etc/rc{1-5}.d/S97DbSecuritySpt
 /etc/rc{1-5}.d/S99selinux
 /etc/rc2.d/S04syslogd
@@ -264,6 +268,8 @@
 /etc/rc.d/init.d/selinux
 /etc/rc.d/init.d/.stabip
 /etc/rc.d/rsha
+/etc/rc.local.d/local.sh
+/etc/rc.modules
 /etc/rc-Zobk0jpi/PgSD93ql
 /etc/rewgtf3er4t
 /etc/s66
@@ -277,6 +283,7 @@
 /etc/selinux/targeted/plugins
 /etc/sfewfesfs
 /etc/sfewfesfsh
+/etc/shz.sh
 /etc/sksapd
 /etc/sksapdd
 /etc/skysapd
@@ -392,6 +399,7 @@
 /lib/libtsq.so
 /lib/libtsr.so
 /lib/libudev.so
+/lib/libudev.so.6
 /lib/lidps1.so
 /lib/.ligh.gh
 /lib/log.h
@@ -400,13 +408,12 @@
 /.Library/SystemNetwork
 /.Library/SystemServices/updateSystem
 /lib/security/.config
-/lib/.so
 /lib/security/update.so
+/lib/.so
 /lib/systemd/system/sys-temd-agent.service
 /lib/systemd/system/systemd-worker.service
 /lib/tls/libkeyutils.so.1
 /lib/tls/libkeyutils.so.1.5
-/lib/libudev.so.6
 /lib/udev/ssd_control/cryptov2.ko
 /lib/udev/ssd_control/iproute.ko
 /lib/udev/ssd_control/kauditd
@@ -457,8 +464,8 @@
 /root/.cache/root
 /root/.cache/.sysud
 /root/.cd
-/root/.config/cron/perfcc
 /root/.config/.accounts-daemon/accounts-daemon.login.conf
+/root/.config/cron/perfcc
 /root/.config/polkitd/polkitd
 /root/.configrc/a
 /root/.configrc/a/kswapd0
@@ -599,8 +606,8 @@
 /tmp/4004.db
 /tmp/.../a
 /tmp/.a
-/tmp/.abchello
 /tmp/a7b104c270
+/tmp/.abchello
 /tmp/angel_bc.c
 /tmp/anu.txt
 /tmp/ata_sff
@@ -690,10 +697,10 @@
 /tmp/.init
 /tmp/init10
 /tmp/iproute.ko
-/tmp/iptablesupdate
-/tmp/iptableupdate.sh
 /tmp/.IptabLes
 /tmp/IptabLes
+/tmp/iptablesupdate
+/tmp/iptableupdate.sh
 /tmp/.IptabLex
 /tmp/irq
 /tmp/irqbalanc1
@@ -715,16 +722,16 @@
 /tmp/.main
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
-/tmp/medusa_stealer.mipsel
-/tmp/medusa_stealer.mips
-/tmp/medusa_stealer.sh4
-/tmp/medusa_stealer.x86
 /tmp/medusa_stealer.armv6
-/tmp/medusa_stealer.i686
 /tmp/medusa_stealer.i586
-/tmp/medusa_stealer.powerpc
+/tmp/medusa_stealer.i686
 /tmp/medusa_stealer.m86k
+/tmp/medusa_stealer.mips
+/tmp/medusa_stealer.mipsel
+/tmp/medusa_stealer.powerpc
+/tmp/medusa_stealer.sh4
 /tmp/medusa_stealer.sparc
+/tmp/medusa_stealer.x86
 /tmp/miner2
 /tmp/moni.lock
 /tmp/.mountfs
@@ -761,6 +768,7 @@
 /tmp/.session-unix
 /tmp/sess.rotat
 /tmp/sfewfesfs
+/tmp/shz.sh
 /tmp/smarvtd
 /tmp/srv
 /tmp/ssdpid
@@ -779,11 +787,11 @@
 /tmp/.tmpcfi
 /tmp/.tmpdropoff
 /tmp/tmp.l
-/tmp/tmpnam_[a-zA-Z]{5}
-/tmp/.tmp_XXXXXX
+/tmp/.tmp/mem
 /tmp/.tmp/mem.gz
 /tmp/.tmp/mem.gzip
-/tmp/.tmp/mem
+/tmp/tmpnam_[a-zA-Z]{5}
+/tmp/.tmp_XXXXXX
 /tmp/twink
 /tmp/.unlock
 /tmp/up
@@ -915,6 +923,7 @@
 /usr/bin/miner2
 /usr/bin/_-minerd
 /usr/bin/modload
+/usr/bin/monitor
 /usr/bin/n3tstat
 /usr/bin/netlink.ko
 /usr/bin/ntpsx
@@ -945,11 +954,13 @@
 /usr/bin/tcnszvmpqn
 /usr/bin/tls/libkeyutils.so.1
 /usr/bin/tls/libkeyutils.so.1.5
+/usr/bin/TNTwget
 /usr/bin/util
 /usr/bin/vadim
 /usr/bin/volc
 /usr/bin/w-
 /usr/bin/wdt
+/usr/bin/wgettnt
 /usr/bin/where
 /usr/bin/xchk
 /usr/bin/xsf
@@ -1046,6 +1057,7 @@
 /usr/.IptabLex
 /usr/lib/.../
 /usr/lib32/.X11/X0-lock
+/usr/lib64/libkeyutils.so.1.6.1
 /usr/lib64/seahorses/cpc
 /usr/lib64/seahorses/iftoop
 /usr/lib64/seahorses/iftraof
@@ -1130,8 +1142,8 @@
 /usr/local/cpanel/backup/mkpasswd
 /usr/local/cpanel/backup/run
 /usr/local/cpanel/backup/xh
-/usr/local/games/snunewa.tar
 /usr/local/games/.cache
+/usr/local/games/snunewa.tar
 /usr/local/include/uconf.h
 /usr/local/lib/libjdk.so
 /usr/local/lib/libprocesshider2.so
@@ -1189,6 +1201,7 @@
 /usr/sdf3fslsdf14
 /usr/share/accounts-daemon/accounts-daemon.so
 /usr/share/.aPa
+/usr/share/.apache
 /usr/share/boot.sync
 /usr/share/core.h
 /usr/share/.home
@@ -1248,7 +1261,9 @@
 /var/lock/bash10
 /var/log/.log
 /var/log/.login
+/var/log/secureecho
 /var/log/utmp
+/var/log/wtmpecho
 /var/log/xmrig
 /var/.lug.txt
 /var/opt/power
@@ -1275,6 +1290,7 @@
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile
 /var/ssh.conf
+/var/tmp/.apache/
 /var/tmp/cb
 /var/tmp/config.json
 /var/tmp/dota3.tar.gz
@@ -1311,12 +1327,3 @@
 /XxJynx/4.so
 /XxJynx/jynx2.so
 /XxJynx/reality.so
-/usr/lib64/libkeyutils.so.1.6.1
-/etc/rc.local.d/local.sh
-/bin/hostd-probe.sh
-/usr/bin/wgettnt
-/bin/TNTwget
-/usr/bin/TNTwget
-/var/tmp/.apache/
-/bin/httpd-crypto
-/usr/share/.apache

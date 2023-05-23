@@ -32,6 +32,7 @@
 .aes_ni
 .aes_ni_0day
 .aes_ni_gov
+.akira
 .AFD
 .aga
 .__AiraCropEncrypted!
