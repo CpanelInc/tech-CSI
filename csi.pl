@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.28";
+my $version = "3.5.29";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2160,6 +2160,17 @@ sub userscan {
                 push @SUMMARY, expand( MAGENTA "\t\t\\_ Likely related to the AnonymousF0x exploit" );
             }
         }
+    }
+
+    # Legion Malware - https://thehackernews.com/2023/05/legion-malware-upgraded-to-target-ssh.html
+    my @files=qw( /.aws/credentials /_profiler/phpinfo /administrator/.env /api/.env /apps/.env /conf/.env /config/.env /config/aws.yml /core/Datavase/.env /core/app/.env /cron/.env /cronlab/.env /database/.env /debug/default/view.html /debug/default/view?panel=config /en/.env /exapi/.env /frontend/web/debug/default/view /lab/.env /laravel/.env /lib/.env /library/.env /psnlink/.env /saas/.env /sapi/debug/default/view /site/.env /sitemaps/.env /sites/all/libraries/mailchimp/.env /symfony/public/_profiler/phpinfo /tool/view/phpinfo.view.php /tool/view/phpinfo.view.php /wp-content/.env /tools/.env /uploads/.env /v1/.env /v2/.env /vendor/.env /web/.env /web/debug/default/view /wp-config.php-backup );
+    my $showHeader=0;
+    foreach my $file(@files) {
+        chomp($file);
+        next unless( -e "$RealHome/$pubhtml/$file" );
+        push @SUMMARY, "> Found possible existence of Legion Malware found in $RealHome/$pubhtml" unless( $showHeader );
+        $showHeader=1; 
+        push @SUMMARY, expand( CYAN "\t\\_ $file" );
     }
 
     if ( -d "$RealHome/$pubhtml" ) {

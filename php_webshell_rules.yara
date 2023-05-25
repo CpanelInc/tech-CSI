@@ -6155,3 +6155,33 @@ rule webshell_in_image
         )
         ) ) )
 }
+
+rule cw_androxgh0st_strings {
+    meta: 
+        author = “Alex Delamotte @ SentinelLabs”
+        description = “Rule based on Androxgh0st file contents.”
+        reference = “https://s1.ai/AlienFox”
+    strings:
+        $a = “asu = androxgh0st().get_aws_region(text)” ascii wide
+        $b = “nam = input(‘\x1b[1;37;40mInput Your List : ‘)” ascii wide
+        $c = “def jembotngw2(sites):” ascii wide
+        $d = “def nowayngntd():” ascii wide
+        $e = “def makethread(jumlah):” ascii wide
+    condition:
+        any of them
+}
+
+rule cw_boto_broad_persistence {
+    meta:
+        author = “Alex Delamotte @ SentinelLabs”
+        description = “Detect (Boto3 OR samples referencing Telegram channels) AND AWS persistence login profile.”
+        reference = “https://s1.ai/AlienFox”
+    strings:
+        $a = “boto3.client(‘ses’”
+        $a1 = “https://t.me”
+        $b = “arn:aws:iam::aws:policy/AdministratorAccess”
+        $c = “iam.create_login_profile(UserName=”
+    condition:
+        ($a or $a1) and ($b or $c)
+}
+

@@ -73,6 +73,7 @@
 .btc
 .btcbtcbtc
 .btc-help-you
+.buhti
 .cancer
 .canihelpyou
 .cbf
@@ -303,6 +304,7 @@
 .magic
 .maktub
 .malki
+.maori
 .maya
 .medusastealer
 .merry

@@ -188,6 +188,7 @@ updateSystem
 /usr/bin/where
 /usr/local/bin/perl$
 /usr/sbin/console-kit-daemon
+/usr/libexec/postfix/master
 /var/sbin/bash
 /var/tmp/java
 /var/tmp/sustes
