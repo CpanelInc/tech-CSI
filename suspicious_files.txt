@@ -664,6 +664,9 @@
 /tmp/EB93A6/996E.elf
 /tmp/emacs.sh
 /tmp/entrypoint.sh
+/tmp/env/.qnapd
+/tmp/env/.qnapd/apached
+/tmp/env/.qnapd/sshd.sh
 /tmp/ext4-rsv-conver
 /tmp/fdsfsfvff
 /tmp/filer
