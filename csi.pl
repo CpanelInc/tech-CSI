@@ -133,7 +133,6 @@ our $HTTPD_PATH = get_httpd_path();
 our $LIBKEYUTILS_FILES_REF = build_libkeyutils_file_list();
 our $IPCS_REF;
 our $PROCESS_REF;
-our $EA4 = isEA4();
 our @RPM_LIST;
 our $OPT_TIMEOUT;
 GetOptions(
@@ -163,9 +162,15 @@ my $content=get_hashes();
 our @knownhashes = split /\n/, $content;
 my $docdir = '/usr/share/doc';
 check_for_touchfile();
-my @logfiles = (
-    '/var/log/apache2/access_log', '/var/log/apache2/error_log', '/var/log/wtmp'
-);
+#my @logfiles = (
+    #'/var/log/apache2/access_log', '/var/log/apache2/error_log', '/var/log/wtmp'
+#);
+
+my @logfiles = ( '/var/log/wtmp' );
+if ( ! -e '/var/cpanel/dnsonly' ) {
+    push @logfiles, '/var/log/apache2/access_log';
+    push @logfiles, '/var/log/apache2/error_log';
+}
 
 if ( $distro eq "ubuntu" ) {
     push @logfiles, '/var/log/syslog';
@@ -772,12 +777,7 @@ sub check_kernel_updates {
 
 sub check_logfiles {
     my $apachelogpath;
-    if ($EA4) {
-        $apachelogpath = "/etc/apache2/logs";
-    }
-    else {
-        $apachelogpath = "/usr/local/apache/logs";
-    }
+    $apachelogpath = "/etc/apache2/logs";
     chomp($apachelogpath);
     if ( !-d $apachelogpath ) {
         push @SUMMARY, "> $apachelogpath directory is not present";
@@ -1700,6 +1700,9 @@ sub check_authorized_keys_file {
         if ( $_ eq "AAAAB3NzaC1yc2EAAAADAQABAAACAQC/yU0iqklqw6etPlUon4mZzxslFWq8G8sRyluQMD3i8tpQWT2cX/mwGgSRCz7HMLyxt87olYIPemTIRBiyqk8SLD3ijQpfZwQ9vsHc47hdTBfj89FeHJGGm1KpWg8lrXeMW+5jIXTFmEFhbJ18wc25Dcds4QCM0DvZGr/Pg4+kqJ0gLyqYmB2fdNzBcU05QhhWW6tSuYcXcyAz8Cp73JmN6TcPuVqHeFYDg05KweYqTqThFFHbdxdqqrWy6fNt8q/cgI30NBa5W2LyZ4b1v6324IEJuxImARIxTc96Igaf30LUza8kbZyc3bewY6IsFUN1PjQJcJi0ubVLyWyyJ554Tv8BBfPdY4jqCr4PzaJ2Rc1JFJYUSVVT4yX2p7L6iRpW212eZmqLMSoR5a2a/tO2s1giIlb+0EHtFWc2QH7yz/ZBjnun7opIoslLVvYJ9cxMoLeLr5Ig+zny+IEA3x090xtcL62X0jea6btVnYo7UN2BARziisZze6oVuOTCBijuyvOM6ROZ6s/wl4CQAOSLDeFIP5L1paP9V1XLaYLDBAodNaUPFfTxggH3tZrnnU8Dge5/1JNa08F3WNUPM1S1x8L2HMatwc82x35jXyBSp3AMbdxMPhvyYI8v2J1PqJH8OqGTVjdWe40mD2osRgLo1EOfP/SFBTD5VEo95K2ZLQ==" ) {
             push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
         }
+        if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCzml2PeIHOUG+78TIk0lQcR5JC/mlDElDtplEfq8KDiJFwD8z9Shhk2kG0pwzw9uUr7R24h8lnh9DWpiKfoy4MeMFrTO8akT1hXf4yn9IEEHdiq9hVz1ZkEnUdjyzuvXGIOcRe2FqQaovFY15gSDZzJc5K6NMT8uW1aitHAsYXZDW8uh+/SJAqcCCVUtVnZRj4nlhQxW2810CJGQQrixkkww7F/9XRlddH3HkNuRlZLQMk5oGHTxeySKKfqoAoXgZXac9VBAPRUU+0PrBrOSWlXFbGBPJSdvDfxBqcg4hguacD1EW0/5ORR7Ikp1i6y+gIpdydwxW51yAqrYqHI5iD" ) {
+            push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Suspicious ssh-rsa key found within /root/.ssh/authorized_keys.");
+        }
     }
     close($fh);
 }
@@ -1773,11 +1776,8 @@ sub all_malware_checks {
 }
 
 sub get_httpd_path {
-    if ( $EA4 && -x '/usr/sbin/httpd' ) {
+    if ( -x '/usr/sbin/httpd' ) {
         return '/usr/sbin/httpd';
-    }
-    if ( !$EA4 && -x '/usr/local/apache/bin/httpd' ) {
-        return '/usr/local/apache/bin/httpd';
     }
     return;
 }
@@ -2601,11 +2601,6 @@ sub check_sshd_config {
     push @SUMMARY, expand( CYAN "\t\\_ indicates possible root-level compromise!" ) unless( ! $attr );
 }
 
-sub isEA4 {
-    return 1 if ( -f "/etc/cpanel/ea4/is_ea4" );
-    return undef;
-}
-
 sub misc_checks {
     my @dirs     = undef;
     my @files    = undef;
@@ -2679,6 +2674,12 @@ sub misc_checks {
             my $rootscron = Cpanel::SafeRun::Timed::timedsaferun( 5, 'crontab', '-l' );
             my @rootscron = split( /\n/, $rootscron );
             my $croncnt   = @rootscron;
+            if ( -e '/var/cpanel/dnslonly') {
+                if ( $croncnt < 7 ) {
+                    push @SUMMARY, "> Root's crontab contains less than 7 lines (not normal for cPanel DNSOnly servers), could indicate a root compromise";
+                    next;
+                }
+            }
             if ( $croncnt < 15 ) {
                 push @SUMMARY, "> Root's crontab contains less than 15 lines (not normal for cPanel servers), could indicate a root compromise";
             }

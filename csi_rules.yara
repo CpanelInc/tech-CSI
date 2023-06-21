@@ -1453,6 +1453,48 @@ rule UNK_APT_Alien_Implant {
         any of them
 }
 
+rule MALWARE_Multi_Exaramel {
+    meta:
+        author = "ditekSHen"
+        description = "Exaramel Windows/Linux backdoor payload"
+        clamav_sig1 = "MALWARE_Linux.Backdoor.Exaramel"
+    strings:
+        // Linux payload
+        $s1 = "vendor/golang_org/x/crypto/" ascii
+        $s2 = "vendor/golang_org/x/net/http2" ascii
+        $s3 = "vendor/golang_org/x/text/unicode" ascii
+        $s4 = "vendor/golang_org/x/text/transform" ascii
+        $s5 = "config.json" ascii
+        $cmd1 = "App.Update" ascii
+        $cmd2 = "App.Delete" ascii
+        $cmd3 = "App.SetProxy" ascii
+        $cmd4 = "App.SetServer" ascii
+        $cmd5 = "App.SetTimeout" ascii
+        $cmd6 = "IO.WriteFile" ascii
+        $cmd7 = "IO.ReadFile" ascii
+        $cmd8 = "OS.ShellExecute" ascii
+        $cmd9 = "awk 'match($0, /(upstart|systemd|sysvinit)/){ print substr($0, RSTART, RLENGTH);exit;" ascii
+    condition:
+        (uint16(0) == 0x457f and (all of ($s*) and 6 of ($cmd*)))
+}
+
+rule MALWARE_Linux_ChaChaDDoS {
+    meta:
+        author = "ditekSHen"
+        description = "ChaChaDDoS variant of XorDDoS payload"
+    strings:
+        $x1 = "[kworker/1:1]" ascii
+        $x2 = "-- LuaSocket toolkit." ascii
+        $x3 = "/etc/resolv.conf" ascii
+        $x4 = "\"macaddress=\" .. DEVICE_MAC .. \"&device=\" .." ascii
+        $x5 = "easy_attack_dns" ascii
+        $x6 = "easy_attack_udp" ascii
+        $x7 = "easy_attack_syn" ascii
+        $x8 = "syn_probe" ascii
+    condition:
+    uint16(0) == 0x457f and 6 of them
+}
+
 rule MALWARE_Linux_XORDDoS {
     meta:
         author = "ditekSHen"
@@ -2068,5 +2110,248 @@ rule IPStorm {
         $lib2b = "libp2p/go-libp2p"
     condition:
         4 of ($package*) and $lib2b
+}
+
+rule MALWARE_Linux_HiddenWasp {
+    meta:
+        author = "ditekSHen"
+        description = "HiddenWasp backdoor payload"
+        clamav_sig1 = "MALWARE_Linux.Trojan.HiddenWasp-ELF"
+        clamav_sig2 = "MALWARE_Linux.Trojan.HiddenWasp-Script"
+    strings:
+        $x1 = "I_AM_HIDDEN" fullword ascii
+        $x2 = "HIDE_THIS_SHELL" fullword ascii
+        $x3 = "NewUploadFile" ascii
+        $x4 = "fake_processname" ascii
+        $x5 = "swapPayload" ascii
+        $x6 = /Trojan-(Platform|Machine|Hostname|OSersion)/ fullword ascii
+        $s1 = "FileOpration::GetFileData" fullword ascii
+        $s2 = "FileOpration::NewUploadFile" fullword ascii
+        $s3 = "Connection::writeBlock" fullword ascii
+        $s4 = /hiding_(hidefile|enable_logging|hideproc|makeroot)/ fullword ascii
+        $s5 = "Reverse-Port" fullword ascii
+        $s6 = "hidden_services" fullword ascii
+        $s7 = "check_config" fullword ascii
+        $s8 = "__data_start" fullword ascii
+        $s9 = /patch_(suger_lib|ld|lib)/ fullword ascii
+        $s10 = "hexdump -ve '1/1 \"%%.2X\"' %s | sed \"s/%s/%s/g\" | xxd -r -p > %s.tmp"
+    condition:
+        uint16(0) == 0x457f and (4 of ($x*) or all of ($s*) or (3 of ($x*) and 5 of ($s*)))
+}
+
+rule MALWARE_Linux_Kinsing {
+    meta:
+      author = "ditekSHen"
+      description = "Kinsing RAT payload"
+    strings:
+      $s1 = "backconnect" ascii
+      $s2 = "connectForSocks" ascii
+      $s3 = "downloadAndExecute" ascii
+      $s4 = "download_and_exec" ascii
+      $s5 = "masscan" ascii
+      $s6 = "UpdateCommand:" ascii
+      $s7 = "exec_out" ascii
+      $s8 = "doTask with type %s" ascii
+   condition:
+      uint16(0) == 0x457f and 6 of them
+}
+
+rule MALWARE_Linux_PLEAD {
+    meta:
+        author = "ditekSHen"
+        description = "PLEAD Linux payload"
+        clamav_sig = "MALWARE.Linux.Trojan.PLEAD"
+    strings:
+        $x1 = "CFileTransfer" ascii
+        $x2 = "CFileManager" ascii
+        $x3 = "CPortForward" ascii
+        $x4 = "CPortForwardManager" ascii
+        $x5 = "CRemoteShell" ascii
+        $x6 = "CSockClient" ascii
+
+        $s1 = "/proc/self/exe" fullword ascii
+        $s2 = "/bin/sh" fullword ascii
+        $s3 = "echo -e '" ascii
+        $s4 = "%s    <DIR>    %s" ascii
+        $s5 = "%s    %lld    %s" ascii
+        $s6 = "Files: %d        Size: %lld" ascii
+        $s7 = "Dirs: %d" ascii
+        $s8 = "%s(%s)/" ascii
+        $s9 = "%s %s %s %s" ascii
+    condition:
+    uint16(0) == 0x457f and (all of ($x*) or all of ($s*) or 12 of them)
+}
+
+rule MALWARE_Linux_UNK01 {
+    meta:
+        author = "ditekSHen"
+        description = "Detects unknown/unidentified Linux malware"
+    strings:
+        $f1 = "%sresponse.php?status" ascii
+        $f2 = "%supstream.php?mid=%s&os=%s" ascii fullword
+        $f3 = "%supstream.php?tid=%" ascii
+        $f4 = "%sindex.php?token=%.32s&flag=%d&name=%s" ascii fullword
+        $f5 = "%sactive_off.php?id=%d&uniqu=%d" ascii fullword
+        $s1 = "lock:%i usable num:%i n:%i" fullword ascii
+        $s2 = "tid:%.*s tNumber:%i" fullword ascii
+        $s3 = "init.php" fullword ascii
+        $s4 = "mod_drone" fullword ascii
+        $s5 = "new_mid" fullword ascii
+        $s6 = "&exists[]=" fullword ascii
+        $s7 = "&mod[]=" fullword ascii
+        $s8 = "shutdown" fullword ascii
+        $s9 = "&mac[]=%02X%02X%02X%02X%02X%02X" fullword ascii
+    condition:
+        uint16(0) == 0x457f and (3 of ($f*) or 6 of ($s*))
+}
+
+rule MALWARE_Linux_UNK02 {
+    meta:
+        author = "ditekSHen"
+        description = "Detects unknown/unidentified Linux malware"
+    strings:
+        $rf1 = "[]A\\A]A^A_" ascii
+        $rf2 = "[A\\A]A^A_]" ascii
+        $f1 = "/bin/basH" ascii fullword
+        $f2 = "/proc/seH" ascii fullword
+        $f3 = "/dev/ptsH" ascii fullword
+        $f4 = "pqrstuvwxyzabcde" ascii fullword
+        $f5 = "libnss_%s.so.%d.%d" ascii fullword
+    condition:
+        uint16(0) == 0x457f and (all of ($f*) and #rf1 > 3 and #rf2 > 3)
+}
+
+rule MALWARE_Linux_RansomExx {
+    meta:
+        author = "ditekshen"
+        description = "Detects RansomEXX ransomware"
+        clamav_sig = "MALWARE.Linux.Ransomware.RansomEXX"
+    strings:
+        $c1 = "crtstuff.c" fullword ascii
+        $c2 = "cryptor.c" fullword ascii
+        $c3 = "ransomware.c" fullword ascii
+        $c4 = "logic.c" fullword ascii
+        $c5 = "enum_files.c" fullword ascii
+        $c6 = "readme.c" fullword ascii
+        $c7 = "ctr_drbg.c" fullword ascii
+        $s1 = "regenerate_pre_data" fullword ascii
+        $s2 = "g_RansomHeader" fullword ascii
+        $s3 = "CryptOneBlock" fullword ascii
+        $s4 = "RansomLogic" fullword ascii
+        $s5 = "CryptOneFile" fullword ascii
+        $s6 = "encrypt_worker" fullword ascii
+        $s7 = "list_dir" fullword ascii
+        $s8 = "ctr_drbg_update_internal" fullword ascii
+    condition:
+        uint16(0) == 0x457f and (5 of ($s*) or 6 of ($s*) or (3 of ($c*) and 3 of ($s*)))
+}
+
+rule MALWARE_Linux_HelloKitty {
+    meta:
+        author = "ditekSHen"
+        description = "Detects Linux version of HelloKitty ransomware"
+    strings:
+        $s1 = "exec_pipe:%s" ascii
+        $s2 = "Error InitAPI !!!" fullword ascii
+        $s3 = "No Files Found !!!" fullword ascii
+        $s4 = "Error open log File:%s" fullword ascii
+        $s5 = "%ld - Files Found  " fullword ascii
+        $s6 = "Total VM run on host:" fullword ascii
+        $s7 = "error:%d open:%s" fullword ascii
+        $s8 = "work.log" fullword ascii
+        $s9 = "esxcli vm process kill" ascii
+        $s10 = "readdir64" fullword ascii
+        $s11 = "%s_%d.block" fullword ascii
+        $s12 = "EVP_EncryptFinal_ex" fullword ascii
+        $s13 = ".README_TO_RESTORE" fullword ascii
+        $m1 = "COMPROMISED AND YOUR SENSITIVE PRIVATE INFORMATION WAS STOLEN" ascii nocase
+        $m2 = "damage them without special software" ascii nocase
+        $m3 = "leaking or being sold" ascii nocase
+        $m4 = "Data will be Published and/or Sold" ascii nocase
+    condition:
+        uint16(0) == 0x457f and (6 of ($s*) or (2 of ($m*) and 2 of ($s*)) or 8 of them)
+}
+
+rule APT_MAL_LNX_Turla_Apr202004_1 { 
+   meta:
+      description = "Detects Turla Linux malware x64 x32"
+      date = "2020-04-24"
+      author = "Leonardo S.p.A."
+      reference = "https://www.leonardocompany.com/en/news-and-stories-detail/-/detail/knowledge-the-basis-of-protection"
+      hash1 = "67d9556c695ef6c51abf6fbab17acb3466e3149cf4d20cb64d6d34dc969b6502" 
+      hash2 = "8ccc081d4940c5d8aa6b782c16ed82528c0885bbb08210a8d0a8c519c54215bc" 
+      hash3 = "8856a68d95e4e79301779770a83e3fad8f122b849a9e9e31cfe06bf3418fa667" 
+      hash4 = "1d5e4466a6c5723cd30caf8b1c3d33d1a3d4c94c25e2ebe186c02b8b41daf905" 
+      hash5 = "2dabb2c5c04da560a6b56dbaa565d1eab8189d1fa4a85557a22157877065ea08" 
+      hash6 = "3e138e4e34c6eed3506efc7c805fce19af13bd62aeb35544f81f111e83b5d0d4" 
+      hash7 = "5a204263cac112318cd162f1c372437abf7f2092902b05e943e8784869629dd8" 
+      hash8 = "8856a68d95e4e79301779770a83e3fad8f122b849a9e9e31cfe06bf3418fa667" 
+      hash9 = "d49690ccb82ff9d42d3ee9d7da693fd7d302734562de088e9298413d56b86ed0"
+   strings: 
+      $ = "/root/.hsperfdata" ascii fullword
+      $ = "Desc| Filename | size |state|" ascii fullword
+      $ = "VS filesystem: %s" ascii fullword
+      $ = "File already exist on remote filesystem !" ascii fullword 
+      $ = "/tmp/.sync.pid" ascii fullword
+      $ = "rem_fd: ssl " ascii fullword
+      $ = "TREX_PID=%u" ascii fullword
+      $ = "/tmp/.xdfg" ascii fullword
+      $ = "__we_are_happy__" ascii
+      $ = "/root/.sess" ascii fullword
+      /* $ = "ZYSZLRTS^Z@@NM@@G_Y_FE" ascii fullword */
+   condition:
+      uint16(0) == 0x457f and filesize < 5000KB and
+      4 of them
+}
+
+rule APT_MAL_LNX_Turla_Apr202004_1_opcode { 
+   meta:
+      description = "Detects Turla Linux malware x64 x32"
+      date = "2020-04-24"
+      author = "Leonardo S.p.A."
+      reference = "https://www.leonardocompany.com/en/news-and-stories-detail/-/detail/knowledge-the-basis-of-protection"
+      hash1 = "67d9556c695ef6c51abf6fbab17acb3466e3149cf4d20cb64d6d34dc969b6502" 
+      hash2 = "8ccc081d4940c5d8aa6b782c16ed82528c0885bbb08210a8d0a8c519c54215bc" 
+      hash3 = "8856a68d95e4e79301779770a83e3fad8f122b849a9e9e31cfe06bf3418fa667" 
+      hash4 = "1d5e4466a6c5723cd30caf8b1c3d33d1a3d4c94c25e2ebe186c02b8b41daf905" 
+      hash5 = "2dabb2c5c04da560a6b56dbaa565d1eab8189d1fa4a85557a22157877065ea08" 
+      hash6 = "3e138e4e34c6eed3506efc7c805fce19af13bd62aeb35544f81f111e83b5d0d4" 
+      hash7 = "5a204263cac112318cd162f1c372437abf7f2092902b05e943e8784869629dd8" 
+      hash8 = "8856a68d95e4e79301779770a83e3fad8f122b849a9e9e31cfe06bf3418fa667" 
+      hash9 = "d49690ccb82ff9d42d3ee9d7da693fd7d302734562de088e9298413d56b86ed0"
+   strings:
+      $op0 = { 8D 41 05 32 06 48 FF C6 88 81 E0 80 69 00 } /* Xor string loop_p1 x32*/ 
+      $op1 = { 48FFC14883F94975E9 } /*Xorstringloop_p2x32*/
+      $op2 = { C7 05 9B 7D 29 00 1D 00 00 00 C7 05 2D 7B 29 00 65 74 68 30 C6 05 2A 7B 29 00 00 E8 }
+      /* Load eth0 interface*/
+      $op3 = { BF FF FF FF FF E8 96 9D 0A 00 90 90 90 90 90 90 90 90 90 90 89 F0}
+      /* Opcode exceptions*/ 
+      $op4 = { 88D380C305329AC1D60C08889A60A10F084283FA0876E9 }
+      /* Xor string loop x64*/
+      $op5 = { 8B 8D 50 DF FF FF B8 09 00 00 00 89 44 24 04 89 0C 24 E8 DD E5 02 00 } /* Kill call x32 */ 
+      $op6 = { 8D 5A 05 32 9A 60 26 0C 08 88 9A 20 F4 0E 08 42 83 FA 48 76 EB } /* Decrypt init str */ 
+      $op7 = { 8D 4A 05 32 8A 25 26 0C 08 88 8A 20 F4 0E 08 42 83 FA 08 76 EB} /* Decrypt init str */
+   condition:
+      uint16(0) == 0x457f and filesize < 5000KB and
+      2 of them
+}
+
+rule Stairwell_ChamelDoH_01 {
+    meta:
+        author = "Daniel Mayer (daniel@stairwell.com)"
+        copyright = "(c) 2023 Stairwell, Inc."
+        description = "Unique strings from a sample of ChamelDoH"
+        last_modified = "2023-06-07"
+        version = "0.1"
+
+    strings:
+        $ = "001020304050607080910111213141516171819202122232425262728293031"
+        $ = "resolve?type=TXT&name="
+        $ = "CONNECT_ONLY is required!"
+        $ = "[\"ns"
+        $ = "touch -r"
+
+    condition:
+        4 of them
 }
 

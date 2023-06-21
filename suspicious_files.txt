@@ -1,6 +1,9 @@
 /.a/
 /.a/mass2ip/
 /.a/mass2ip/masscan
+/bin/a
+/bin/cls
+/bin/clean
 /bin/config.json
 /bin/config.txt
 /bin/cpu.txt
