@@ -301,6 +301,7 @@
 /etc/systemb
 /etc/systemd/system/griphon.service
 /etc/systemd/system/myservice.service
+/etc/systemd/system/network-check.service
 /etc/systemd/system/ntp.service
 /etc/systemd/system/polkitd.service
 /etc/.tmpc
@@ -1286,6 +1287,7 @@
 /var/run/+++screen.run
 /var/run/sshd/sshd.pid
 /var/run/.ssh.pid
+/var/run/sys_checker.pid
 /var/run/.tmp
 /var/run/udevd.pid
 /var/run/udev.pid
