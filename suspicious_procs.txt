@@ -104,7 +104,6 @@ kthreadd1
 kthreaddk
 kthrotlds
 kworker34
-\[kworker/0.0\]
 \[kworker /u8:7-ev\]
 kw.sh
 kxjd
