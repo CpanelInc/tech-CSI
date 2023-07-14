@@ -111,6 +111,7 @@
 /dev/shm/kavachelf
 /dev/shm/kdmtmpflush
 /dev/shm/.lck
+/dev/shm/ld.so
 /dev/shm/ldx
 /dev/shm/ldx/.l
 /dev/shm/libdl.so
@@ -650,6 +651,7 @@
 /tmp/crun
 /tmp/crypto
 /tmp/cryptov2.ko
+/tmp/.curl
 /tmp/.datass
 /tmp/ddgs.3012
 /tmp/ddgs.3013
@@ -721,6 +723,7 @@
 /tmp/kinsing
 /tmp/korkut2
 /tmp/kworkerds
+/tmp/ld.so
 /tmp/libapache
 /tmp/libselinux.0
 /tmp/Linux64-shell
@@ -985,6 +988,9 @@
 /usr/doc/.statnet
 /usr/games/.blane
 /usr/games/.lost+found
+/usr/games/.ssh
+/usr/games/.ssh/authorized_keys
+/usr/games/.ssh/authorized_keys2
 /usr/include/addr.h
 /usr/include/boot.h
 /usr/include/chk.h
@@ -1298,6 +1304,7 @@
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile
 /var/ssh.conf
+/var/tmp/...data.lock
 /var/tmp/.apache/
 /var/tmp/cb
 /var/tmp/config.json
