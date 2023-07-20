@@ -468,6 +468,7 @@
 /root/.cache/.rm
 /root/.cache/root
 /root/.cache/.sysud
+/root/.cargo/registry
 /root/.cd
 /root/.config/.accounts-daemon/accounts-daemon.login.conf
 /root/.config/cron/perfcc
@@ -529,6 +530,7 @@
 /root/.omu
 /root/.onxv
 /root/.ovrv
+/root/p2pinfect
 /root/.pglnpt
 /root/.pkphf
 /root/.pzf
@@ -802,6 +804,7 @@
 /tmp/.tmp/mem.gzip
 /tmp/tmpnam_[a-zA-Z]{5}
 /tmp/.tmp_XXXXXX
+/tmp/tpkvWQ4fkh
 /tmp/twink
 /tmp/.unlock
 /tmp/up
