@@ -59,6 +59,9 @@
 /boot/.IptabLes
 /boot/IptabLes
 /boot/.IptabLex
+/boot/os_tools/hw-set
+/boot/os_tools/libutil.so
+/boot/os_tools/update_version
 /boot/pro
 /boot/proh
 /boot/.stabip
@@ -319,6 +322,7 @@
 /etc/xmrig
 /etc/zigw
 /home/.config/apdl.cf
+/home/product/code/firmware/current/sbin/smtpctl
 /home/.local
 /home/ ./root
 /home//.ssh/authorized_keys
@@ -519,6 +523,7 @@
 /root/.local/toxssin
 /root/.lvagq
 /root/.lwk
+/root/machine
 /root/moneroocean
 /root/moneroocean/config.json
 /root/moneroocean/xmrig
@@ -725,6 +730,18 @@
 /tmp/kinsing
 /tmp/korkut2
 /tmp/kworkerds
+/tmp/l4sd4sx64
+/tmp/l4sd4s86
+/tmp/l4sd4sm4
+/tmp/l4sd4s8k
+/tmp/l4sd4sm6
+/tmp/l4sd4sspc
+/tmp/l4sd4ssl
+/tmp/l4sd4sm5
+/tmp/l4sd4sm7
+/tmp/l4sd4spc
+/tmp/l4sd4sps
+/tmp/l4sd4sh4
 /tmp/ld.so
 /tmp/libapache
 /tmp/libselinux.0
@@ -752,6 +769,7 @@
 /tmp/netlink.ko
 /tmp/.netscalerd
 /tmp/.netscalerd/uuid
+/tmp/neww
 /tmp/nimbuspwn/poc.d
 /tmp/.orbit
 /tmp/pamdicks
@@ -1184,6 +1202,7 @@
 /usr/local/share/. /Mailer/
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
+/usr/local/tomcat/webapps/jsp_app/cmd.jsp
 /usr/local/__UMBREON__
 /usr/local/UMBREON
 /usr/local/www/xui/common/css/
@@ -1322,11 +1341,14 @@
 /var/tmp/.ladyg0g0/.pr1nc35
 /var/tmp/.ladyg0g0/.pr1nc35/.k4m3l0t
 /var/tmp/lib*
+/var/tmp/libutil.so
 /var/tmp/linux.lock
 /var/tmp/.netscalerd
 /var/tmp/.netscalerd/uuid
 /var/tmp/php_cache
 /var/tmp/.pipe.sock
+/var/tmp/r
+/var/tmp/run.sh
 /var/tmp/salt-store
 /var/tmp/.SQL-Unix
 /var/tmp/.SQL-Unix/.SQL

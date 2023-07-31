@@ -228,3 +228,6 @@ YDService
 echo "find"
 peer2profit
 honeygain
+/var/tmp/run.sh
+smtpctl
+neww

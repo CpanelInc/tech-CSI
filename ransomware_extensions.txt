@@ -384,6 +384,7 @@ nuclear
 .*ransomware
 .RARE1
 .rastakhiz
+.README_TO_RESTORE
 .razy
 .rdm
 .RDM
