@@ -436,6 +436,7 @@
 /linux_avp
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /media/.cpuminer-gr-1.2.2-x86_64_linux
+/netscaler/ns_gui/vpn/medialogininit.png
 /opt/aspera/faspex
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
@@ -680,6 +681,7 @@
 /tmp/env/.qnapd
 /tmp/env/.qnapd/apached
 /tmp/env/.qnapd/sshd.sh
+/tmp/exp.so
 /tmp/ext4-rsv-conver
 /tmp/fdsfsfvff
 /tmp/filer
@@ -1326,6 +1328,7 @@
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile
 /var/ssh.conf
+/var/tmp/all.txt
 /var/tmp/...data.lock
 /var/tmp/.apache/
 /var/tmp/cb
@@ -1353,6 +1356,7 @@
 /var/tmp/.SQL-Unix
 /var/tmp/.SQL-Unix/.SQL
 /var/tmp/.SQL-Unix/.SQL/.db
+/var/tmp/test.tar.gz
 /var/tmp/udev*
 /var/tmp/usbd
 /var/tmp/v3

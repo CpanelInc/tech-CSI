@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.29";
+my $version = "3.5.30";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -694,6 +694,7 @@ sub scan {
     print_header( '[ Gathering the IP addresses that logged on successfully as root ]');
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM("root");
+    get_session_logins("root:");
     get_whm_terminal_logins("root");
     get_last_logins_SSH("root");
     check_secure_log("root");
@@ -924,6 +925,7 @@ sub check_uids {
         foreach (@baduids) {
             push( @SUMMARY, expand( CYAN "\t \\_ " . $_ ) );
             get_last_logins_WHM($_);
+            get_session_logins($_ . ':');
             get_whm_terminal_logins($_);
             get_last_logins_SSH($_);
             check_secure_log($_);
@@ -3203,6 +3205,56 @@ sub get_whm_terminal_logins {
     }
 }
 
+sub get_session_logins {
+    my $lcUser = shift;
+    print "DEBUG: got here: lcUser=$lcUser\n";
+    my $dt     = DateTime->now;
+    my $year   = $dt->year;
+    open( SESSLOG, "/usr/local/cpanel/logs/session_log" );
+    my @SESSLOG = <SESSLOG>;
+    close(SESSLOG);
+    my $sessline;
+    my @Success;
+
+    foreach $sessline (@SESSLOG) {
+        chomp($sessline);
+        my ( $date, $app, $ipaddr, $user ) = ( split( /\s+/, $sessline ) )[ 0, 4, 5, 7 ];
+        #print "DEBUG: date=$date\n";
+        #print "DEBUG: app=$app\n";
+        #print "DEBUG: ipaddr=$ipaddr\n";
+        #print "DEBUG: user=$user\n";
+        #my $x=length($lcUser);
+        #print "DEBUG: [$x] - substr = " . substr($user,0,length($lcUser)) . "\n";;
+        if ( substr( $user,0,length($lcUser) ) eq $lcUser and $app eq "[whostmgrd]" and $sessline =~ m{possessed=0} and $date =~ m/$year/ ) {
+            print "DEBUG: date=$date\n";
+            print "DEBUG: app=$app\n";
+            print "DEBUG: ipaddr=$ipaddr\n";
+            print "DEBUG: user=$user\n";
+            my $x=length($lcUser);
+            print "DEBUG: [$x] - substr = " . substr($user,0,length($lcUser)) . "\n";;
+            push( @Success, "$ipaddr" );
+        }
+    }
+    my @unique_ips = uniq @Success;
+    my $num;
+    my $success;
+    my $times;
+    my $headerPrinted = 0;
+    foreach $success (@unique_ips) {
+        if ( $headerPrinted == 0 ) {
+            chop($lcUser);
+            push( @INFO, "> The following IP address(es) successfully logged on via a session as " . CYAN $lcUser );
+            $headerPrinted = 1;
+        }
+        chomp($success);
+        $num   = grep { $_ eq $success } @Success;
+        $times = "time";
+        my $dispDate = "";
+        if ( $num > 1 ) { $times = "times"; }
+        push( @INFO, expand( CYAN "\t\\_ $success ($num $times)" ) ) unless ( $success =~ m/208\.74\.123\.|184\.94\.197\./ );
+    }
+}
+
 sub get_root_pass_changes {
     my $lcUser = shift;
     my $dt     = DateTime->now;
@@ -3766,6 +3818,12 @@ sub check_resellers_for_all_ACL {
               . " has the "
               . RED "ALL"
               . YELLOW " ACL which has root privileges";
+            get_last_logins_WHM($lcReseller);
+            get_session_logins($lcReseller . ':');
+            get_whm_terminal_logins($lcReseller);
+            get_last_logins_SSH($lcReseller);
+            check_secure_log($lcReseller);
+            get_root_pass_changes($lcReseller);
             next;
         }
     }
