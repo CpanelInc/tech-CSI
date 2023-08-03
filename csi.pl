@@ -977,7 +977,7 @@ sub check_processes {
         next if ( _ignore_susp_proc( $suspicious_process ) );
         foreach my $line(@process_list) {
             chomp($line);
-            if ( $line =~ m/$suspicious_process/ ) {
+            if ( $line =~ m/\b$suspicious_process\b/ ) {
                 my ( $u, $p, $c ) = (split /\s+/, $line );
                 my ( $a1,$a2,$a3,$a4,$a5,$a6,$a7 ) = (split( /\s+/, $line ))[3,4,5,6,7,8,9];
                 my $a = $a1 . " " . $a2 . " " . $a3 . " " . $a4 . " " . $a5 . " " . $a6 . " " . $a7;
@@ -3207,7 +3207,6 @@ sub get_whm_terminal_logins {
 
 sub get_session_logins {
     my $lcUser = shift;
-    print "DEBUG: got here: lcUser=$lcUser\n";
     my $dt     = DateTime->now;
     my $year   = $dt->year;
     open( SESSLOG, "/usr/local/cpanel/logs/session_log" );
@@ -3219,19 +3218,7 @@ sub get_session_logins {
     foreach $sessline (@SESSLOG) {
         chomp($sessline);
         my ( $date, $app, $ipaddr, $user ) = ( split( /\s+/, $sessline ) )[ 0, 4, 5, 7 ];
-        #print "DEBUG: date=$date\n";
-        #print "DEBUG: app=$app\n";
-        #print "DEBUG: ipaddr=$ipaddr\n";
-        #print "DEBUG: user=$user\n";
-        #my $x=length($lcUser);
-        #print "DEBUG: [$x] - substr = " . substr($user,0,length($lcUser)) . "\n";;
         if ( substr( $user,0,length($lcUser) ) eq $lcUser and $app eq "[whostmgrd]" and $sessline =~ m{possessed=0} and $date =~ m/$year/ ) {
-            print "DEBUG: date=$date\n";
-            print "DEBUG: app=$app\n";
-            print "DEBUG: ipaddr=$ipaddr\n";
-            print "DEBUG: user=$user\n";
-            my $x=length($lcUser);
-            print "DEBUG: [$x] - substr = " . substr($user,0,length($lcUser)) . "\n";;
             push( @Success, "$ipaddr" );
         }
     }
