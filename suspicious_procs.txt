@@ -231,3 +231,5 @@ honeygain
 /var/tmp/run.sh
 smtpctl
 neww
+reptile_shell
+reptile_cmd

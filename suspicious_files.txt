@@ -234,6 +234,8 @@
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
 /etc/intel_audio/audio
+/etc/intel_audio/intel_audio_start
+/etc/intel_audio/intel_audio_reverse
 /etc/intel_audio/id
 /etc/intel_audio/intel_audio.ko
 /etc/.ip
@@ -423,6 +425,7 @@
 /lib/systemd/system/systemd-worker.service
 /lib/tls/libkeyutils.so.1
 /lib/tls/libkeyutils.so.1.5
+/lib/udev/rules.d/52-reptile.rules
 /lib/udev/ssd_control/cryptov2.ko
 /lib/udev/ssd_control/iproute.ko
 /lib/udev/ssd_control/kauditd
@@ -436,6 +439,7 @@
 /linux_avp
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /media/.cpuminer-gr-1.2.2-x86_64_linux
+/myshell/
 /netscaler/ns_gui/vpn/medialogininit.png
 /opt/aspera/faspex
 /opt/KHK75NEOiq33
@@ -445,6 +449,7 @@
 /opt/yilu/work/xige
 /opt/yilu/work/xige/xige
 /opt/yilu/work/xig/xig
+/opttest/
 /proc/.inl
 /proc/knark
 /proc/kset
@@ -604,6 +609,7 @@
 /run/bioset
 /run/chernobyl.sh
 /run/gcc.pid
+/rxp/
 /sbin/home
 /sbin/.ifup-local
 /sbin/ipH9
@@ -1009,6 +1015,7 @@
 /usr/doc/.sl
 /usr/doc/.sp
 /usr/doc/.statnet
+/usr/falc0n/
 /usr/games/.blane
 /usr/games/.lost+found
 /usr/games/.ssh
