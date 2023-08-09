@@ -198,6 +198,7 @@
 /etc/cron.hourly/0
 /etc/cron.hourly/1
 /etc/cron.hourly/gcc.sh
+/etc/cron.hourly/prelink
 /etc/cron.hourly/pwnrig
 /etc/cron.hourly/syslogd
 /etc/cron.hourly/udev.sh
@@ -757,6 +758,7 @@
 /tmp/linux.lock
 /tmp/.local/[a-zA-Z0-9]+
 /tmp/.main
+/tmp/.miner
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
 /tmp/medusa_stealer.armv6
@@ -960,6 +962,11 @@
 /usr/bin/.lpstree
 /usr/bin/mailrc
 /usr/bin/miner2
+/usr/bin/matchpathcond.zitvr
+/usr/bin/postmaped.szqoc
+/usr/bin/devlinked.tfann
+/usr/bin/gettexted.ujtvl
+/usr/include/gold8
 /usr/bin/_-minerd
 /usr/bin/modload
 /usr/bin/monitor
@@ -973,6 +980,7 @@
 /usr/bin/pc
 /usr/bin/.pidsclip
 /usr/bin/pojie
+/usr/bin/postcated.hpvbi
 /usr/bin/.ps
 /usr/bin/_-pud
 /usr/bin/qkxqoelrfa
@@ -991,6 +999,7 @@
 /usr/bin/sykhrxsazz
 /usr/bin/t
 /usr/bin/tcnszvmpqn
+/usr/bin/telinited.zitvr
 /usr/bin/tls/libkeyutils.so.1
 /usr/bin/tls/libkeyutils.so.1.5
 /usr/bin/TNTwget
@@ -1289,6 +1298,7 @@
 /var/html/lol
 /var/lib/cryptov2.ko
 /var/lib/games/.k
+/var/lib/gif
 /var/lib/iproute.ko
 /var/lib/kauditd
 /var/lib/miner2
