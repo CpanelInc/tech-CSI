@@ -76,3 +76,5 @@ bfdrive
 usbdriver
 /dev/shm/mycron
 opentab
+perfclean
+Perfctl

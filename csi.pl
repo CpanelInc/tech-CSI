@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.30";
+my $version = "3.5.31";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -4097,6 +4097,9 @@ sub check_env_for_susp_vars {
     }
     if ( grep { /HTTP_SETTHIS/ } @env ) {
         push @SUMMARY, "> Found HTTP_SETTHIS environment variable. Could indicate presence of the Symbiote Rootkit";
+    }
+    if ( grep { /AAZHDE/ } @env ) {
+        push @SUMMARY, "> Found AAZHDE environment variable. Could indicate presence of the perfcc/perfctl coin miner";
     }
 }
 
