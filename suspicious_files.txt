@@ -178,6 +178,7 @@
 /etc/cron.d/apache.bak
 /etc/cron.d/apachecat
 /etc/cron.d/.cd
+/etc/cron.d/collect
 /etc/cron.d/ebpfbackdoor
 /etc/cron.d/.editorinfo
 /etc/cron.d/.editorinfo[a-zA-Z0-9]+
@@ -307,6 +308,7 @@
 /etc/sysconfig/modules/.modules
 /etc/systemb
 /etc/systemd/system/griphon.service
+/etc/systemd/system/kmodaudit.service
 /etc/systemd/system/myservice.service
 /etc/systemd/system/network-check.service
 /etc/systemd/system/ntp.service
@@ -971,6 +973,7 @@
 /usr/bin/lnetstat
 /usr/bin/.local/bin/crontab
 /usr/bin/.local/bin/ldd
+/usr/bin/.local/bin/lsof
 /usr/bin/.local/bin/strace
 /usr/bin/.local/bin/top
 /usr/bin/.locationesclipiciu
@@ -1360,9 +1363,12 @@
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile
 /var/ssh.conf
+/var/tmp/atd
 /var/tmp/all.txt
 /var/tmp/.apache/
+/var/tmp/bs
 /var/tmp/cb
+/var/tmp/crond
 /var/tmp/config.json
 /var/tmp/...data.lock
 /var/tmp/dota3.tar.gz
@@ -1383,6 +1389,7 @@
 /var/tmp/php_cache
 /var/tmp/.pipe.sock
 /var/tmp/r
+/var/tmp/root/sysinfo/etc
 /var/tmp/run.sh
 /var/tmp/salt-store
 /var/tmp/.SQL-Unix

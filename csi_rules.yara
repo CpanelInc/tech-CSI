@@ -2542,3 +2542,37 @@ rule CISA_10454006_06 : SUBMARINE trojan backdoor cleans_traces_of_infection hid
    filesize < 250KB and all of them
 }
 
+rule EXIM_CVE_2019_10149 {
+meta:
+    description = "Yara Rule EXIM UPX and de-UPX"
+    author = "Cybaze - Yoroi ZLab"
+    last_updated = "2019-06-19"
+    tlp = "white"
+    category = "informational"
+strings:
+    $s1 = "ELF"
+    $s2 = "Buildroot 2014.02"
+    $s3 = "445403338652341"
+    $s4 = {96 0E 14 41 C3 0E 10 44 C6}
+    $s5 = {5C 24 0C 01 E9 8A 0C 01 32 4C}  
+    $s6 = "OpenSSL 1.0.1f 6 Jan 2014"  
+    $s7 = {0E 14 41 C3 0E 10}
+    $s8 = {5E CC 14 D8 E1 48 BF 7E 6D}
+    $s9 = {FF 83 A7 24 01 00 00 FD}
+    $s10 = "UWVSQ"
+    $s11 = {C1 0A CF 0A D9 0A E5}
+    $a12 = "UPX"
+    $a13 = {22 00 1A 03 00 2A A2}
+    $a14 = {55 06 3C 3C BA 4D E9 C6}
+    $a15 = {0B 58 A6 9E 88 BD 51 C1 22}
+    $a16 = {67 2A 21 57 23 3B 29}
+    $a17 = {F5 6F D7 CD 6D 28 1F 49}
+    $a18 = {66 FA A4 B5 78 F0 24 C3}
+    $a19 = {8E 82 07 8D 05 53 80 29}
+    $a20 = {9B 1C B7 E4 57 93 35 8F 7A}
+    $a21 = {47 8F 7E 4D 0B 24 8C 7D}
+condition:
+    $s1 and 4 of ($s*) or $s1 and 5 of ($a*)
+}
+
+
