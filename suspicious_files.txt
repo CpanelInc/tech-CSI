@@ -134,6 +134,7 @@
 /dev/shm/.ssh/./x86_64
 /dev/shm/sud
 /dev/shm/sys.png
+/dev/shm/.shmdiskvg.log
 /dev/shm/.systemd/.systemd
 /dev/shm/www-shared
 /dev/shm/.X867123/.rsync/a/kswapd0
