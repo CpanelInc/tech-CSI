@@ -332,6 +332,7 @@
 /home/product/code/firmware/current/sbin/smtpctl
 /home/ ./root
 /home//.ssh/authorized_keys
+/home/ubuntu/.ssh
 /home/ygljglkjgfg1
 /lib64/libgrubd.so
 /lib64/libhdx.so

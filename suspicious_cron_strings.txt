@@ -78,3 +78,5 @@ usbdriver
 opentab
 perfclean
 Perfctl
+fTakK8lVE
+/tmp/linux
