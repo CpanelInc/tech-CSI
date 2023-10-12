@@ -686,6 +686,7 @@
 /tmp/diskmanagerd
 /tmp/dmpdaemon
 /tmp/dr_client
+/tmp/dred
 /tmp/drop
 /tmp/.dump
 /tmp/e3ac24a0bcddfacd010a6c10f4a814bc
