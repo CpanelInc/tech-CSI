@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.31";
+my $version = "3.5.32";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -102,32 +102,12 @@ my (
     $distro_minor, $ignoreload, $overwrite,   $cron
 );
 get_ipcs_hash( \%ipcs );
-if ( -e '/usr/local/cpanel/Cpanel/Sys.pm' ) {
 
-    # up to 94
-    eval("use Cpanel::Sys");
-    eval("use Cpanel::Sys::OS");
-    $distro         = Cpanel::Sys::OS::getos();
-    $distro_version = Cpanel::Sys::OS::getreleaseversion();
-}
-if ( -e '/usr/local/cpanel/Cpanel/OS.pm' ) {
+$distro       = Cpanel::OS->_instance->distro;
+$distro_major = Cpanel::OS->_instance->major;
+$distro_minor = Cpanel::OS->_instance->minor;
+$distro_version = $distro_major . "." . $distro_minor;
 
-    if ( Cpanel::OS->can('instance') ) {
-
-        # 96 and 98
-        $distro       = Cpanel::OS->instance->distro;
-        $distro_major = Cpanel::OS->instance->major;
-        $distro_minor = Cpanel::OS->instance->minor;
-    }
-    elsif ( Cpanel::OS->can('supported_methods') ) {
-
-        # 100+
-        $distro       = Cpanel::OS->_instance->distro;
-        $distro_major = Cpanel::OS->_instance->major;
-        $distro_minor = Cpanel::OS->_instance->minor;
-    }
-    $distro_version = $distro_major . "." . $distro_minor;
-}
 our $OS_RELEASE = ucfirst($distro) . " Linux release " . $distro_version;
 our $HTTPD_PATH = get_httpd_path();
 our $LIBKEYUTILS_FILES_REF = build_libkeyutils_file_list();
@@ -491,15 +471,15 @@ sub scan {
     print_header('[ Checking for BPFDoor ]');
     logit("Checking for BPFDoor");
     check_for_bpfdoor();
+    print_header('[ Checking for Free Download Manager Malware ]');
+    logit("Checking for Free Download Manager Malware");
+    check_for_freedownloadmanager_malware();
     print_header('[ Checking if Use MD5 passwords with Apache is disabled ]');
     logit("Checking if Use MD5 passwords with Apache is disabled");
     chk_md5_htaccess();
     print_header('[ Checking for index.html in /tmp and /home ]');
     logit("Checking for index file in /tmp and $HOMEDIR");
     check_index();
-    print_header('[ Checking for modified suspended page ]');
-    logit("Checking web template [suspendedpage]");
-    check_suspended();
     print_header('[ Checking for suspicious files ]');
     logit("Checking for suspicious files");
     look_for_suspicious_files();
@@ -751,7 +731,7 @@ sub check_kernel_updates {
                 }
             }
             else {
-                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
+                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot should be scheduled)";
                 push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]" );
                 push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]" );
             }
@@ -804,16 +784,6 @@ sub check_logfiles {
 sub check_index {
     if ( -f '/tmp/index.htm' or -f '/tmp/index.html' ) {
         push @SUMMARY, '> Index file found in /tmp';
-    }
-}
-
-sub check_suspended {
-    if ( -f '/var/cpanel/webtemplates/root/english/suspended.tmpl' ) {
-        push @SUMMARY,
-'> Custom account suspended template found at /var/cpanel/webtemplates/root/english/suspended.tmpl';
-        push @SUMMARY,
-'     This could mean the admin just created a custom template or that an attacker gained access';
-        push @SUMMARY, '     and created it (hack page)';
     }
 }
 
@@ -1704,6 +1674,9 @@ sub check_authorized_keys_file {
         }
         if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCzml2PeIHOUG+78TIk0lQcR5JC/mlDElDtplEfq8KDiJFwD8z9Shhk2kG0pwzw9uUr7R24h8lnh9DWpiKfoy4MeMFrTO8akT1hXf4yn9IEEHdiq9hVz1ZkEnUdjyzuvXGIOcRe2FqQaovFY15gSDZzJc5K6NMT8uW1aitHAsYXZDW8uh+/SJAqcCCVUtVnZRj4nlhQxW2810CJGQQrixkkww7F/9XRlddH3HkNuRlZLQMk5oGHTxeySKKfqoAoXgZXac9VBAPRUU+0PrBrOSWlXFbGBPJSdvDfxBqcg4hguacD1EW0/5ORR7Ikp1i6y+gIpdydwxW51yAqrYqHI5iD" ) {
             push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Suspicious ssh-rsa key found within /root/.ssh/authorized_keys.");
+        }
+        if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC\/2CmHl\/eiVchVmng4TEPAx0n0+6R0Rb\/W+zlwCR+\/g3MHqsiadebQx4/ ) {
+            push( @SUMMARY, "> [Possible p2pinfect Rootkit] - " . CYAN "Strange ssh-key found within /root/.ssh/authorized_keys.");
         }
     }
     close($fh);
@@ -4294,7 +4267,7 @@ sub check_for_cve_vulnerabilities {
         next unless( ! $found_in_changelog );
 
         # check version against the nonvuln variable
-        my $op='>=';
+        my $op='>';
         chomp($pkgver);
         chomp($patchedver);
         print CYAN "Checking if " . YELLOW $pkgver . " " . MAGENTA $op . " " . YELLOW $patchedver . ": " if ( $debug );
@@ -4458,8 +4431,16 @@ sub get_pkg_version {
     }
     chomp($pkgversion);
     return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
-    $pkgversion =~ s/\-/\./g;
-    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp108.*|\.cp98.*|\.cp11.*|\.el.*|\+.*)//g;
+    if ( substr( $tcPkg,0,7 ) eq "cpanel-" ) {
+        $pkgversion =~ s/-\d+.cp\d+.*//a;
+        #$pkgversion =~ s/\-/\./g;
+        #$pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp108.*|\.cp98.*|\.cp11.*|\.el.*|\+.*)//g;
+    }
+    else {
+        $pkgversion =~ s/^\.\.//;
+        $pkgversion =~ s/^\-\-//;
+        $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|\.1ubuntu.*|ubuntu.*|\.cp98.*|\.cp11.*|\.cp10.*|\.el.*|\+.*|\-.*)//g;
+    }
     return $pkgversion;
 }
 
@@ -4564,6 +4545,45 @@ sub check_for_bpfdoor {
             push @SUMMARY, "> Found evidence of possible BFPDoor hack $chk_iptables";
         }
         $start_port++;
+    }
+}
+
+sub check_for_freedownloadmanager_malware {
+    return unless( $distro eq 'ubuntu' );
+    my $detection = 0;
+    my @detected;
+    if ( grep { /deb.fdmpkg.org/ } '/etc/apt/sources.list.d/freedownloadmanager.list' ) {
+        $detection++;
+        push @detected, "\t\\_ Found deb.fdmpkg.org in /etc/apt/sources.list.d/freedownloadmanager.list";
+    }
+    if ( -e '/etc/cron.d/collect' ) {
+        $detection++;
+        push @detected, "\t\\_ Found presence of /etc/cron.d/collect file";
+    }
+    my @dirs = qw( /var/tmp /lost+found /lib /lib64 /etc/openal /etc/thermald );
+    my @files = qw( crond bs atd );
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            my $fullpath = $dir . "/" . $file;
+            stat $fullpath;
+            if ( -f _ and not -z _ ) {
+                $detection++;
+                push @detected, "\t\\_ Found suspicious file $dir/$file";
+            }
+        }
+    }
+    my $apt_key_list = Cpanel::SafeRun::Timed::timedsaferun( 0, 'apt-key', 'list' );
+    if ( grep { /B6D0 9383/ } $apt_key_list ) {
+        $detection++;
+        push @detected, "\t\\_ Found 'B6D0 9383' within the apt-key list command.";
+    }
+    if ( $detection ) {
+        push @SUMMARY, "> Possible FreeDownloadManager Malware (Debian/Ubuntu only) found!";
+        foreach my $line(@detected) {
+            chomp($line);
+            push @SUMMARY, "$line\n";
+        }
     }
 }
 
