@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.32";
+my $version = "3.5.33";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -560,9 +560,9 @@ sub scan {
     print_header('[ Checking for unowned files/libraries ]');
     logit("Checking for non-owned files/libraries");
     check_lib();
-    print_header('[ Checking /etc/group for suspicious users ]');
-    logit("Checking /etc/group for suspicious users");
-    check_etc_group();
+    print_header('[ Checking for suspicious users under /etc ]');
+    logit("Checking for suspicious users under /etc");
+    check_etc_files();
     print_header('[ Checking for suspicious Email Filters ]');
     logit("Checking for suspicious Email Filters");
     check_email_filters();
@@ -3972,19 +3972,30 @@ m/localhost blockchain.info|localhost 100.100.25.3 jsrv.aegis.aliyun.com|localho
     }
 }
 
-sub check_etc_group {
-    my @susp_users = qw( gh0stx sclipicibosu mexalzsherifu);
+sub check_etc_files {
+    my @susp_users = qw( gh0stx sclipicibosu mexalzsherifu Aut0m );
     return unless ( -e '/etc/group' ) ;    ## If this is true, you have more serious problems.
-    open( my $fh, '<', '/etc/group' );
-    while ( <$fh> ) {
-        foreach my $susp_user (@susp_users) {
-            chomp($susp_user);
-            if ( $_ =~ m{$susp_user} ) {
-                push @SUMMARY, "> Found suspicious user in /etc/group file - " . CYAN $susp_user;
+    my @dirs = qw( /etc /etc/sudoers.d );
+    my @files = qw( group passwd sudoers );
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            my $fullpath = $dir . "/" . $file;
+            stat $fullpath;
+            if ( -f _ and not -z _ ) {
+                open( my $fh, '<', "$dir/$file" );
+                while ( <$fh> ) {
+                    foreach my $susp_user (@susp_users) {
+                        chomp($susp_user);
+                        if ( $_ =~ m{$susp_user} ) {
+                            push @SUMMARY, "> Found suspicious user in $dir/$file - " . CYAN $susp_user;
+                        }
+                    }
+                }
+                close( $fh );
             }
         }
     }
-    close( $fh );
 }
 
 sub check_binaries_for_shell {
