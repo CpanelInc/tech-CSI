@@ -6151,22 +6151,22 @@ rule webshell_in_image
             any of ( $asp_cr_write* )
         ) or (
             any of ( $asp_streamwriter* )
-        ) 
+        )
         )
         ) ) )
 }
 
 rule cw_androxgh0st_strings {
     meta:
-        author = “Alex Delamotte @ SentinelLabs”
-        description = “Rule based on Androxgh0st file contents.”
-        reference = “https://s1.ai/AlienFox”
+        author = "Alex Delamotte @ SentinelLabs"
+        description = "Rule based on Androxgh0st file contents."
+        reference = "https://s1.ai/AlienFox"
     strings:
-        $a = “asu = androxgh0st().get_aws_region(text)” ascii wide
-        $b = “nam = input(‘\x1b[1;37;40mInput Your List : ‘)” ascii wide
-        $c = “def jembotngw2(sites):” ascii wide
-        $d = “def nowayngntd():” ascii wide
-        $e = “def makethread(jumlah):” ascii wide
+        $a = "asu = androxgh0st().get_aws_region(text)" ascii wide
+        $b = "nam = input(‘\x1b[1;37;40mInput Your List : ‘)" ascii wide
+        $c = "def jembotngw2(sites):" ascii wide
+        $d = "def nowayngntd():" ascii wide
+        $e = "def makethread(jumlah):" ascii wide
     condition:
         any of them
 }
