@@ -6157,7 +6157,7 @@ rule webshell_in_image
 }
 
 rule cw_androxgh0st_strings {
-    meta: 
+    meta:
         author = “Alex Delamotte @ SentinelLabs”
         description = “Rule based on Androxgh0st file contents.”
         reference = “https://s1.ai/AlienFox”
