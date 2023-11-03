@@ -6173,14 +6173,14 @@ rule cw_androxgh0st_strings {
 
 rule cw_boto_broad_persistence {
     meta:
-        author = “Alex Delamotte @ SentinelLabs”
-        description = “Detect (Boto3 OR samples referencing Telegram channels) AND AWS persistence login profile.”
-        reference = “https://s1.ai/AlienFox”
+        author = "Alex Delamotte @ SentinelLabs"
+        description = "Detect (Boto3 OR samples referencing Telegram channels) AND AWS persistence login profile."
+        reference = "https://s1.ai/AlienFox"
     strings:
-        $a = “boto3.client(‘ses’”
-        $a1 = “https://t.me”
-        $b = “arn:aws:iam::aws:policy/AdministratorAccess”
-        $c = “iam.create_login_profile(UserName=”
+        $a = "boto3.client(‘ses’"
+        $a1 = "https://t.me"
+        $b = "arn:aws:iam::aws:policy/AdministratorAccess"
+        $c = "iam.create_login_profile(UserName="
     condition:
         ($a or $a1) and ($b or $c)
 }
