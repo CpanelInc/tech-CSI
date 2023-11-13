@@ -55,6 +55,7 @@
 .bart
 .bart.zip
 .better_call_saul
+.BiBi3
 .bin
 .bip
 .birbb
