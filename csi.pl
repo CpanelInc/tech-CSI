@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.33";
+my $version = "3.5.34";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -97,7 +97,7 @@ if ( not length($hostname) ) {
 my (
     $full,         $shadow,  $symlink,        $yarascan,
     $secadv,       $help,    $debug,          $userscan,
-    $customdir,    $binscan, $scan,           %process,
+    $customdir,    $scan,           %process,
     %ipcs,         $distro,  $distro_version, $distro_major,
     $distro_minor, $ignoreload, $overwrite,   $cron
 );
@@ -116,7 +116,6 @@ our $PROCESS_REF;
 our @RPM_LIST;
 our $OPT_TIMEOUT;
 GetOptions(
-    'bincheck'    => \$binscan,
     'userscan=s'  => \$userscan,
     'customdir=s' => \$customdir,
     'full'        => \$full,
@@ -239,13 +238,6 @@ my $findRPMissues =
   unless ( $distro eq "ubuntu" );
 my $isRPMYUMrunning = rpm_yum_running_chk();
 
-if ($binscan) {
-    bincheck();
-    if ( $distro eq "ubuntu" ) {
-        print "The bincheck option not available on Ubuntu!\n";
-    }
-    exit;
-}
 if ($userscan) {
     my $usertoscan = $userscan;
     chomp($usertoscan);
@@ -276,13 +268,12 @@ exit;
 sub show_help {
     print_header("\ncPanel Security Investigator Version $version");
     print_header(
-"Usage: /usr/local/cpanel/3rdparty/bin/perl csi.pl [options] [function]\n"
+"Usage: /usr/local/cpanel/3rdparty/bin/perl csi.pl [options]\n"
     );
     print_header("Functions");
     print_header("=================");
-    print_status("With no arguments [DEFAULT] performs a quick scan looking for IoC's.");
+    print_status("With no arguments [WHICH IS THE DEFAULT] a quick scan is performed.");
     print_normal(" ");
-    print_status( "--bincheck  Performs RPM verification on core system binaries and prints active aliases.");
     print_status( "--userscan cPanelUser  Installs Yara if not already installed & performs a Yara scan for a single cPanel User.");
     print_normal(" ");
     print_header("Additional scan options available");
@@ -298,14 +289,12 @@ sub show_help {
     print_normal(" ");
     print_header("Examples");
     print_header("=================");
-    print_status("            /root/csi.pl [DEFAULT] quick scan");
+    print_status("            /root/csi.pl with no arguments does a quick scan [DEFAULT]");
     print_status("            /root/csi.pl --symlink");
     print_status("            /root/csi.pl --secadv");
     print_status("            /root/csi.pl --full [--yarascan]");
     print_status("            /root/csi.pl --overwrite");
     print_status("            /root/csi.pl --cron [ add this to roots crontab or to a file in /etc/cron.d or /etc/cron.daily ]");
-    print_status("Bincheck: ");
-    print_status("            /root/csi.pl --bincheck");
     print_status("Userscan ");
     print_status("            /root/csi.pl --userscan myuser");
     print_status(
@@ -314,82 +303,6 @@ sub show_help {
 "            (must be relative to the myuser homedir and defaults to public_html if non-existent!"
     );
     print_normal(" ");
-}
-
-sub bincheck {
-    return if ( $distro eq "ubuntu" );
-    logit("Starting bincheck");
-    print_normal('');
-    print_header('[ Starting cPanel Security Investigator Bincheck Mode ]');
-    print_header("[ System: $OS_RELEASE ]");
-    print_normal('');
-    print_header('[ Generating Installed RPM List - Please wait... ]');
-    logit("Generating Installed RPM List");
-    print_normal('');
-    my $rpmissues = 0;
-    my %okbins    = (
-        '/usr/bin/at',                      '.M.......',
-        '/bin/su',                          '.M....G..',
-        '/bin/ping',                        '.M.......',
-        '/bin/ping6',                       '.M.......',
-        '/usr/bin/locate',                  '.M.......',
-        '/usr/bin/quota',                   '.M.......',
-        '/usr/bin/screen',                  '.M.......',
-        '/usr/sbin/userhelper',             '.M.......',
-        '/usr/bin/chsh',                    '.M.......',
-        '/usr/bin/ld',                      '.M....G..',
-        '/usr/bin/c99',                     '.M....G..',
-        '/usr/bin/gcc',                     '.M....G..',
-        '/usr/bin/x86_64-redhat-linux-gcc', '.M....G..',
-        '/usr/bin/c++',                     '.M....G..',
-        '/usr/bin/g++',                     '......G..',
-        '/usr/bin/x86_64-redhat-linux-c++', '......G..',
-        '/usr/bin/x86_64-redhat-linux-g++', '......G..',
-        '/usr/bin/ssh-agent',               '.M.......',
-        '/usr/bin/chage',                   '.M.......',
-    );
-    my @BINARIES;
-    my $verify_string;
-    my $verify;
-    my $binary;
-    my $binaryline;
-
-    return unless my $rpms = get_rpm_href();
-    my @rpms=split /\n/, $rpms;
-    my $RPMcnt = @rpms;
-    print_status( 'Done - Found: ' . $RPMcnt . ' Packages to verify' );
-    print_header('[ Verifying RPM binaries - This may take some time... ]');
-    logit("Verifying RPM binaries");
-
-    foreach my $rpmline (@rpms) {
-        chomp($rpmline);
-        # We skip cpanel and ea- provided RPM's since those are checked via /usr/local/cpanel/scripts/check_cpanel_pkgs
-        next if ( $rpmline =~ m/^(ea-|cpanel)/ );
-        $verify = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-V', $rpmline );
-        chomp($verify);
-        spin();
-        push( @BINARIES, $verify ) unless ( $verify eq "" or ! $verify =~ m{bin|sbin} );
-    }
-    foreach $binaryline (@BINARIES) {
-        chomp($binaryline);
-        ( $verify_string, $binary ) = ( split( /\s+/, $binaryline ) );
-        chomp($verify_string);
-        chomp($binary);
-        if ( exists $okbins{$binary} ) {
-            my $verify_okstring = $okbins{$binary};
-            if ( $verify_string ne $verify_okstring ) {
-                push( @SUMMARY,
-                    "> Modified Attribute: $binary [$verify_string]" );
-                $rpmissues = 1;
-            }
-        }
-    }
-    if ( $rpmissues == 0 ) {
-        print_info("No RPM issues found!");
-    }
-    logit("Creating summary");
-    dump_summary();
-    return;
 }
 
 sub disclaimer {
@@ -490,7 +403,14 @@ sub scan {
     logit("Checking for open files that have been deleted");
     check_lsof_deleted();
     print_header('[ Checking /etc/ld.so.preload for compromised library ]');
+    logit("Checking /etc/ld.so.preload for compromised library");
     check_preload();
+    print_header('[ Checking for LKM rootkits ]');
+    logit("Checking for Loadable Kernel Module rootkits");
+    check_for_lkm_rootkits();
+    print_header('[ Checking /dev/shm for binaries that are scripts or ELF fileyptes ]');
+    logit("Checking /dev/shm for scripts and ELF file types");
+    check_dev_shm_for_elf();
     print_header('[ Checking process list for suspicious processes ]');
     logit("Checking process list for suspicious processes");
     check_processes();
@@ -576,8 +496,14 @@ sub scan {
         logit("Checking for shadow.roottn.bak hacks");
         chk_shadow_hack();
     }
+    if ( $full ) {
+        print_header( YELLOW '[ Additional check for infected openssh backdoors ]' );
+        logit("Checking for infected openssh config files");
+        check_auth_keys_for_commands();
+    }
 
     if ( $full ) {
+        print_header( YELLOW '[ Additional check for infections using YARA rules ]' );
         my $yara_available = check_for_yara();
         if ($yara_available) {
             my $abort_scan=0;
@@ -1882,6 +1808,7 @@ sub userscan {
         }
     }
 
+    # Check for shadow.roottn.bak hack variants
     print_status("Checking for shadow.roottn.bak hack variants...");
     my $shadow_roottn_baks = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/etc", '-name', 'shadow\.*', '-print' ) unless ( !-d "$RealHome/etc" );
     if ($shadow_roottn_baks) {
@@ -1912,12 +1839,14 @@ sub userscan {
         }
     }
 
+    # Check cgi-bin directory for suspicious bash script
     print_status("Checking cgi-bin directory for suspicious bash script");
     if ( -e ("$RealHome/$pubhtml/cgi-bin/jarrewrite.sh") ) {
         push @SUMMARY,
 "> Found suspicious bash script $RealHome/$pubhtml/cgi-bin/jarrewrite.sh";
     }
 
+    # Check for wp-rest-api class (not normal)
     print_status("Checking for suspicious wp-rest-api class");
     if ( -e ("$RealHome/$pubhtml/class-wp-rest-api.php") ) {
         push @SUMMARY,
@@ -1973,6 +1902,7 @@ sub userscan {
         }
     }
 
+    # Check for php scripts within the SSL DCV check directories.
     print_status("Checking for php scripts in $RealHome/$pubhtml/.well-known");
     use Path::Iterator::Rule;
     my $rule          = Path::Iterator::Rule->new;
@@ -1990,6 +1920,7 @@ sub userscan {
         push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
     }
 
+    # Check for accesshash file in homedir
     print_status(
         "Checking for deprecated .accesshash file in " . $RealHome . "..." );
     logit( "Checking for deprecated .accesshash file in " . $RealHome );
@@ -2003,6 +1934,7 @@ sub userscan {
         );
     }
 
+    # Check for .my.cnf file in homedir.
     print_status(
         "Checking for deprecated .my.cnf file in " . $RealHome . "..." );
     logit( "Checking for deprecated .my.cnf file in " . $RealHome );
@@ -2016,6 +1948,7 @@ sub userscan {
         );
     }
 
+    # Check for .env file in homedir
     print_status( "Checking for .env file in " . $RealHome . "..." );
     logit( "Checking for .env file in " . $RealHome );
     if ( -e ("$RealHome/.env") ) {
@@ -2028,6 +1961,7 @@ sub userscan {
         );
     }
 
+    # Check for Troldesh Ransomware
     print_status( "Checking for Troldesh Ransomware in "
           . $RealHome
           . "/$pubhtml/.well-known/pki-validation and acme-challenge..." );
@@ -2121,6 +2055,7 @@ sub userscan {
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
+
     my $susp_dir = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'd', '-print' );
     my @susp_dir = split /\n/, $susp_dir;
     my $showHeader=0;
@@ -2134,6 +2069,20 @@ sub userscan {
                 push @SUMMARY, expand( MAGENTA "\t\t\\_ Also contains the " . WHITE "three-column-screen-layout.php" . MAGENTA " file." );
                 push @SUMMARY, expand( MAGENTA "\t\t\\_ Likely related to the AnonymousF0x exploit" );
             }
+        }
+    }
+
+    # Check for malicious @include line in wp-config.php files
+    # RIGHT HERE
+    my $wp_config_files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'f', '-name', 'wp-config.php', '-print' );
+    my @wp_config_files = split /\n/, $wp_config_files;
+    my $showHeader=0;;
+    foreach my $wp_conffile(@wp_config_files) {
+        chomp($wp_conffile);
+        my $found = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', '^\@include', $wp_conffile );
+        if ( $found ) {
+            push @SUMMARY, "> Found suspicious \@include line within $wp_conffile";
+            push @SUMMARY, expand( MAGENTA "\t\\_ $found" );
         }
     }
 
@@ -4130,7 +4079,7 @@ sub check_for_cronRAT {
 
     # check for evidence of cronRAT - https://sansec.io/research/cronrat
     my @dirs = qw( /dev/shm /tmp /var/tmp );
-    my @files = qw( www-shared server-worker-shared sql-shared php-shared systemd-user.lock php.lock php-fpm.lock www-    server.lock php_sess_RANDOM zend_cache___RANDOM php_cache www_cache worker_cahce logo_edited_DATE.png user_edited_DATE.css custom_edited_DATE.css );
+    my @files = qw( www-shared server-worker-shared sql-shared php-shared systemd-user.lock php.lock php-fpm.lock www-server.lock php_sess_RANDOM zend_cache___RANDOM php_cache www_cache worker_cahce logo_edited_DATE.png user_edited_DATE.css custom_edited_DATE.css );
     # Yes, the misspelling of worker_cahce is intentional :)
     my $fullpath;
     my $fullstat;
@@ -4559,6 +4508,54 @@ sub check_for_bpfdoor {
     }
 }
 
+sub check_for_lkm_rootkits {
+    my @lookfor=qw( reptile_module diamorphine );
+    foreach my $lkm(@lookfor) {
+        chomp($lkm);
+        my $lsmod=Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
+        my @lsmod=split /\n/,$lsmod;
+        foreach my $lsmod_line(@lsmod) {
+            chomp( $lsmod_line );
+            my ( $lsmodule ) = (split( /\s+/, $lsmod_line ));
+            if ( $lsmodule =~ m{$lkm} ) {
+                push @SUMMARY, "> Found evidence of possible LKM rootkit " . MAGENTA $lkm . YELLOW " module loaded.";
+            }
+        }
+    }
+}
+
+sub check_dev_shm_for_elf {
+    my @searchfor=qw( ELF script );
+    my $findcmd = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "/dev/shm", '-type', 'f' );
+    chomp($findcmd);
+    my @findcmd = split /\n/, $findcmd;
+    foreach my $foundline(@findcmd) {
+        my $filetype=Cpanel::SafeRun::Timed::timedsaferun( 0, 'file', '-p', $foundline );
+        chomp($filetype);
+        foreach my $searchstring (@searchfor) {
+            chomp($searchstring);
+            if ( $filetype =~ m/$searchstring/ ) {
+                push @SUMMARY, "> The " . CYAN $foundline . YELLOW " file is of the type " . MAGENTA $searchstring . YELLOW " and should be investigated.";
+            }
+        }
+    }
+}
+
+sub check_auth_keys_for_commands {
+    my @searchfor=qw( authorized_keys authorized_keys2 *id_*.pub );
+    foreach my $search(@searchfor) {
+        chomp($search);
+        my $findcmd = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "/", '-type', 'f', '-name', $search );
+        my @findcmd = split /\n/, $findcmd;
+        foreach my $line(@findcmd) {
+            chomp($line);
+            my $found = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-rnwl', '-e', 'command=', $line );
+            chomp($found);
+            push @SUMMARY, "> The file " . GREEN $found . YELLOW " contains suspicious " . CYAN "command= [openssh specific]" . YELLOW " line which could be used to create backdoors." if ( $found );
+        }
+    }
+}
+
 sub check_for_freedownloadmanager_malware {
     return unless( $distro eq 'ubuntu' );
     my $detection = 0;
@@ -4699,8 +4696,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 =item quick scan [DEAULT] - Perform a quick scan of the server
 
 =item --userscan cPanelUser - Scans an individual user account.
-
-=item --binscan - Does an RPM verify of all binaries on the server.
 
 =item --symlink - Includes a check for symlink hacks during scan.
 
