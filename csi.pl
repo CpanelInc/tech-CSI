@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.34";
+my $version = "3.5.35";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -97,7 +97,7 @@ if ( not length($hostname) ) {
 my (
     $full,         $shadow,  $symlink,        $yarascan,
     $secadv,       $help,    $debug,          $userscan,
-    $customdir,    $scan,           %process,
+    $customdir,    $scan,    $skipkernel,     %process,
     %ipcs,         $distro,  $distro_version, $distro_major,
     $distro_minor, $ignoreload, $overwrite,   $cron
 );
@@ -128,6 +128,7 @@ GetOptions(
     'debug'       => \$debug,
     'overwrite'   => \$overwrite,
     'cron'        => \$cron,
+    'skipkernel'  => \$skipkernel,
 );
 
 #######################################
@@ -281,6 +282,7 @@ sub show_help {
     print_header( "--shadow     Performs a check on all email accounts looking for variants of shadow.roottn hack.");
     print_header( "--symlink    Performs a symlink hack check for all accounts.");
     print_header( "--secadv     Runs Security Advisor");
+    print_header( "--skipkernel Skip kernel update checks. Useful if a custom kernel is installed and kernel checking fails.");
     print_header( "--yarascan   Skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
     print_header( "--full       Performs all of the above checks - very time consuming. Can cause HIGH LOAD DURING YARA SCANS!!!");
     print_header( "--overwrite  Overwrite last summary and skip creation of new CSI directory under root.");
@@ -292,6 +294,7 @@ sub show_help {
     print_status("            /root/csi.pl with no arguments does a quick scan [DEFAULT]");
     print_status("            /root/csi.pl --symlink");
     print_status("            /root/csi.pl --secadv");
+    print_status("            /root/csi.pl --skipkernel");
     print_status("            /root/csi.pl --full [--yarascan]");
     print_status("            /root/csi.pl --overwrite");
     print_status("            /root/csi.pl --cron [ add this to roots crontab or to a file in /etc/cron.d or /etc/cron.daily ]");
@@ -384,6 +387,9 @@ sub scan {
     print_header('[ Checking for BPFDoor ]');
     logit("Checking for BPFDoor");
     check_for_bpfdoor();
+    print_header('[ Checking for suspicious /etc/rc.modules file ]');
+    logit("Checking for suspicious /etc/rc.modules file");
+    check_for_susp_rc_modules();
     print_header('[ Checking for Free Download Manager Malware ]');
     logit("Checking for Free Download Manager Malware");
     check_for_freedownloadmanager_malware();
@@ -470,9 +476,9 @@ sub scan {
     print_header('[ Checking for ransomwareEXX ]');
     logit("Checking for ransomwareEXX");
     check_for_ransomwareEXX();
-    print_header('[ Checking kernel status ]');
-    logit("Checking kernel status");
-    check_kernel_updates();
+    print_header('[ Checking kernel status ]') unless( $skipkernel );
+    logit("Checking kernel status") unless( $skipkernel );
+    check_kernel_updates() unless( $skipkernel );
     print_header( '[ Checking for suspicious MySQL users (Including Super privileges) ]');
     logit("Checking for suspicious MySQL users including Super privileges");
     check_for_Super_privs();
@@ -637,6 +643,25 @@ sub check_previous_scans {
         mkdir( "$csidir", 0755 );
     }
     return;
+}
+
+sub check_webtemplates_for_hack_page {
+    my $dir='/var/cpanel/webtemplates/root/english';
+    return unless( -d $dir );
+    opendir my $dh, $dir;
+    my @templatefiles = readdir($dh);
+    closedir $dh;
+    my $showHeader=0;
+    foreach my $file(@templatefiles) {
+        chomp($file);
+        next if $file eq "." or $file eq "..";
+        my $isHacked=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-i', 'hack', "$dir/$file" );
+        if ( $isHacked ) {
+            push @SUMMARY, "> Web template file under: " . CYAN "$dir" . YELLOW " might contain a hack page." unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, MAGENTA "\t\\_ $file";
+        }
+    }
 }
 
 sub check_kernel_updates {
@@ -2073,7 +2098,6 @@ sub userscan {
     }
 
     # Check for malicious @include line in wp-config.php files
-    # RIGHT HERE
     my $wp_config_files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'f', '-name', 'wp-config.php', '-print' );
     my @wp_config_files = split /\n/, $wp_config_files;
     my $showHeader=0;;
@@ -4505,6 +4529,27 @@ sub check_for_bpfdoor {
             push @SUMMARY, "> Found evidence of possible BFPDoor hack $chk_iptables";
         }
         $start_port++;
+    }
+}
+
+sub check_for_susp_rc_modules {
+    return unless( -s '/etc/rc.modules' );
+    if ( -d '/etc/rc.modules/' ) {
+        push @SUMMARY, "> /etc/rc.modules is a directory - please check contents manually!\n";
+        return;
+    }
+    my @susp_data = qw( acpiphp ip_conntrack_ftp );
+    open( my $fh, '<', '/etc/rc.modules' );
+    foreach my $line(@susp_data) {
+        chomp($line);
+        my $showHeader=0;
+        while ( <$fh> ) {
+            chomp;
+            next if ( $_ =~ m/$line/ );
+            push @SUMMARY, "> Possible rootkit presence in /etc/rc.modules file - contains suspicious entry." unless($showHeader);
+            $showHeader=1;
+        }
+        close( $fh );
     }
 }
 
