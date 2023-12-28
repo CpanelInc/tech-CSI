@@ -89,6 +89,7 @@
 /dev/.kork
 /dev/.lib
 /dev/.lib/1iOn.sh
+/dev/network/.stx
 /dev/.pizda
 /dev/ptyp
 /dev/ptyr

@@ -875,10 +875,8 @@ sub check_roots_history {
     my $histline;
     foreach $histline (@HISTORY) {
         chomp($histline);
-        if ( $histline =~
-m/\etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent/
-          )
-        {
+        #if ( $histline =~ m/\/etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd \/ev\/network/) {
+        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo}) {
             push( @SUMMARY,
                 "> Suspicious entries found in /root/.bash_history" );
             push( @SUMMARY, expand( "\t\\_ $histline" ) );
