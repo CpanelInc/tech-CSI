@@ -142,9 +142,6 @@ my $content=get_hashes();
 our @knownhashes = split /\n/, $content;
 my $docdir = '/usr/share/doc';
 check_for_touchfile();
-#my @logfiles = (
-    #'/var/log/apache2/access_log', '/var/log/apache2/error_log', '/var/log/wtmp'
-#);
 
 my @logfiles = ( '/var/log/wtmp' );
 if ( ! -e '/var/cpanel/dnsonly' ) {
@@ -709,7 +706,8 @@ sub check_kernel_updates {
 
 sub check_logfiles {
     my $apachelogpath;
-    $apachelogpath = "/etc/apache2/logs";
+    #$apachelogpath = "/etc/apache2/logs";
+    $apachelogpath = "/var/log/apache2";
     chomp($apachelogpath);
     if ( !-d $apachelogpath ) {
         push @SUMMARY, "> $apachelogpath directory is not present";
@@ -1037,9 +1035,9 @@ sub check_ssh {
             }
             $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc.|Rocky/) );
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm01|buildfarm02|buildfarm03|centos.org|redhat.com|rockylinux.org|pb-cd3f2807/));
+            $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm0|centos.org|redhat.com|rockylinux.org|almalinux.org/));
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716|702d426d350d275d/));
+            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716|702d426d350d275d|2ae81e8aced7258b/));
             $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) );
         }
     }
@@ -1497,6 +1495,29 @@ sub check_for_fritzfrog {
         my ( $binary, $pid, $user ) = (split( /\s+/, $lsof));
         next unless( $user eq 'root' );
         push @SUMMARY, "> Found possible FritzFrog malware. $binary running on pid $pid";
+    }
+    my @logs2chk;
+    my $regexp = '\$?\{jndi:(ldap|ldaps|rmi|dns):\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}\${lower:a}\${lower:p}:\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}a\${lower:p}:\/[\/]?[a-z-\.0-9].*';
+    @logs2chk = glob( q{ /var/log/nginx/domains/*_log });
+    push @logs2chk, '/var/log/apache2/access_log';
+    push @logs2chk, '/var/log/apache2/error_log';
+    push @logs2chk, '/usr/local/cpanel/logs/access_log';
+    push @logs2chk, '/usr/local/cpanel/logs/login_log';
+    push @logs2chk, '/usr/local/cpanel/logs/session_log';
+    my $showHeader=0;
+    my $lastlogfile = "";
+    foreach my $logfile(@logs2chk) {
+        open( my $fh, '<', $logfile ) or next;
+        while( <$fh> ) {
+            chomp;
+            if ( $_ =~ m/$regexp/gmi ) {
+                push @SUMMARY, "> Found attempts of old Log4JShell hacks (possibly related to recent FritzFrog hack" unless( $showHeader );
+                $showHeader=1;
+                push @SUMMARY, CYAN "\t\\_ $logfile contains " . MAGENTA "\${jndi:ldap" unless( $logfile eq $lastlogfile );
+                $lastlogfile = $logfile;
+            }
+        }
+        close ( $fh );
     }
 }
 
