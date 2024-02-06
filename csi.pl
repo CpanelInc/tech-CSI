@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.35";
+my $version = "3.5.36";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1511,9 +1511,9 @@ sub check_for_fritzfrog {
         while( <$fh> ) {
             chomp;
             if ( $_ =~ m/$regexp/gmi ) {
-                push @SUMMARY, "> Found attempts of old Log4JShell hacks (possibly related to recent FritzFrog hack" unless( $showHeader );
+                push @RECOMMENDATIONS, "> Found attempts of old Log4JShell hacks in the following log file(s). Should be checked but might be false-positives." unless( $showHeader );
                 $showHeader=1;
-                push @SUMMARY, CYAN "\t\\_ $logfile contains " . MAGENTA "\${jndi:ldap" unless( $logfile eq $lastlogfile );
+                push @RECOMMENDATIONS, CYAN "\t\\_ $logfile contains " . MAGENTA "\${jndi:ldap " . GREEN "( Check with " . WHITE "grep '\${jndi:ldap' $logfile" . GREEN " )" unless( $logfile eq $lastlogfile );
                 $lastlogfile = $logfile;
             }
         }
