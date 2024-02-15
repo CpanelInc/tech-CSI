@@ -1,5 +1,5 @@
-/.a/
-/.a/mass2ip/
+/.a
+/.a/mass2ip
 /.a/mass2ip/masscan
 /bin/a
 /bin/clean
@@ -8,6 +8,7 @@
 /bin/config.txt
 /bin/cpu.txt
 /bin/crondr
+/bin/dhcpd
 /bin/dockerlogger
 /bin/ftpsdns
 /bin/gmbpr
@@ -97,7 +98,7 @@
 /dev/ptyzg
 /dev/ptyzx
 /dev/.pula
-/dev/.rd/
+/dev/.rd
 /dev/rd/cdb
 /dev/saux
 /dev/.shit/red.tgz
@@ -123,6 +124,7 @@
 /dev/shm/.lwp
 /dev/shm/.lwp/.out
 /dev/shm/.lwp/.rsync
+/dev/shm/.magic
 /dev/shm/mnem
 /dev/shm/mycron
 /dev/shm/ngrok
@@ -130,18 +132,19 @@
 /dev/shm/sd
 /dev/shm/server-worker-shared
 /dev/shm/sh10
+/dev/shm/.shmdiskvg.log
 /dev/shm/socat
 /dev/shm/sql-shared
 /dev/shm/.ssh/./x86_64
 /dev/shm/sud
 /dev/shm/sys.png
-/dev/shm/.shmdiskvg.log
 /dev/shm/.systemd/.systemd
 /dev/shm/www-shared
+/dev/shm/.x
 /dev/shm/.X867123/.rsync/a/kswapd0
 /dev/shm/.X867123/.rsync/c/lib/64/tsm
-/dev/shm/.X99910/
-/dev/shm/.X99910/.rsync/
+/dev/shm/.X99910
+/dev/shm/.X99910/.rsync
 /dev/shm/.X99910/.rsync/c
 /dev/shm/.X99910/.rsync/c/aptitude
 /dev/shm/xmg
@@ -418,10 +421,13 @@
 /lib/lidps1.so
 /lib/.ligh.gh
 /lib/log.h
+/lib/*/magicPussy*
+/lib/*/mimic_*
 /lib/proc.h
 /.Library/log.txt
 /.Library/SystemNetwork
 /.Library/SystemServices/updateSystem
+/lib/*/ScBr_*
 /lib/security/.config
 /lib/security/update.so
 /lib/.so
@@ -443,12 +449,12 @@
 /linux_avp
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /media/.cpuminer-gr-1.2.2-x86_64_linux
-/myshell/
+/myshell
 /netscaler/ns_gui/vpn/medialogininit.png
 /opt/aspera/faspex
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
-/opttest/
+/opttest
 /opt/yilu/mservice
 /opt/yilu/work/xig
 /opt/yilu/work/xige
@@ -616,7 +622,7 @@
 /run/bioset
 /run/chernobyl.sh
 /run/gcc.pid
-/rxp/
+/rxp
 /sbin/home
 /sbin/.ifup-local
 /sbin/ipH9
@@ -699,7 +705,7 @@
 /tmp/ext4-rsv-conver
 /tmp/fdsfsfvff
 /tmp/filer
-/tmp/.FILE/stak /
+/tmp/.FILE/stak 
 /tmp/flush-199:13000
 /tmp/flush-199:25000
 /tmp/flush-199:30000
@@ -802,7 +808,7 @@
 /tmp/qW3xT.2
 /tmp/.../r
 /tmp/ramen.tgz
-/tmp/Res/
+/tmp/Res
 /tmp/Res/Payload
 /tmp/rewgtf3er4t
 /tmp/.rewt
@@ -1043,7 +1049,7 @@
 /usr/doc/.sl
 /usr/doc/.sp
 /usr/doc/.statnet
-/usr/falc0n/
+/usr/falc0n
 /usr/games/.blane
 /usr/games/.lost+found
 /usr/games/.ssh
@@ -1127,7 +1133,7 @@
 /usr/.IptabLes
 /usr/IptabLes
 /usr/.IptabLex
-/usr/lib/.../
+/usr/lib/...
 /usr/lib32/.X11/X0-lock
 /usr/lib64/libkeyutils.so.1.6.1
 /usr/lib64/seahorses/cpc
@@ -1237,13 +1243,13 @@
 /usr/local/share/. /fs
 /usr/local/share/. /ita
 /usr/local/share/. /ita/ita.gz
-/usr/local/share/. /Mailer/
+/usr/local/share/. /Mailer
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
 /usr/local/tomcat/webapps/jsp_app/cmd.jsp
 /usr/local/__UMBREON__
 /usr/local/UMBREON
-/usr/local/www/xui/common/css/
+/usr/local/www/xui/common/css
 /usr/man/.man10
 /usr/man/man1/lib/.lib
 /usr/man/man2/.man8
@@ -1251,7 +1257,7 @@
 /usr/man/muie
 /usr/ofed/bin/bin
 /usr/ofed/bin/ssh
-/usr/sbin/.../
+/usr/sbin/...
 /usr/sbin/arobia
 /usr/sbin/atd2
 /usr/sbin/events
@@ -1365,12 +1371,13 @@
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile
 /var/ssh.conf
-/var/tmp/.../dia/
 /var/tmp/all.txt
-/var/tmp/.apache/
+/var/tmp/.apache
 /var/tmp/cb
 /var/tmp/config.json
 /var/tmp/...data.lock
+/var/tmp/.../dia
+/var/tmp/Documents
 /var/tmp/dota3.tar.gz
 /var/tmp/find
 /var/tmp/god*
@@ -1397,6 +1404,7 @@
 /var/tmp/.SQL-Unix/.SQL/.db
 /var/tmp/test.tar.gz
 /var/tmp/udev*
+/var/tmp/.update-logs
 /var/tmp/usbd
 /var/tmp/v3
 /var/tmp/worker_cache

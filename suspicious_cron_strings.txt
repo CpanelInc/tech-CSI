@@ -1,83 +1,86 @@
-tor2web
-onion
-yxarsh.shop
-cr2.sh
-oanacroane
-bnrffa4
-ipfswallet
-pastebin
-R9T8kK9w
-iamhex
-watchd0g.sh
-/tmp/./xL
-/dev/shm/.kauditd/[kauditd]
-n5slskx
+111.90.159.106
+122.51.164.83
+146.71.79.230
+185.181.10.234
+195.3.146.118
+195.3.146.118/ae.sh
+1.sh
+31.210.20.181
+3.215.110.66.one
+3.sh
+45.137.151.106
+53 23 31 2 3
 5b51f9dea
 6hsnefbp
-unk.sh
-ap.sh
-53 23 31 2 3
-import hashlib
-yx=hashlib
-.xmr
-bitcoin
-kinsing
-CRON11
-195.3.146.118
-logo4
-logo9
-logo0
-zmreplchkr
+acb.sh
 aliyun.one
-3.215.110.66.one
-lsd.systemten.org
-mr.sh
-185.181.10.234
-localhost.xyd
-45.137.151.106
-111.90.159.106
-bigd1ck.com
-xmr.ipzse.com
-146.71.79.230
-122.51.164.83
-newdat.sh
-lib.pygensim.com
-t.amynx.com
-systemd-service.sh
-pg_stat.sh
-oka
-linux1213
-zsvc
-31.210.20.181
-givemexyz
-1.sh
-3.sh
-oracleservice
-.Library/SystemServices/updateSystem
-fczyo-cron
-unix.sh
-brict.sh
-politrict.sh
-truct.sh
-restrict.sh
-/var/tmp/vm.lock
-bioset
-/etc/selinux/targeted/plugins
-195.3.146.118/ae.sh
-seed prng gs-bd-kernel
-DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
-base64 --decode
+ap.sh
 base64 -d
+base64 --decode
+bash /etc/csf/uninstall.sh
+bfdrive
+bigd1ck.com
 /bin/systemctl stop imunify360.service
 /bin/systemctl stop imunify-antivirus.service
-bash /etc/csf/uninstall.sh
-kavachelf
-bfdrive
-usbdriver
+bioset
+bitcoin
+bnrffa4
+brict.sh
+cr2.sh
+CRON11
+/dev/shm/.kauditd/[kauditd]
 /dev/shm/mycron
+DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
+/etc/selinux/targeted/plugins
+fczyo-cron
+fTakK8lVE
+givemexyz
+iamhex
+import hashlib
+ipfswallet
+kavachelf
+kinsing
+lib.pygensim.com
+.Library/SystemServices/updateSystem
+linux1213
+localhost.xyd
+logo0
+logo4
+logo9
+lsd.systemten.org
+magicPussy
+mimic_
+mr.sh
+n5slskx
+newdat.sh
+oanacroane
+oka
+onion
 opentab
+oracleservice
+pastebin
 perfclean
 Perfctl
-fTakK8lVE
+pg_stat.sh
+politrict.sh
+R9T8kK9w
+restrict.sh
+ScBr_
+seed prng gs-bd-kernel
+systemd-service.sh
+t.amynx.com
 /tmp/linux
-acb.sh
+/tmp/./xL
+tor2web
+truct.sh
+unix.sh
+unk.sh
+usbdriver
+/var/tmp/vm.lock
+watchd0g.sh
+.xmr
+xmr.ipzse.com
+yxarsh.shop
+yx=hashlib
+zmreplchkr
+zsvc

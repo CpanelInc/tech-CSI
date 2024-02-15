@@ -29,6 +29,7 @@ challengerd
 checkrc
 ./checkstatus
 checkstatus
+client-tcp
 cmd-pro.jsp
 CnzFVPLF
 cokkokotre1
@@ -50,15 +51,18 @@ ddg\.2011
 ddgs
 deamon
 dedpma
+./demo
 /dev/shm/\.lwp/\.rsync/c/lib/64/tsm
 /dev/shm/system1
 /dev/shm/z3.sh
+dhcpd
 disk_genius
 dockerlogger
 donns
 dovecat
 DSST
 Duck.sh
+echo "find"
 eggdrop
 enemybot
 entrypoint.sh
@@ -74,6 +78,7 @@ Guard.sh
 .gvfsd/.profile/gvfsd-helper
 hahwNEdB
 hello-
+honeygain
 httpntp
 i586
 icb5o
@@ -103,8 +108,8 @@ ksoftirqds
 kthreadd1
 kthreaddk
 kthrotlds
-kworker34
 kworker/0:22
+kworker34
 \[kworker /u8:7-ev\]
 kw.sh
 kxjd
@@ -115,8 +120,10 @@ log4j
 .login-n.jsp
 Loopback
 lx26
+magicPussy
 masscan
 mgwsl
+mimic_
 mine
 mine.moneropool.com
 minerd
@@ -132,6 +139,7 @@ nameservercheck
 nanoWatch
 nbhash
 netdns
+neww
 nopxi
 NXLAi
 ./oka
@@ -140,16 +148,20 @@ os.system\(\"/bin/bash\"\)
 os.system\(\"/bin/sh\"\)
 pas.pl
 \[pdflush-0\]
+peer2profit
+perfcc
 performedl
 pocosow
 pool.t00ls.ru
 pop.sh
+proot
 pro.sh
 pty.spawn\(\"/bin/bash\"\)
 pty.spawn\(\"/bin/ssh\"\)
 pty.spwan\(\"/bin/sh\"\)
 .purrple
 pwndns.pw
+pwnrig
 pythno
 qmgr -l -t fifo -u
 qW3xT
@@ -158,13 +170,17 @@ rc.local
 redis2
 registry
 removesshkeys
+reptile_cmd
+reptile_shell
 /root/-bash (deleted)
 /root/.configrc/a/kswapd0
 rr.sh
+ScBr_
 sedsomething
 .sherifu
 sleep 7200
 slowhttp
+smtpctl
 sourplum
 sshins
 \[stealth\]
@@ -187,11 +203,12 @@ updateSystem
 /usr/bin/execute
 /usr/bin/perl$
 /usr/bin/where
+/usr/libexec/postfix/master
 /usr/local/bin/perl$
 /usr/sbin/console-kit-daemon
-/usr/libexec/postfix/master
 /var/sbin/bash
 /var/tmp/java
+/var/tmp/run.sh
 /var/tmp/sustes
 watchdogs
 whatudoinglookingatdis
@@ -212,25 +229,12 @@ xmrigMiner
 xmrpool
 xmrpool.eu
 xmr-stak
+YDService
 YespowerSugar
+ygljglkjg
+ygljglkjgfg0
 ysaydh
 zcash
 zhuabcn@yahoo.com
 zigw
 .zte_error
-proot
-client-tcp
-perfcc
-./demo
-pwnrig
-ygljglkjg
-ygljglkjgfg0
-YDService
-echo "find"
-peer2profit
-honeygain
-/var/tmp/run.sh
-smtpctl
-neww
-reptile_shell
-reptile_cmd

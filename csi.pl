@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.36";
+my $version = "3.5.37";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1511,9 +1511,9 @@ sub check_for_fritzfrog {
         while( <$fh> ) {
             chomp;
             if ( $_ =~ m/$regexp/gmi ) {
-                push @RECOMMENDATIONS, "> Found attempts of old Log4JShell hacks in the following log file(s). Should be checked but might be false-positives." unless( $showHeader );
+                push @INFO, "> Found attempts of old Log4JShell hacks in the following log file(s). Should be checked but might be false-positives." unless( $showHeader );
                 $showHeader=1;
-                push @RECOMMENDATIONS, CYAN "\t\\_ $logfile contains " . MAGENTA "\${jndi:ldap " . GREEN "( Check with " . WHITE "grep '\${jndi:ldap' $logfile" . GREEN " )" unless( $logfile eq $lastlogfile );
+                push @INFO, CYAN "\t\\_ $logfile contains " . MAGENTA "\${jndi:ldap " . GREEN "( Check with " . WHITE "grep '\${jndi:ldap' $logfile" . GREEN " )" unless( $logfile eq $lastlogfile );
                 $lastlogfile = $logfile;
             }
         }
@@ -1634,7 +1634,7 @@ sub check_authorized_keys_file {
             push( @SUMMARY, "> [Possible Rootkit: Redis Hack] - " . CYAN "Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys.");
         }
         if ( $_ =~ m/rbdYSfTEtykGg/ ) {
-            push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Strange string [rbdYSfTEtykGg] found within /root/.ssh/authorized_keys.");
+            push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Suspicious string [rbdYSfTEtykGg] found within /root/.ssh/authorized_keys.");
         }
         if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDSEuS/A5HLzAwCbs+fqxCv1rLZ+x4vCdzcfLppJuCHnD2EO58W4aNDxtn2IBooyr4zylBJrNa64nQ3L7MvxckQMMLWkN6owZPtJs7+BPIsljX+Kz0svqGHDYk5KyQQ+O/uWVUU96X4NkyE4BxeQnH6jCYw2FCcnudsS5GLseBUozQvQlQEErRq3ma3skzZGB4kOq6He7ksaEUFjzgyfAQHzr1hPX5KJ/du4z7fX0KqUphK4AXbPL4Pqkusw4PeQLDjZGO8hRkDMVjnaPNliAS2pV9Guw+L7SLvXGHsz1Q+tT54JaSHkJoN6a0lJ/L3IehVTi/ZLLh4GgZ1WpWH7EqL" ) {
             push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
@@ -1645,8 +1645,17 @@ sub check_authorized_keys_file {
         if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCzml2PeIHOUG+78TIk0lQcR5JC/mlDElDtplEfq8KDiJFwD8z9Shhk2kG0pwzw9uUr7R24h8lnh9DWpiKfoy4MeMFrTO8akT1hXf4yn9IEEHdiq9hVz1ZkEnUdjyzuvXGIOcRe2FqQaovFY15gSDZzJc5K6NMT8uW1aitHAsYXZDW8uh+/SJAqcCCVUtVnZRj4nlhQxW2810CJGQQrixkkww7F/9XRlddH3HkNuRlZLQMk5oGHTxeySKKfqoAoXgZXac9VBAPRUU+0PrBrOSWlXFbGBPJSdvDfxBqcg4hguacD1EW0/5ORR7Ikp1i6y+gIpdydwxW51yAqrYqHI5iD" ) {
             push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Suspicious ssh-rsa key found within /root/.ssh/authorized_keys.");
         }
-        if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC\/2CmHl\/eiVchVmng4TEPAx0n0+6R0Rb\/W+zlwCR+\/g3MHqsiadebQx4/ ) {
-            push( @SUMMARY, "> [Possible p2pinfect Rootkit] - " . CYAN "Strange ssh-key found within /root/.ssh/authorized_keys.");
+        if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC\/2CmHl\/eiVchVmng4TEPAx0n0\+6R0Rb\/W\+zlwCR\+\/g3MHqsiadebQx4/ ) {
+            push( @SUMMARY, "> [Possible p2pinfect Rootkit] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
+        }
+        if ( $_ =~ m/AAAAB3NzaC1yc2EAAAADAQABAAABgQDtlkWJzOwt6Erl3lDRq\+QUSop854X\/tC9BcU0bBk\+5qLvPAU\/FIsQmIPGjW5xNa/ ) {
+            push( @SUMMARY, "> [NoaBot SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
+        }
+        if ( $_ =~ m/AAAAB3NzaC1yc2EAAAABJQAAAQEAoBjnno5GBoIuIYIhrJsQxF6OPHtAbOUIEFB\+gdfb1tUTjs\+f9zCMGkmNmH45fYVukw6IwmhTZ/ ) {
+            push( @SUMMARY, "> [Mexals SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
+        }
+        if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuhPmv3xdhU7JbMoc\/ecBTDxiGqFNKbe564p4aNT6JbYWjNwZ5z6E4iQQDQ0bEp7uBtB0/ ) {
+            push( @SUMMARY, "> [dhcpd cryptominer SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
         }
     }
     close($fh);
@@ -1832,12 +1841,18 @@ sub userscan {
     my $susp_crons_ref = get_suspicious_cron_strings();
     push @susp_cron_strings, @$susp_crons_ref;
     print_status( "Checking crontab for user: $lcUserToScan" );
-    my @usercrontab = Cpanel::SafeRun::Errors::saferunnoerror( 3, 'crontab', '-l', '-u', "$lcUserToScan" );
+    my $usercrontab = Cpanel::SafeRun::Errors::saferunnoerror( 3, 'crontab', '-l', '-u', "$lcUserToScan" );
+    my @usercrontab = split /\n/, $usercrontab;
     foreach my $susp_cron_string (@susp_cron_strings) {
         chomp($susp_cron_string);
-        if ( grep { /$susp_cron_string/ } @usercrontab ) {
+        foreach my $crontab_line (@usercrontab) {
+            chomp($crontab_line);
+            next unless( $crontab_line =~ m{$susp_cron_string} );
+            my $isCommented = ( substr( $crontab_line,0,1) eq "#" ) ? 1 : 0;
+            my ($cmd) = (split( /\s+/, $crontab_line))[5];
             push @SUMMARY, "> $lcUserToScan crontab contains a suspicious entry that should be investigated";
-            push @SUMMARY, expand( CYAN "\t\\_ $susp_cron_string" );
+            push @SUMMARY, expand( CYAN "\t\\_ $cmd" );
+            push @SUMMARY, expand( BLUE "\t\\_ Might be commented out." ) if ( $isCommented );
         }
     }
     # check users .bashrc file - CX-590
@@ -1847,7 +1862,6 @@ sub userscan {
             chomp($susp_cron_string);
             if ( grep { /$susp_cron_string/ } @usersbashrc ) {
                 push @SUMMARY, "> Suspicious entry found within users .bashrc file [ $HOMEDIR/$lcUserToScan/.bashrc ]";
-                push @SUMMARY, expand( CYAN "\t\\_ $susp_cron_string\n" );
             }
         }
     }
@@ -2709,6 +2723,21 @@ sub misc_checks {
             push @SUMMARY, expand( "\t\\_ rc-local.service should not be running with mysql --noTest" );
         }
     }
+
+    my $dhcpd_bin = Cpanel::SafeRun::Timed::timedsaferun( 5, 'ls', '-al', '/bin/' );
+    my @dhcpd_bin = split /\n/, $dhcpd_bin;
+    foreach my $line(@dhcpd_bin) {
+        chomp($line);
+        push @SUMMARY, "> Found evidence of the dhcpd cryptominer in /bin directory" if ( $line =~ m/[a-z0-9]{26}/ );
+        push @SUMMARY, expand( CYAN "\t\\_ $line" ) if ( $line =~ m/[a-z0-9]{26}/ );
+    }
+
+    open( my $fh, '<', '/etc/rc.local' ) || return;
+    while ( <$fh> ) {
+        chomp;
+        push @SUMMARY, "> Found evidence of the dhcpd cryptominer in the /etc/rc.local file." if ( $_ =~ 'dhcpd' );
+    }
+    close( $fh );
 }
 
 sub vtlink {
@@ -2932,6 +2961,7 @@ sub user_crons {
     push @susp_cron_strings, @$susp_crons_ref;
     foreach $usercron (@allcrons) {
         open( USERCRON, "$crondir/$usercron" );
+        next if ( $usercron eq 'root' );
         @crondata = <USERCRON>;
         close(USERCRON);
         foreach $cronline (@crondata) {
@@ -2947,10 +2977,10 @@ sub user_crons {
                 chomp($susp_cron_string);
                 if ( $cronline =~ m{$susp_cron_string} ) {
                     push @SUMMARY,
-                        expand( CYAN "> Found suspicious cron entry [ $susp_cron_string ] in the "
+                        expand( CYAN "> Found suspicious cron entry in the "
                     . MAGENTA $usercron
                     . CYAN " user account:"
-                    . YELLOW "\n\t\\_ $susp_cron_string" );
+                    . YELLOW "\n\t\\_ $cronline" );
                 }
             }
         }
@@ -3394,6 +3424,7 @@ sub look_for_suspicious_files {
         my $fileType;
         chomp($file);
         next unless ( -f $file or -d $file and not -z $file and not -l $file );
+        #print "DEBUG: file=$file\n" if ( $file =~ m/magicPussy/ );
         my $fStat = lstat($file) or die($!);
         $fileType = "file"      unless ( -d $file );
         $fileType = "directory" unless ( -f $file );
@@ -4557,19 +4588,19 @@ sub check_for_susp_rc_modules {
         push @SUMMARY, "> /etc/rc.modules is a directory - please check contents manually!\n";
         return;
     }
-    my @susp_data = qw( acpiphp ip_conntrack_ftp );
+    my @ignore = qw( acpiphp ip_conntrack_ftp );
+    my $line;
     open( my $fh, '<', '/etc/rc.modules' );
-    foreach my $line(@susp_data) {
+    while ( <$fh> ) {
+        $line = $_;
         chomp($line);
         my $showHeader=0;
-        while ( <$fh> ) {
-            chomp;
-            next if ( $_ =~ m/$line/ );
-            push @SUMMARY, "> Possible rootkit presence in /etc/rc.modules file - contains suspicious entry." unless($showHeader);
-            $showHeader=1;
-        }
-        close( $fh );
+        next if ( grep { $line =~ $_ } @ignore );
+        push @SUMMARY, "> Possible rootkit presence in /etc/rc.modules file - contains suspicious entry." unless($showHeader);
+        $showHeader=1;
+        push @SUMMARY, "\t\\_ $line";
     }
+    close( $fh );
 }
 
 sub check_for_lkm_rootkits {
