@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.37";
+my $version = "3.5.38";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2728,8 +2728,8 @@ sub misc_checks {
     my @dhcpd_bin = split /\n/, $dhcpd_bin;
     foreach my $line(@dhcpd_bin) {
         chomp($line);
-        push @SUMMARY, "> Found evidence of the dhcpd cryptominer in /bin directory" if ( $line =~ m/[a-z0-9]{26}/ );
-        push @SUMMARY, expand( CYAN "\t\\_ $line" ) if ( $line =~ m/[a-z0-9]{26}/ );
+        push @SUMMARY, "> Found evidence of the dhcpd cryptominer in /bin directory" if ( $line =~ m/\A[a-z0-9]{26}\z/ );
+        push @SUMMARY, expand( CYAN "\t\\_ $line" ) if ( $line =~ m/\A[a-z0-9]{26}\z/ );
     }
 
     open( my $fh, '<', '/etc/rc.local' ) || return;
@@ -4264,7 +4264,7 @@ sub check_for_cve_vulnerabilities {
         # If we get here, it is installed, now get the version number
         print CYAN "Getting version number of " . YELLOW $pkg . ": " if ( $debug );
         chomp( my $pkgver = get_pkg_version( $pkg ) );
-        if ( $pkg =~ m{openssl} ) {
+        if ( $pkg =~ m{openssl} && $pkgver < 3 ) {
             next unless ( $pkgver =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
             my $original_pkgver=$pkgver;
             my ( $maj, $min, $patch ) = ( $1, $2, $3 );
@@ -4309,7 +4309,7 @@ sub check_for_cve_vulnerabilities {
         print GREEN $vercmp . "\n" if ( $debug );
         next if ( version_compare( $pkgver, $op, $patchedver ) );
         my @letters = ("a".."z");
-        if ( $pkg =~ m{openssl} ) {
+        if ( $pkg =~ m{openssl} && $pkgver < 3 ) {
             my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
             my $sub1 = $letters[$sub -1];
             $pkgver = join( '.', $maj, $min, $patch, $sub1 );
@@ -4323,7 +4323,7 @@ sub check_for_cve_vulnerabilities {
         print GREEN $vercmp . "\n" if ( $debug );
         next if ( version_compare( $pkgver, $op2, $firstvuln ) );
         my @letters = ("a".."z");
-        if ( $pkg =~ m{openssl} ) {
+        if ( $pkg =~ m{openssl} && $pkgver < 3 ) {
             my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
             my $sub1 = $letters[$sub -1];
             $pkgver = join( '.', $maj, $min, $patch, $sub1 );
@@ -4464,16 +4464,14 @@ sub get_pkg_version {
         $pkgversion =~ s/$tcPkg//g;
     }
     chomp($pkgversion);
-    return $pkgversion if ( $pkgversion =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );      ## openssl (contains letters  in the version number)
     if ( substr( $tcPkg,0,7 ) eq "cpanel-" ) {
         $pkgversion =~ s/-\d+.cp\d+.*//a;
-        #$pkgversion =~ s/\-/\./g;
-        #$pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp108.*|\.cp98.*|\.cp11.*|\.el.*|\+.*)//g;
     }
     else {
         $pkgversion =~ s/^\.\.//;
         $pkgversion =~ s/^\-\-//;
-        $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|\.1ubuntu.*|ubuntu.*|\.cp98.*|\.cp11.*|\.cp10.*|\.el.*|\+.*|\-.*)//g;
+        $pkgversion =~ s/[a-zA-Z].*//g;
+        $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp\+d.*|\.el.*|\+.*|\-.*)//g;
     }
     return $pkgversion;
 }
