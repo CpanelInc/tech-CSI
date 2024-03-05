@@ -181,6 +181,8 @@ sedsomething
 sleep 7200
 slowhttp
 smtpctl
+Snake.nocomments
+Snake
 sourplum
 sshins
 \[stealth\]
