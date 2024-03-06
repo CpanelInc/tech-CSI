@@ -55,6 +55,7 @@
 /bin/.wwwwwwweeeeeeeeeeepaasss
 /bin/ygljglkjgfg0
 /bin/zigw
+/bin/zzhcht
 /boot/grub/deamon
 /boot/grub/disk_genius
 /boot/.IptabLes
@@ -199,6 +200,7 @@
 /etc/cron.d/systemdd
 /etc/cron.d/.sysud
 /etc/cron.d/tmp00
+/etc/cron.d/zzh
 /etc/cron.hourly.0
 /etc/cron.hourly/0
 /etc/cron.hourly/1
@@ -224,8 +226,11 @@
 /etc/gpufd
 /etc/gshadow--
 /etc/host.ph1
+/etc/.httpd/…/httpd
 /etc/httpdns
 /etc/ice9j
+/etc/…/.ice-unix/
+/etc/…/.ice-unix/.watch
 /etc/id.services.conf
 /etc/init.d/DbSecuritySpt
 /etc/init.d/HFLgGwYfSC.elf
@@ -316,6 +321,12 @@
 /etc/systemd/system/network-check.service
 /etc/systemd/system/ntp.service
 /etc/systemd/system/polkitd.service
+/etc/systemd/system/sshb.service
+/etc/systemd/system/sshm.service
+/etc/systemd/system/zzhd.service
+/etc/systemd/system/zzhh.service
+/etc/systemd/system/zzhr.service
+/etc/systemd/system/zzhw.service
 /etc/.tmpc
 /etc/ttyhash
 /etc/whitptabil
@@ -795,6 +806,8 @@
 /tmp/neww
 /tmp/nimbuspwn/poc.d
 /tmp/.orbit
+/tmp/p
+/tmp/p7
 /tmp/pamdicks
 /tmp/passwd.bak
 /tmp/pause
@@ -1031,6 +1044,7 @@
 /usr/bin/util
 /usr/bin/vadim
 /usr/bin/volc
+/usr/bin/vurl
 /usr/bin/w-
 /usr/bin/wdt
 /usr/bin/wgettnt
@@ -1041,6 +1055,7 @@
 /usr/bin/ygljglkjgfg0
 /usr/bin/zalkpggsgh
 /usr/bin/zvcarxfquk
+/usr/bin/zzhcht
 /usr/doc/.dnif
 /usr/doc/.dpct
 /usr/doc/.gifnocfi
@@ -1322,6 +1337,8 @@
 /var/adm/sa/.adm
 /var/elan2
 /var/html/lol
+/var/.httpd/…../httpd
+/var/.httpd/…./httpd
 /var/lib/cryptov2.ko
 /var/lib/games/.k
 /var/lib/gif
@@ -1371,6 +1388,9 @@
 /var/spool/lp/admins/.lp
 /var/spool/lp/.profile
 /var/ssh.conf
+/var/tmp/.11/bioset
+/var/tmp/.11/..lph
+/var/tmp/.11/sshd
 /var/tmp/all.txt
 /var/tmp/.apache
 /var/tmp/cb
@@ -1378,6 +1398,7 @@
 /var/tmp/...data.lock
 /var/tmp/.../dia
 /var/tmp/Documents
+/var/tmp/.dog
 /var/tmp/dota3.tar.gz
 /var/tmp/find
 /var/tmp/god*
