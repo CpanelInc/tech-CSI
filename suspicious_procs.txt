@@ -240,3 +240,6 @@ zcash
 zhuabcn@yahoo.com
 zigw
 .zte_error
+redis-1.2-SNAPSHOT
+gtpdoor
+./dnsd

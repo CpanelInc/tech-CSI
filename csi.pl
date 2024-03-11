@@ -4662,7 +4662,7 @@ sub check_for_freedownloadmanager_malware {
         push @detected, "\t\\_ Found presence of /etc/cron.d/collect file";
     }
     my @dirs = qw( /var/tmp /lost+found /lib /lib64 /etc/openal /etc/thermald );
-    my @files = qw( crond bs atd );
+    my @files = qw( crond bs atd exp_lin.so );
     for my $dir (@dirs) {
         next if !-e $dir;
         for my $file (@files) {

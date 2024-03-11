@@ -1364,6 +1364,7 @@
 /var/.lug.txt
 /var/opt/power
 /var/run/bioset
+/var/run/daemon.pid
 /var/run/haldrund.pid
 /var/run/lvm//lvm.pid
 /var/run/.netns.pid

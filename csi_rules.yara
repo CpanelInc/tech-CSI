@@ -2624,4 +2624,21 @@ rule BiBi_Linux_Wiper {
         all of them
 }
 
+rule Linux_Malware_GTPDOOR_v1v2 {
+    meta:
+        description = "Detects GTPDOOR"
+        author = "@haxrob"
+        data = "28/02/2024"
+        reference = "https://doubleagent.net/telecommunications/backdoor/gtp/2024/02/27/GTPDOOR-COVERT-TELCO-BACKDOOR"
+        hash1 = "827f41fc1a6f8a4c8a8575b3e2349aeaba0dfc2c9390ef1cceeef1bb85c34161"
+        hash2 = "5cbafa2d562be0f5fa690f8d551cdb0bee9fc299959b749b99d44ae3fda782e4"
+    strings:
+        $s1 = "excute result is" ascii fullword
+        $s2 = "idkey not correct" ascii fullword
+        $s3 = "send ret message" ascii fullword
+    condition:
+        uint16(0) == 0x457f and
+        2 of them and
+        filesize < 20KB
+}
 
