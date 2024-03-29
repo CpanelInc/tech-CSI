@@ -263,6 +263,7 @@
 /etc/my.conf
 /etc/mysql5
 /etc/mysql/lib/mysql
+/etc/.netc.conf
 /etc/netdns
 /etc/pd.d/proxy.conf
 /etc/pools.txt
