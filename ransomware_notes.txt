@@ -51,3 +51,4 @@ _Locky_recover_instructions.txt
 README_C_I_0P.TXT
 !!! Warning!!!
 README_MAORI.txt
+read-me3.txt

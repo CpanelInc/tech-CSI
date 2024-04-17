@@ -651,6 +651,7 @@
 /tmp/.a
 /tmp/a7b104c270
 /tmp/.abchello
+/tmp/agttydck.bat
 /tmp/angel_bc.c
 /tmp/anu.txt
 /tmp/ata_sff
@@ -677,6 +678,7 @@
 /tmp/cid.php
 /tmp/cifsd
 /tmp/.cinik
+/tmp/ck.log
 /tmp/config.json
 /tmp/configUpdate.tar.gz
 /tmp/conn
@@ -781,6 +783,8 @@
 /tmp/Linux64-shell
 /tmp/linux.lock
 /tmp/.local/[a-zA-Z0-9]+
+/tmp/log.0
+/tmp/log.1
 /tmp/.main
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
@@ -1355,6 +1359,7 @@
 /var/lib/t
 /var/lib/up
 /var/local/.lpd
+/var/lock/0init-ld.lo
 /var/lock/bash10
 /var/log/.log
 /var/log/.login
