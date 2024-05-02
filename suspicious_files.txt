@@ -465,7 +465,6 @@
 /opt/aspera/faspex
 /opt/KHK75NEOiq33
 /opt/systemd-service.sh
-/opt/tactu_cpanel
 /opttest
 /opt/yilu/mservice
 /opt/yilu/work/xig
@@ -1042,7 +1041,6 @@
 /usr/bin/sshins
 /usr/bin/sykhrxsazz
 /usr/bin/t
-/usr/bin/tactu_cpanel
 /usr/bin/tcnszvmpqn
 /usr/bin/telinited.zitvr
 /usr/bin/tls/libkeyutils.so.1
