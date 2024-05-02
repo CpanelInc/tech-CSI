@@ -513,7 +513,6 @@
 /root/.configrc/b/sync
 /root/.configrc/cron.d
 /root/.configrc/dir2.dir
-/root/cpanel_update
 /root/.cvum
 /root/.ddg/4004.db
 /root/.ddg/bnrffa4
