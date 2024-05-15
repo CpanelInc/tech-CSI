@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.38";
+my $version = "3.5.39";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -23,6 +23,7 @@ use Cpanel::FindBin        ();
 use Cpanel::Version        ();
 use Cpanel::Kernel::Status ();
 use Cpanel::IONice         ();
+use Cpanel::OSSys::Env;    ();
 use Cpanel::PwCache        ();
 use Cpanel::PwCache::Get   ();
 use Cpanel::SafeRun::Timed ();
@@ -662,6 +663,8 @@ sub check_webtemplates_for_hack_page {
 }
 
 sub check_kernel_updates {
+    my $envtype = Cpanel::OSSys::Env::get_envtype();
+    return if ( $envtype =~ m/lxc|viruozzo|vzcontainer/ );
     if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.102.0.0')) {
         use Cpanel::Kernel::GetDefault;
         my $boot_kernelversion = Cpanel::Kernel::GetDefault::get();
@@ -1181,6 +1184,8 @@ sub timed_run {
 }
 
 sub check_preload {
+    my $preload_env = Cpanel::SafeRun::Timed::timedsaferun( 5, 'strings', "/proc/$$/environ | grep _PRELOAD" );
+    push( @SUMMARY, "> Found _PRELOAD within the environment - Possible root-level compromise.") if( $preload_env );
     return unless ( -e ("/etc/ld.so.preload") );
     my $libcrypt_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/usr/lib64/libcrypt.so.1.1.0', '/etc/ld.so.preload' );
     my $libconv_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libconv.so', '/etc/ld.so.preload' );
@@ -2516,7 +2521,7 @@ sub security_advisor {
     my @SecAdvisor = split /\n/, $SecAdvisor;
     push( @RECOMMENDATIONS, YELLOW "> " . MAGENTA "\t============== SECURITY ADVISOR RESULTS ===============" );
     foreach my $SecAdvLine(@SecAdvisor) {
-        next if( $SecAdvLine =~ m{High|Info|Advice|Type|Module} );
+        next if( $SecAdvLine =~ m{High|Info|Advice|Type|Module|Medium} );
         push( @RECOMMENDATIONS, BOLD CYAN $SecAdvLine . "\n" ) unless ( $SecAdvLine eq "" );
     }
 }
