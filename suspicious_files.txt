@@ -799,6 +799,7 @@
 /tmp/bond0
 /tmp/cache_init
 /tmp/cback
+/tmp/CCCCCCCC
 /tmp/chernobyl.sh
 /tmp/cid.php
 /tmp/cifsd
@@ -898,6 +899,7 @@
 /tmp/libapache
 /tmp/libselinux.0
 /tmp/linux.lock
+/tmp/.llock
 /tmp/log.0
 /tmp/log.1
 /tmp/mcliZokhb
@@ -1171,6 +1173,7 @@
 /usr/include/rpc/../kit2
 /usr/include/rpcsvc/du
 /usr/include/salt.h
+/usr/include/sdfwex.h
 /usr/include/sn.h
 /usr/include/symc.h
 /usr/include/sys/record.h
