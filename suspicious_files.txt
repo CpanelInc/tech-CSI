@@ -1051,6 +1051,7 @@
 /usr/bin/monitor
 /usr/bin/n3tstat
 /usr/bin/netlink.ko
+/usr/bin/NetworkManage
 /usr/bin/ntpsx
 /usr/bin/pamdicks
 /usr/bin/pamdicks.org
@@ -1194,6 +1195,7 @@
 /usr/lib/.egcs
 /usr/lib/.fx
 /usr/lib/.kinetic
+/usr/lib/locate/.boot.sh
 /usr/lib/.sshd.h
 /usr/lib/.wormie
 /usr/lib/elm/arobia
@@ -1208,9 +1210,12 @@
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
 /usr/lib/liblog.o
+/usr/lib/libc
 /usr/lib/libm.c
 /usr/lib/libpanel.so.a.3
 /usr/lib/libpikapp.a
+/usr/lib/libseconf/sshpass.txt
+/usr/lib/libseconf/sshpass2.txt
 /usr/lib/libsh
 /usr/lib/libsoftokn3.so.0
 /usr/lib/libsplug.2.so
@@ -1221,6 +1226,9 @@
 /usr/lib/libu.a
 /usr/lib/libu.a/safe_scr
 /usr/lib/locale/uboot
+/usr/lib/locate
+/usr/lib/locate/.pts
+/usr/lib/locate/local.txt
 /usr/lib/mozilla/extensions/mozzlia.ini
 /usr/lib/pt07
 /usr/lib/rpm/rpm.cx
@@ -1329,6 +1337,7 @@
 /usr/sbin/ldb
 /usr/sbin/libdns.so
 /usr/sbin/libhttpd.so
+/usr/sbin/libvird
 /usr/sbin/mech
 /usr/sbin/minerd
 /usr/sbin/netdns
@@ -1405,6 +1414,7 @@
 /var/log/wtmpecho
 /var/log/xmrig
 /var/opt/power
+/var/run/cron.data
 /var/run/+++php.run
 /var/run/+++screen.run
 /var/run/.netns.pid
