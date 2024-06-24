@@ -539,7 +539,7 @@ sub scan {
                     print_status("\tScanning $dir directory");
                     my $loadavg = get_loadavg();
                     print_status( expand( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]") );
-                    $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
+                    my $results = Cpanel::SafeRun::Timed::timedsaferun( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
                     my @results   = split /\n/, $results;
                     my $resultcnt = @results;
                     if ( $resultcnt > 0 ) {
