@@ -533,11 +533,9 @@ sub scan {
                 }
                 close(YARAFILE);
                 my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /usr /tmp );
-                my ( @results, $results );
                 for my $dir (@dirs) {
                     chomp($dir);
                     next unless -d $dir;
-                    next if -l $dir;
                     print_status("\tScanning $dir directory");
                     my $loadavg = get_loadavg();
                     print_status( expand( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]") );
@@ -548,22 +546,22 @@ sub scan {
                         my $showHeader = 0;
                         foreach my $yara_result (@results) {
                             chomp($yara_result);
-                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb} );
+                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl} );
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
                             my $ignore = _ignore( $triggered_rule );
                             next unless( $ignore );
                             push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $showHeader );
                             $showHeader = 1;
-                            push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK/ );
+                            push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK|csi.pl/ );
                         }
                     }
                 }
                 sub _ignore {
                     my $rule2ignore = shift;
                     if ( $rule2ignore =~ m{/usr/local/cpanel/logs/access_log|/root/.bash_history} ) {
-                        return 1;
+                        return 0;
                     }
-                    return 0;
+                    return 1;
                 }
             }
         }
