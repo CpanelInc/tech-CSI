@@ -2830,7 +2830,6 @@ rule HelimodSteal {
         $h3 = "mod_security2.c"
         $s1 = "p0sT5n1F3r"
         $s2 = "ENGINE_ON"
-        $s3 = "POST "
 
     condition:
         ApacheModule and any of ($h*) and any of ($s*)
