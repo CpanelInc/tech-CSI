@@ -2947,3 +2947,68 @@ rule M_APT_BACKDOOR_MOPSLED_1 {
           uint32(0) == 0x464c457f and uint8(4) == 2 and filesize < 5MB and $x
 }
 
+rule P2PinfectBash {
+  meta:
+    author = "nbill@cadosecurity.com"
+    description = "Detects P2Pinfect bash payload"
+  strings:
+    $h1 = { 4C 89 EF 48 89 DE 48 8D 15 ?? ?? ?? 00 6A 0A 59 E8 17 6C 01 00 84 C0 0F 85 0F 03 00 00 }
+    $h2 = { 48 8B 9C 24 ?? ?? 00 00 4C 89 EF 48 89 DE 48 8D 15 ?? ?? ?? 00 6A 09 59 E8 34 6C 01 00 84 C0 0F 85 AC 02 00 00 }
+    $h3 = { 4C 89 EF 48 89 DE 48 8D 15 ?? ?? ?? 00 6A 03 59 E8 DD 6B 01 00 84 C0 0F 85 DF 03 00 00 }
+  condition:
+    uint16(0) == 0x457f and all of them
+}
+
+rule XMRig {
+   meta:
+      attack = "T1496"
+      description = "Detects XMRig miner"
+   strings:
+      $ = "password for mining server" nocase wide ascii
+      $ = "threads count to initialize RandomX dataset" nocase wide ascii
+      $ = "display this help and exit" nocase wide ascii
+      $ = "maximum CPU threads count (in percentage) hint for autoconfig" nocase wide ascii
+      $ = "enable CUDA mining backend" nocase wide ascii
+      $ = "cryptonight" nocase wide ascii
+   condition:
+      5 of them
+}
+
+rule P2PinfectRsagen {
+  meta:
+    author = "nbill@cadosecurity.com"
+    description = "Detects P2Pinfect rsagen payload"
+  strings:
+    $a1 = "$ENC_EXE$"
+    $a2 = "$EMAIL_ADDRS$"
+    $a3 = "$XMR_COUNT$"
+    $a4 = "$XMR_ADDR$"
+    $a5 = "$KEY_STR$"
+    $a6 = "$ENC_DATABASE$"
+    $b1 = "mdbmdfmydldfibdmyidbdbfwdbfrmaccdbsqlsqlite3msgemltxtcsv123docwpsxlsetpptppsdpsonevsdjpgpngziprar7ztarbz2tbkgztgzbakbackupdotxlwxltxlmxlcpotpubmppodtodsodpodgodfodbwpdqpwshwpdfaip64xpsrptrtfchmmhthtmurlswfdatrbaspphpjsppashcppccspyshclassjarvbvbsps1batcmdjsplsuoslnbrdschdchdipbmpgificopsdabrmaxcdrdwgdxfmbpspdgnexbjnbdcdqcdtowqxpqptsdrsdtpzfemfociiccpcbtpfgjdaniwmfvfbsldprtdbxpstdwtvalcadfabbsfccfudfftfpcfdocicaascgengcmostwkswk1onetoc2sntedbhwp602sxistivdivmxgpgaespaoisovcdrawcgmtifnefsvgm4um3umidwmaflv3g2mkv3gpmp4movaviasfvobmpgwmvflawavmp3laymmlsxmotguopstdsxdotpwb2slkdifstcsxcots3dm3dsuotstwsxwottpemp12csrcrtkeypfxder"
+    $c1 = "lock failedlocked"
+    $c2 = "/root/homeencrypt"
+  condition:
+    uint16(0) == 0x457f and (2 of ($a*) or $b1 or all of ($c*))
+}
+
+rule P2PinfectLDPreload {
+  meta:
+    author = "nbill@cadosecurity.com"
+    description = "Detects P2Pinfect libs.so.1 payload"
+  strings:
+    $a1 = "env_var"
+    $a2 = "main_file"
+    $a3 = "hide.c"
+    $b1 = "prefix"
+    $b2 = "process1"
+    $b3 = "process2"
+    $b4 = "process3"
+    $b5 = "owner"
+    $c1 = "%d: [0-9A-Fa-f]:%X [0-9A-Fa-f]:%X %X %lX:%lX %X:%lX %lX %d %d %lu 2s"
+    $c2 = "/proc/net/tcp"
+    $c3 = "/proc/net/tcp6"
+  condition:
+    uint16(0) == 0x457f and (all of ($a*) or all of ($b*) or all of ($c*))
+}
+

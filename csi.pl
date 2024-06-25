@@ -548,7 +548,7 @@ sub scan {
                             chomp($yara_result);
                             next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl} );
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
-                            my $ignore = _ignore( $triggered_rule );
+                            my $ignore = _ignore( $triggered_rule, $triggered_file );
                             next unless( $ignore );
                             push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $showHeader );
                             $showHeader = 1;
@@ -558,7 +558,11 @@ sub scan {
                 }
                 sub _ignore {
                     my $rule2ignore = shift;
-                    if ( $rule2ignore =~ m{/usr/local/cpanel/logs/access_log|/root/.bash_history} ) {
+                    my $file2ignore = shift;
+                    if ( $rule2ignore =~ m{} ) {
+                        return 0;
+                    }
+                    if ( $file2ignore =~ m{/usr/local/cpanel/logs/access_log|/root/.bash_history} ) {
                         return 0;
                     }
                     return 1;

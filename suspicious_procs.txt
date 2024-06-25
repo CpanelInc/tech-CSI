@@ -99,7 +99,7 @@ jsextension
 jweri
 .k4m310t
 .k93
-\[kcache/0\]
+\[kcache\/0\]
 kdevtmpfsi
 kill_miner_proc
 kinsing
@@ -110,7 +110,8 @@ kthreaddk
 kthrotlds
 kworker/0:22
 kworker34
-\[kworker /u8:7-ev\]
+\[kworker \/u8:7-ev\]
+\[kworker\/1:0H\]
 kw.sh
 kxjd
 libapache
@@ -243,3 +244,4 @@ zigw
 redis-1.2-SNAPSHOT
 gtpdoor
 ./dnsd
+rsagen

@@ -722,6 +722,7 @@
 /tmp/.pfile
 /tmp/.psy
 /tmp/.rewt
+/tmp/rsagen
 /tmp/.salted
 /tmp/.session-unix
 /tmp/.ssh
@@ -746,6 +747,7 @@
 /tmp/2t3ik
 /tmp/4004.db
 /tmp/EB93A6/996E.elf
+/tmp/ESw2njXkaL
 /tmp/IptabLes
 /tmp/KCtbBo
 /tmp/Linux64-shell
@@ -789,6 +791,7 @@
 /tmp/ata_sff
 /tmp/baby
 /tmp/backd
+/tmp/bash
 /tmp/bashf
 /tmp/bashg
 /tmp/bc.pl
@@ -986,6 +989,8 @@
 /usr/bin/4004.db
 /usr/bin/Perfctl
 /usr/bin/TNTwget
+/usr/bin/wgbtx
+/usr/bin/clbtx
 /usr/bin/[kthrotlds]
 /usr/bin/_-config
 /usr/bin/_-minerd
