@@ -1406,6 +1406,7 @@
 /var/lib/nfs/gpm2.h
 /var/lib/pamdicks
 /var/lib/pc
+/var/lib/postgresql/data/pg_mem
 /var/lib/t
 /var/lib/up
 /var/local/.lpd

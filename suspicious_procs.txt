@@ -245,3 +245,12 @@ redis-1.2-SNAPSHOT
 gtpdoor
 ./dnsd
 rsagen
+pppsssdm
+cf94c8fd2
+kernelx
+pg_mem
+postgres-system
+postgres_dm
+rumpostgreswk
+kthreaddk
+postgres-kernel

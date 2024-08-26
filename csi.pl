@@ -1731,6 +1731,7 @@ sub all_malware_checks {
     check_for_dirtycow_passwd();
     check_for_lilocked_ransomware();
     check_for_filenew_ransomware();
+    check_for_sedexp();
     check_for_junglesec();
     check_for_panchan();
     check_for_chaos();
@@ -2471,6 +2472,13 @@ sub check_for_symlinks {
             }
         }
     }
+}
+
+sub check_for_sedexp {
+    my $find_sedexp=Cpanel::SafeRun::timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udef/*' );
+    return unless( $find_sedexp );
+    push( @SUMMARY, YELLOW "> Found possible sedexp malware in /lib/udev directory");
+    push( @SUMMARY, expand( "\t\\_ $find_sedexp" );
 }
 
 sub check_for_accesshash {
@@ -4471,15 +4479,12 @@ sub get_pkg_version {
         $pkgversion =~ s/$tcPkg//g;
     }
     chomp($pkgversion);
-    if ( substr( $tcPkg,0,7 ) eq "cpanel-" ) {
-        $pkgversion =~ s/-\d+.cp\d+.*//a;
-    }
-    else {
-        $pkgversion =~ s/^\.\.//;
-        $pkgversion =~ s/^\-\-//;
-        $pkgversion =~ s/[a-zA-Z].*//g;
-        $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|ubuntu.*|\.cp\+d.*|\.el.*|\+.*|\-.*)//g;
-    }
+    $pkgversion =~ s/$tcPkg//g;
+    $pkgversion =~ s/^\.\.//;
+    $pkgversion =~ s/^\-\-//;
+    $pkgversion =~ s/\-/\./g;
+    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|.1ubuntu.*|ubuntu.*|\.cp\d+.*|\.el.*|\+.*)//g;
+
     return $pkgversion;
 }
 

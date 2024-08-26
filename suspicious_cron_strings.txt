@@ -85,3 +85,4 @@ yx=hashlib
 zmreplchkr
 zsvc
 /etc/cpanelmod/diallicense
+/var/lib/postgresql/data/pg_mem
