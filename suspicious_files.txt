@@ -140,6 +140,7 @@
 /dev/shm/cfgas
 /dev/shm/config.json
 /dev/shm/devs_mx_cache
+/dev/shm/hadooken
 /dev/shm/kavachelf
 /dev/shm/kdmtmpflush
 /dev/shm/ld.so
@@ -352,6 +353,7 @@
 /etc/zigw
 /etc/…/.ice-unix/
 /etc/…/.ice-unix/.watch
+/hadooken
 /home/ ./root
 /home/.config/apdl.cf
 /home/.local
@@ -470,10 +472,13 @@
 /linux_avp
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /media/.cpuminer-gr-1.2.2-x86_64_linux
+/mnt/-java
+/mnt/hadooken
 /myshell
 /netscaler/ns_gui/vpn/medialogininit.png
 /opt/KHK75NEOiq33
 /opt/aspera/faspex
+/opt/hadooken
 /opt/systemd-service.sh
 /opt/yilu/mservice
 /opt/yilu/work/xig
@@ -650,6 +655,7 @@
 /run/systemd/log
 /run/systemd/log-90zMvYX7uL
 /run/systemd/log-wuO3nuFBHN
+/run/user/hadooken
 /rxp
 /sbin/.ifup-local
 /sbin/home
@@ -674,6 +680,7 @@
 /tmp/.IptabLes
 /tmp/.IptabLex
 /tmp/.X11-unix/01
+/tmp/.X11-unix/11
 /tmp/.X11-unix/22
 /tmp/.X11-unix/sshd
 /tmp/.X11-unix/supervise
@@ -709,6 +716,7 @@
 /tmp/.h
 /tmp/.helpdd
 /tmp/.init
+/tmp/.llock
 /tmp/.local/[a-zA-Z0-9]+
 /tmp/.main
 /tmp/.miner
@@ -720,15 +728,19 @@
 /tmp/.perf.c/agetty
 /tmp/.perf.c/perfctl
 /tmp/.pfile
+/tmp/.pg_stat.0
+/tmp/.pg_stat.1
 /tmp/.psy
 /tmp/.rewt
-/tmp/rsagen
 /tmp/.salted
 /tmp/.session-unix
 /tmp/.ssh
 /tmp/.ssh/redis.sh
 /tmp/.stabip
 /tmp/.systemd-salt
+/tmp/.systemd.1
+/tmp/.systemd.2
+/tmp/.systemd.3
 /tmp/.tmp/mem
 /tmp/.tmp/mem.gz
 /tmp/.tmp/mem.gzip
@@ -746,6 +758,7 @@
 /tmp/.xdiag/p
 /tmp/2t3ik
 /tmp/4004.db
+/tmp/CCCCCCCC
 /tmp/EB93A6/996E.elf
 /tmp/ESw2njXkaL
 /tmp/IptabLes
@@ -802,7 +815,6 @@
 /tmp/bond0
 /tmp/cache_init
 /tmp/cback
-/tmp/CCCCCCCC
 /tmp/chernobyl.sh
 /tmp/cid.php
 /tmp/cifsd
@@ -864,6 +876,7 @@
 /tmp/gdmorpen
 /tmp/gfhjrtfyhuf
 /tmp/gitaly
+/tmp/hadooken
 /tmp/headcrab
 /tmp/hi
 /tmp/httpd
@@ -902,7 +915,6 @@
 /tmp/libapache
 /tmp/libselinux.0
 /tmp/linux.lock
-/tmp/.llock
 /tmp/log.0
 /tmp/log.1
 /tmp/mcliZokhb
@@ -935,6 +947,7 @@
 /tmp/ramen.tgz
 /tmp/rewgtf3er4t
 /tmp/root.sh
+/tmp/rsagen
 /tmp/salt-minions
 /tmp/sdf3fslsdf13
 /tmp/sdxsdf
@@ -987,10 +1000,9 @@
 /usr/bin/.ps
 /usr/bin/.sshd
 /usr/bin/4004.db
+/usr/bin/NetworkManage
 /usr/bin/Perfctl
 /usr/bin/TNTwget
-/usr/bin/wgbtx
-/usr/bin/clbtx
 /usr/bin/[kthrotlds]
 /usr/bin/_-config
 /usr/bin/_-minerd
@@ -998,12 +1010,15 @@
 /usr/bin/adore
 /usr/bin/atm
 /usr/bin/bnrffa4
+/usr/bin/bprofr
 /usr/bin/bsd-port
 /usr/bin/bsd-port/getty
 /usr/bin/bsd-port/knerl
 /usr/bin/cdt
 /usr/bin/chsh2
+/usr/bin/clbtx
 /usr/bin/cleaner
+/usr/bin/crondr
 /usr/bin/cryptov2.ko
 /usr/bin/ddc
 /usr/bin/devlinked.tfann
@@ -1056,7 +1071,6 @@
 /usr/bin/monitor
 /usr/bin/n3tstat
 /usr/bin/netlink.ko
-/usr/bin/NetworkManage
 /usr/bin/ntpsx
 /usr/bin/pamdicks
 /usr/bin/pamdicks.org
@@ -1091,6 +1105,7 @@
 /usr/bin/vurl
 /usr/bin/w-
 /usr/bin/wdt
+/usr/bin/wgbtx
 /usr/bin/wgettnt
 /usr/bin/where
 /usr/bin/xchk
@@ -1200,7 +1215,6 @@
 /usr/lib/.egcs
 /usr/lib/.fx
 /usr/lib/.kinetic
-/usr/lib/locate/.boot.sh
 /usr/lib/.sshd.h
 /usr/lib/.wormie
 /usr/lib/elm/arobia
@@ -1211,11 +1225,11 @@
 /usr/lib/ldlibps.so
 /usr/lib/libQtNetwork.so.4.0.1
 /usr/lib/libamplify.so
+/usr/lib/libc
 /usr/lib/libcurl.a.2.1
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
 /usr/lib/liblog.o
-/usr/lib/libc
 /usr/lib/libm.c
 /usr/lib/libpanel.so.a.3
 /usr/lib/libpikapp.a
@@ -1232,6 +1246,7 @@
 /usr/lib/libu.a/safe_scr
 /usr/lib/locale/uboot
 /usr/lib/locate
+/usr/lib/locate/.boot.sh
 /usr/lib/locate/.pts
 /usr/lib/locate/local.txt
 /usr/lib/mozilla/extensions/mozzlia.ini
@@ -1317,6 +1332,7 @@
 /usr/local/share/. /fs
 /usr/local/share/. /ita
 /usr/local/share/. /ita/ita.gz
+/usr/local/share/hadooken
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
 /usr/local/tomcat/webapps/jsp_app/cmd.jsp
@@ -1420,7 +1436,6 @@
 /var/log/wtmpecho
 /var/log/xmrig
 /var/opt/power
-/var/run/cron.data
 /var/run/+++php.run
 /var/run/+++screen.run
 /var/run/.netns.pid
@@ -1429,7 +1444,9 @@
 /var/run/.ssh.pid
 /var/run/.tmp
 /var/run/bioset
+/var/run/cron.data
 /var/run/daemon.pid
+/var/run/hadooken
 /var/run/haldrund.pid
 /var/run/lvm//lvm.pid
 /var/run/npss.state
@@ -1470,6 +1487,7 @@
 /var/tmp/dota3.tar.gz
 /var/tmp/find
 /var/tmp/god*
+/var/tmp/hadooken
 /var/tmp/init10
 /var/tmp/installer
 /var/tmp/kinsing
