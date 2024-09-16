@@ -4279,71 +4279,28 @@ sub check_for_cve_vulnerabilities {
         # If we get here, it is installed, now get the version number
         print CYAN "Getting version number of " . YELLOW $pkg . ": " if ( $debug );
         chomp( my $pkgver = get_pkg_version( $pkg ) );
-        if ( $pkg =~ m{openssl} && $pkgver < 3 ) {
-            next unless ( $pkgver =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
-            my $original_pkgver=$pkgver;
-            my ( $maj, $min, $patch ) = ( $1, $2, $3 );
-            # If we map the alphas into a number and sum the values the version will be compatible with version_compare()·
-            # and save us a lot of trouble, i.e. h=8, m=13, and za=27
-            my %al2num = map { ( "a" .. "z" )[ $_ - 1 ] => $_ } ( 1 .. 26 );
-            my $sub = 0;
-            if ($4) { $sub += $al2num{ lc($4) } }
-            if ($5) { $sub += $al2num{ lc($5) } }
-            $pkgver = join( '.', $maj, $min, $patch, $sub );
-            chomp( $pkgver );
-            print GREEN "$original_pkgver\n" if ( $debug );
-        }
-        else {
-            chomp( $pkgver );
-            if ( $pkgver eq "" ) {
-                print RED "\n\t\\_ WARNING! - Version undefined/missing for $pkg\n";
-                print MAGENTA "\t\\_ THIS SHOULD NOT BE POSSIBLE IF THE PACKAGE IS PROPERLY INSTALLED!\n";
-                next;
-            }
-            else {
-                print GREEN "$pkgver\n" if ( $debug );
-            }
-        }
+        my $digitpkgver = digit_to_alpha( $pkgver ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
+        chomp( $pkgver );
 
         # report first vulnerable version (if verbose or debug is enabled)
-        print CYAN "First vulnerable reported version: " . GREEN $firstvuln . "\n" if ( $debug );
+        my $alphapkgver = alpha_to_digit( $firstvuln ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
 
         # check changelog for the CVE
-        print CYAN "Checking to see if " . BOLD RED $cve . CYAN " for " . YELLOW $pkg . CYAN " is in the changelogs: "  if ( $debug );
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
-        my $in_changelog = ( $found_in_changelog ) ? "Yes" : "No";
-        print GREEN $in_changelog . "\n" if ( $debug );
         next unless( ! $found_in_changelog );
 
         # check version against the nonvuln variable
         my $op='>';
         chomp($pkgver);
         chomp($patchedver);
-        print CYAN "Checking if " . YELLOW $pkgver . " " . MAGENTA $op . " " . YELLOW $patchedver . ": " if ( $debug );
-        my $vercmp = ( version_compare( $pkgver, $op, $patchedver ) ) ? "Yes" : "No";
-        print GREEN $vercmp . "\n" if ( $debug );
         next if ( version_compare( $pkgver, $op, $patchedver ) );
-        my @letters = ("a".."z");
-        if ( $pkg =~ m{openssl} && $pkgver < 3 ) {
-            my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
-            my $sub1 = $letters[$sub -1];
-            $pkgver = join( '.', $maj, $min, $patch, $sub1 );
-        }
 
         # check to see if version is less than the firstvuln variable
         my $op2='<';
         chomp($firstvuln);
-        print CYAN "Checking if " . YELLOW $pkgver . " is " . MAGENTA $op2 . CYAN " the first vulnerable reported  version of: " . YELLOW $firstvuln . ": " if ( $debug );
-        my $vercmp = ( version_compare( $pkgver, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
-        print GREEN $vercmp . "\n" if ( $debug );
         next if ( version_compare( $pkgver, $op2, $firstvuln ) );
-        my @letters = ("a".."z");
-        if ( $pkg =~ m{openssl} && $pkgver < 3 ) {
-            my ( $maj, $min, $patch, $sub ) = ( split( /\./, $pkgver ));
-            my $sub1 = $letters[$sub -1];
-            $pkgver = join( '.', $maj, $min, $patch, $sub1 );
-        }
 
+        print "DEBUG: pkg=$pkg / pkgver=$pkgver / firstvuln=$firstvuln / patchedver=$patchedver\n";
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve" );
@@ -4380,6 +4337,31 @@ sub is_os_vulnerable {
         }
     }
     return $os_vulnerable;
+}
+
+sub digit_to_alpha {
+    my $tcPkgVer = shift;
+    return unless ( $tcPkgVer =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
+    my $retPkgVer;
+    my ( $maj, $min, $patch ) = ( $1, $2, $3 );
+    # If we map the alphas into a number and sum the values the version will be compatible with version_compare()
+    # and save us a lot of trouble, i.e. h=8, m=13, and za=27
+    my %al2num = map { ( "a" .. "z" )[ $_ - 1 ] => $_ } ( 1 .. 26 );
+    my $sub = 0;
+    if ($4) { $sub += $al2num{ lc($4) } }
+    if ($5) { $sub += $al2num{ lc($5) } }
+    $retPkgVer = join( '.', $maj, $min, $patch, $sub );
+    return $retPkgVer;
+}
+
+sub alpha_to_digit {
+    my $tcPkgVer = shift;
+    my @letters = ( "a" .. "z" );
+    my $retPkgVer;
+    my ( $maj, $min, $patch, $sub ) = ( split( /\./, $tcPkgVer ) );
+    my $sub1 = $letters[ $sub - 1 ];
+    $retPkgVer = join( '.', $maj, $min, $patch );
+    $retPkgVer .= $sub1;
 }
 
 sub is_kernel {
@@ -4521,12 +4503,12 @@ sub version_compare {
 
 sub _version_cmp {
     my ( $first, $second ) = @_;
-    my ( $a1,    $b1, $c1, $d1 ) = split /[\._]/, $first;
-    my ( $a2,    $b2, $c2, $d2 ) = split /[\._]/, $second;
-    for my $ref ( \$a1, \$b1, \$c1, \$d1, \$a2, \$b2, \$c2, \$d2, ) {    # Fill empties with 0
+    my ( $a1,    $b1, $c1, $d1, $e1, $f1 ) = split /[\._]/, $first;
+    my ( $a2,    $b2, $c2, $d2, $e2, $f2 ) = split /[\._]/, $second;
+    for my $ref ( \$a1, \$b1, \$c1, \$d1, \$e1, \$f1, \$a2, \$b2, \$c2, \$d2, \$e2, \$f2,) {    # Fill empties with 0
         $$ref = 0 unless defined $$ref;
     }
-    return $a1 <=> $a2 || $b1 <=> $b2 || $c1 <=> $c2 || $d1 <=> $d2;
+    return $a1 <=> $a2 || $b1 <=> $b2 || $c1 <=> $c2 || $d1 <=> $d2 || $e1 <=> $e2 || $f1 <=> $f2;
 }
 
 sub get_suspicious_cron_strings {
