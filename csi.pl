@@ -2475,10 +2475,10 @@ sub check_for_symlinks {
 }
 
 sub check_for_sedexp {
-    my $find_sedexp=Cpanel::SafeRun::timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udef/*' );
+    my $find_sedexp=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udef/*' );
     return unless( $find_sedexp );
     push( @SUMMARY, YELLOW "> Found possible sedexp malware in /lib/udev directory");
-    push( @SUMMARY, expand( "\t\\_ $find_sedexp" );
+    push( @SUMMARY, expand( "\t\\_ $find_sedexp" ));
 }
 
 sub check_for_accesshash {
