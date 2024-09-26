@@ -179,6 +179,7 @@
 /etc/.httpd/…/httpd
 /etc/.ip
 /etc/.netc.conf
+/etc/.system/rtm/xmrig.log
 /etc/.tmpc
 /etc/.wwwwwwweeeeeeeeeeepaasss
 /etc/1ssue.net
@@ -266,6 +267,7 @@
 /etc/intel_audio/intel_audio_reverse
 /etc/intel_audio/intel_audio_start
 /etc/iptablesupdate
+/etc/krb5d.conf
 /etc/ksapd
 /etc/ksapdd
 /etc/kworkerds
@@ -486,6 +488,7 @@
 /opt/yilu/work/xige
 /opt/yilu/work/xige/xige
 /opttest
+/private/etc/krb5d.conf
 /proc/.inl
 /proc/knark
 /proc/kset
@@ -699,6 +702,7 @@
 /tmp/.X2ss-unix/.rsync/c/lib/64/tsm
 /tmp/.X2ss-unix/dota3.tar.gz
 /tmp/.a
+/tmp/.abc
 /tmp/.abchello
 /tmp/.b
 /tmp/.bash
@@ -730,6 +734,7 @@
 /tmp/.pfile
 /tmp/.pg_stat.0
 /tmp/.pg_stat.1
+/tmp/.profile
 /tmp/.psy
 /tmp/.rewt
 /tmp/.salted
@@ -756,8 +761,11 @@
 /tmp/.xdiag/debug.log
 /tmp/.xdiag/hroot/hscheck
 /tmp/.xdiag/p
+/tmp/1.so
+/tmp/2Ne80nA
 /tmp/2t3ik
 /tmp/4004.db
+/tmp/65ccEJ7
 /tmp/CCCCCCCC
 /tmp/EB93A6/996E.elf
 /tmp/ESw2njXkaL
@@ -801,6 +809,7 @@
 /tmp/agttydck.bat
 /tmp/angel_bc.c
 /tmp/anu.txt
+/tmp/apachiii
 /tmp/ata_sff
 /tmp/baby
 /tmp/backd
@@ -891,6 +900,9 @@
 /tmp/irq
 /tmp/irq.sh
 /tmp/irqbalanc1
+/tmp/javax/config.sh
+/tmp/javax/sshd2
+/tmp/jmxx
 /tmp/kacpi_notify
 /tmp/kauditd
 /tmp/kdevtmpfsi
@@ -899,6 +911,8 @@
 /tmp/kinsing
 /tmp/korkut2
 /tmp/kworkerds
+/tmp/kworkerds3
+/tmp/kworkerdssx
 /tmp/l4sd4s86
 /tmp/l4sd4s8k
 /tmp/l4sd4sh4
@@ -917,6 +931,7 @@
 /tmp/linux.lock
 /tmp/log.0
 /tmp/log.1
+/tmp/log_rot
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
 /tmp/medusa_stealer.armv6
@@ -935,6 +950,7 @@
 /tmp/netlink.ko
 /tmp/neww
 /tmp/nimbuspwn/poc.d
+/tmp/osw.hb
 /tmp/p
 /tmp/p7
 /tmp/pamdicks
@@ -959,10 +975,14 @@
 /tmp/srv
 /tmp/ssdpid
 /tmp/sshins
+/tmp/sustse
+/tmp/syslogdb
 /tmp/syslogspid
 /tmp/system/Linux_amd64
+/tmp/systemctI
 /tmp/systemd-private-afjdhdicjijo473skiosoohxiskl573q-systemd-timesyncc.service-g1g5qf/cred/fghhhh/data
 /tmp/systemdo
+/tmp/systemxlv
 /tmp/t
 /tmp/thisxxs
 /tmp/tmp.l
@@ -977,6 +997,7 @@
 /tmp/wnTKYg
 /tmp/wsnbb
 /tmp/xp
+/tmp/xweb_log.md
 /tmp/zilog
 /tmp/zolog
 /usr/.IptabLes
@@ -1026,6 +1047,7 @@
 /usr/bin/dmpyuitfoq
 /usr/bin/dockerlogger
 /usr/bin/execute
+/usr/bin/exin
 /usr/bin/fdinprytpq
 /usr/bin/gettexted.ujtvl
 /usr/bin/gib
@@ -1099,6 +1121,7 @@
 /usr/bin/telinited.zitvr
 /usr/bin/tls/libkeyutils.so.1
 /usr/bin/tls/libkeyutils.so.1.5
+/usr/bin/tntrecht
 /usr/bin/util
 /usr/bin/vadim
 /usr/bin/volc
@@ -1464,6 +1487,7 @@
 /var/spool/lp/admins/.lp
 /var/ssh.conf
 /var/tmp/.../dia
+/var/tmp/.../dia/diamorphine.ko
 /var/tmp/...data.lock
 /var/tmp/.11/..lph
 /var/tmp/.11/bioset
@@ -1471,6 +1495,7 @@
 /var/tmp/.SQL-Unix
 /var/tmp/.SQL-Unix/.SQL
 /var/tmp/.SQL-Unix/.SQL/.db
+/var/tmp/.alsp
 /var/tmp/.apache
 /var/tmp/.dog
 /var/tmp/.ladyg0g0
