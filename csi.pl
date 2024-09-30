@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.39";
+my $version = "3.5.40";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -100,7 +100,8 @@ my (
     $secadv,       $help,    $debug,          $userscan,
     $customdir,    $scan,    $skipkernel,     %process,
     %ipcs,         $distro,  $distro_version, $distro_major,
-    $distro_minor, $ignoreload, $overwrite,   $cron
+    $distro_minor, $ignoreload, $overwrite,   $cron,
+    $skip_authchk
 );
 get_ipcs_hash( \%ipcs );
 
@@ -120,6 +121,7 @@ GetOptions(
     'userscan=s'  => \$userscan,
     'customdir=s' => \$customdir,
     'full'        => \$full,
+    'skip_authchk' => \$skip_authchk,
     'shadow'      => \$shadow,
     'symlink'     => \$symlink,
     'yarascan'    => \$yarascan,
@@ -283,6 +285,7 @@ sub show_help {
     print_header( "--skipkernel Skip kernel update checks. Useful if a custom kernel is installed and kernel checking fails.");
     print_header( "--yarascan   Skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
     print_header( "--full       Performs all of the above checks - very time consuming. Can cause HIGH LOAD DURING YARA SCANS!!!");
+    print_header( "--skipauthchk - Skip check for infected openssh backdoors");
     print_header( "--overwrite  Overwrite last summary and skip creation of new CSI directory under root.");
     print_header( "--cron       Run via cron. Note: --full, --overwrite and --yarascan options will also be passed.");
     print_header( "--debug      Shows additional extrenuous info including errors if any. Use only at direction of cPanel Support.");
@@ -293,7 +296,7 @@ sub show_help {
     print_status("            /root/csi.pl --symlink");
     print_status("            /root/csi.pl --secadv");
     print_status("            /root/csi.pl --skipkernel");
-    print_status("            /root/csi.pl --full [--yarascan]");
+    print_status("            /root/csi.pl --full [--yarascan] [--skipauthchk]");
     print_status("            /root/csi.pl --overwrite");
     print_status("            /root/csi.pl --cron [ add this to roots crontab or to a file in /etc/cron.d or /etc/cron.daily ]");
     print_status("Userscan ");
@@ -501,9 +504,11 @@ sub scan {
         chk_shadow_hack();
     }
     if ( $full ) {
-        print_header( YELLOW '[ Additional check for infected openssh backdoors ]' );
-        logit("Checking for infected openssh config files");
-        check_auth_keys_for_commands();
+        unless( $skip_authchk ) {
+            print_header( YELLOW '[ Additional check for infected openssh backdoors ]' );
+            logit("Checking for infected openssh config files");
+            check_auth_keys_for_commands();
+        }
     }
 
     if ( $full ) {
