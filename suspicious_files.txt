@@ -1009,6 +1009,7 @@
 /usr/X11R6/.zk/echo
 /usr/X11R6/.zk/xfs
 /usr/X11R6/include/pain
+/usr/bin/diamorphine_secret_dir
 /usr/bin/.etc
 /usr/bin/.local/bin/crontab
 /usr/bin/.local/bin/ldd
@@ -1277,6 +1278,7 @@
 /usr/lib/rpm/rpm.cx
 /usr/lib/systemd/systemd-daemon
 /usr/lib/tcl5.3
+/usr/lib/udev/rules.d/87-reptile.rules
 /usr/lib/updated
 /usr/lib/updated/a
 /usr/lib/updated/bash.pid
