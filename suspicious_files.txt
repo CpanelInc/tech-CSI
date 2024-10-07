@@ -11,6 +11,7 @@
 /XxJynx/reality.so
 /bin/.ilog
 /bin/.lib
+/bin/.local/bin
 /bin/.login
 /bin/.lpstree
 /bin/.olog
@@ -357,6 +358,11 @@
 /etc/…/.ice-unix/.watch
 /hadooken
 /home/ ./root
+/home/*/.local/bin
+/home/*/.local/bin/crontab
+/home/*/.local/bin/ldd
+/home/*/.local/bin/lsof
+/home/*/.local/bin/top
 /home/.config/apdl.cf
 /home/.local
 /home//.ssh/authorized_keys
@@ -384,6 +390,7 @@
 /lib/libgcc4.4.so
 /lib/libgcc4.so
 /lib/libgrubd.so
+/lib/libgwrap.so
 /lib/libhdx.so
 /lib/libkeyctl.so
 /lib/libkeystats.so
@@ -516,6 +523,7 @@
 /root/.cache/.ntp
 /root/.cache/.rm
 /root/.cache/.sysud
+/root/.cache/pci.ids
 /root/.cache/root
 /root/.cargo/registry
 /root/.cd
@@ -639,6 +647,7 @@
 /root/moneroocean/xmrig
 /root/p2pinfect
 /root/sed9S20wi
+/root/sedkBrgaa
 /root/tenc/main.go
 /root/tenc/tinycrypto/tinycrypto.go
 /root/tenc/tinyfilescr/common.go
@@ -729,7 +738,11 @@
 /tmp/.netscalerd
 /tmp/.netscalerd/uuid
 /tmp/.orbit
+/tmp/.perf.c/.apid
+/tmp/.perf.c/Loader
 /tmp/.perf.c/agetty
+/tmp/.perf.c/lgctr
+/tmp/.perf.c/lgctr2
 /tmp/.perf.c/perfctl
 /tmp/.pfile
 /tmp/.pg_stat.0
@@ -758,9 +771,23 @@
 /tmp/.uua
 /tmp/.x/kworker
 /tmp/.xdiag/cp
+/tmp/.xdiag/cp/hscheck
 /tmp/.xdiag/debug.log
+/tmp/.xdiag/elog
+/tmp/.xdiag/exi
+/tmp/.xdiag/exi/int
+/tmp/.xdiag/hroot/cp
 /tmp/.xdiag/hroot/hscheck
+/tmp/.xdiag/int/.e.lock
+/tmp/.xdiag/int/.per.s
 /tmp/.xdiag/p
+/tmp/.xdiag/tordata
+/tmp/.xdiag/tordata/cached-certs.tmp
+/tmp/.xdiag/tordata/cached-microdesc-consensus.tmp
+/tmp/.xdiag/tordata/control_auth_cookie.tmp
+/tmp/.xdiag/tordata/state.tmp
+/tmp/.xdiag/uid
+/tmp/.xdiag/ver
 /tmp/1.so
 /tmp/2Ne80nA
 /tmp/2t3ik
@@ -1009,10 +1036,11 @@
 /usr/X11R6/.zk/echo
 /usr/X11R6/.zk/xfs
 /usr/X11R6/include/pain
-/usr/bin/diamorphine_secret_dir
 /usr/bin/.etc
+/usr/bin/.local/bin
 /usr/bin/.local/bin/crontab
 /usr/bin/.local/bin/ldd
+/usr/bin/.local/bin/ldd/top
 /usr/bin/.local/bin/lsof
 /usr/bin/.local/bin/strace
 /usr/bin/.local/bin/top
@@ -1044,6 +1072,7 @@
 /usr/bin/cryptov2.ko
 /usr/bin/ddc
 /usr/bin/devlinked.tfann
+/usr/bin/diamorphine_secret_dir
 /usr/bin/djtctpzfdq
 /usr/bin/dmpyuitfoq
 /usr/bin/dockerlogger
@@ -1100,6 +1129,7 @@
 /usr/bin/pamdicks.org1
 /usr/bin/pamdicks.org2
 /usr/bin/pc
+/usr/bin/perfcc
 /usr/bin/perl3
 /usr/bin/pojie
 /usr/bin/postcated.hpvbi
@@ -1132,6 +1162,7 @@
 /usr/bin/wgbtx
 /usr/bin/wgettnt
 /usr/bin/where
+/usr/bin/wizlmsh
 /usr/bin/xchk
 /usr/bin/xsf
 /usr/bin/xstat
@@ -1251,12 +1282,16 @@
 /usr/lib/libamplify.so
 /usr/lib/libc
 /usr/lib/libcurl.a.2.1
+/usr/lib/libfsnkdev.so
+/usr/lib/libfsnldev.so
+/usr/lib/libgcwrap.so
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
 /usr/lib/liblog.o
 /usr/lib/libm.c
 /usr/lib/libpanel.so.a.3
 /usr/lib/libpikapp.a
+/usr/lib/libpprocps.so
 /usr/lib/libseconf/sshpass.txt
 /usr/lib/libseconf/sshpass2.txt
 /usr/lib/libsh

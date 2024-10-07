@@ -207,6 +207,7 @@ os.system\(\"/bin/sh\"\)
 pas.pl
 peer2profit
 perfcc
+perf.c
 performedl
 pg_mem
 pocosow
@@ -279,3 +280,4 @@ ysaydh
 zcash
 zhuabcn@yahoo.com
 zigw
+bitpingd
