@@ -333,6 +333,7 @@
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
 /etc/systemb
+/etc/systemd/system/custom.service
 /etc/systemd/system/griphon.service
 /etc/systemd/system/kmodaudit.service
 /etc/systemd/system/myservice.service
@@ -358,9 +359,9 @@
 /etc/…/.ice-unix/.watch
 /hadooken
 /home/ ./root
-/home/*/.local/bin
-/home/*/.local/bin/crontab
-/home/*/.local/bin/ldd
+/home/[0-9,a-z,A-Z]/.local/bin
+/home/[0-9,a-z,A-Z]/.local/bin/crontab
+/home/[0-9,a-z,A-Z]/.local/bin/ldd
 /home/*/.local/bin/lsof
 /home/*/.local/bin/top
 /home/.config/apdl.cf
