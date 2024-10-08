@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.40";
+my $version = "3.5.41";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -101,7 +101,7 @@ my (
     $customdir,    $scan,    $skipkernel,     %process,
     %ipcs,         $distro,  $distro_version, $distro_major,
     $distro_minor, $ignoreload, $overwrite,   $cron,
-    $skip_authchk
+    $skipauthchk
 );
 get_ipcs_hash( \%ipcs );
 
@@ -121,7 +121,7 @@ GetOptions(
     'userscan=s'  => \$userscan,
     'customdir=s' => \$customdir,
     'full'        => \$full,
-    'skip_authchk' => \$skip_authchk,
+    'skipauthchk' => \$skipauthchk,
     'shadow'      => \$shadow,
     'symlink'     => \$symlink,
     'yarascan'    => \$yarascan,
@@ -504,7 +504,7 @@ sub scan {
         chk_shadow_hack();
     }
     if ( $full ) {
-        unless( $skip_authchk ) {
+        unless( $skipauthchk ) {
             print_header( YELLOW '[ Additional check for infected openssh backdoors ]' );
             logit("Checking for infected openssh config files");
             check_auth_keys_for_commands();
@@ -551,7 +551,7 @@ sub scan {
                         my $showHeader = 0;
                         foreach my $yara_result (@results) {
                             chomp($yara_result);
-                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl} );
+                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs} );
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
                             my $ignore = _ignore( $triggered_rule, $triggered_file );
                             next unless( $ignore );
@@ -1717,6 +1717,7 @@ sub all_malware_checks {
     check_for_cronRAT();
     check_for_ncom_rootkit();
     check_env_for_susp_vars();
+    check_for_perfcc();
     check_for_xbash();
     check_for_cdorked_A();
     check_for_cdorked_B();
@@ -3444,7 +3445,6 @@ sub look_for_suspicious_files {
         my $fileType;
         chomp($file);
         next unless ( -f $file or -d $file and not -z $file and not -l $file );
-        #print "DEBUG: file=$file\n" if ( $file =~ m/magicPussy/ );
         my $fStat = lstat($file) or die($!);
         $fileType = "file"      unless ( -d $file );
         $fileType = "directory" unless ( -f $file );
@@ -4127,6 +4127,29 @@ sub check_env_for_susp_vars {
     }
     if ( grep { /AAZHDE/ } @env ) {
         push @SUMMARY, "> Found AAZHDE environment variable. Could indicate presence of the perfcc/perfctl coin miner";
+    }
+}
+
+sub check_for_perfcc {
+    my @suspfiles = qw( '*/.local/bin/ldd', '*/.local/bin/lsof', '*/.local/bin/top', '*/.local/bin/crontab' );
+    my @suspfound;
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'd', '-iwholename', '*/.local/bin' );
+    push @suspfound, $findit if ( $findit );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/ldd' );
+    push @suspfound, $findit if ( $findit );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/lsof' );
+    push @suspfound, $findit if ( $findit );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/top' );
+    push @suspfound, $findit if ( $findit );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/crontab' );
+    push @suspfound, $findit if ( $findit );
+    my $x=@suspfound;
+    if ( $x > 1 ) {
+        push @SUMMARY, "> Found evidence of the Perf.cc/Perfctl malware: ";
+        foreach my $suspfile(@suspfound) {
+            chomp($suspfile);
+            push @SUMMARY, expand( CYAN "\t\\_ $suspfile" );
+        }
     }
 }
 

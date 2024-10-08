@@ -5,6 +5,8 @@
 /.a/mass2ip
 /.a/mass2ip/masscan
 /.cmc
+/.config/cron/top
+/.local/top
 /XxJynx/3.so
 /XxJynx/4.so
 /XxJynx/jynx2.so
@@ -301,6 +303,7 @@
 /etc/rc.d/init.d/selinux
 /etc/rc.d/rsha
 /etc/rc.local.d/local.sh
+/etc/rc2.d/599lol.sh
 /etc/rc2.d/S04syslogd
 /etc/rc2.d/S99po1kitd-update
 /etc/rc3.d/S04syslogd
@@ -359,11 +362,6 @@
 /etc/…/.ice-unix/.watch
 /hadooken
 /home/ ./root
-/home/[0-9,a-z,A-Z]/.local/bin
-/home/[0-9,a-z,A-Z]/.local/bin/crontab
-/home/[0-9,a-z,A-Z]/.local/bin/ldd
-/home/*/.local/bin/lsof
-/home/*/.local/bin/top
 /home/.config/apdl.cf
 /home/.local
 /home//.ssh/authorized_keys
@@ -714,6 +712,7 @@
 /tmp/.a
 /tmp/.abc
 /tmp/.abchello
+/tmp/.apid
 /tmp/.b
 /tmp/.bash
 /tmp/.bkp
@@ -739,6 +738,7 @@
 /tmp/.netscalerd
 /tmp/.netscalerd/uuid
 /tmp/.orbit
+/tmp/.perf.c
 /tmp/.perf.c/.apid
 /tmp/.perf.c/Loader
 /tmp/.perf.c/agetty
@@ -771,6 +771,7 @@
 /tmp/.user
 /tmp/.uua
 /tmp/.x/kworker
+/tmp/.xdiag
 /tmp/.xdiag/cp
 /tmp/.xdiag/cp/hscheck
 /tmp/.xdiag/debug.log
