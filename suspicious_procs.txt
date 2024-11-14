@@ -281,3 +281,9 @@ zcash
 zhuabcn@yahoo.com
 zigw
 bitpingd
+crondx
+chrondx
+filetool.sh
+wwwwww
+pskt
+\\[md\\]

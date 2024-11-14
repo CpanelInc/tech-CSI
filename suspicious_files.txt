@@ -484,6 +484,8 @@
 /mnt/hadooken
 /myshell
 /netscaler/ns_gui/vpn/medialogininit.png
+/opt/.filetool.lst
+/opt/bootlocal.sh
 /opt/KHK75NEOiq33
 /opt/aspera/faspex
 /opt/hadooken
@@ -678,6 +680,8 @@
 /sbin/vobiscum
 /sbin/xc
 /sbin/xlogin
+stat /sys/module/kworkerx
+/sys/firmware/qemu_fw_cfg/by_name/opt/usercontext/raw
 /tmp./update
 /tmp.russ
 /tmp/.../a
@@ -801,6 +805,7 @@
 /tmp/IptabLes
 /tmp/KCtbBo
 /tmp/Linux64-shell
+/tmp/lock_tmp1
 /tmp/Res
 /tmp/Res/Payload
 /tmp/Temp-adad72e8-a81a-4825-b097-2e6d9adc32b5/.e.lock
