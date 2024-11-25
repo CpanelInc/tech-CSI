@@ -4328,7 +4328,7 @@ sub check_for_cve_vulnerabilities {
         chomp($firstvuln);
         next if ( version_compare( $pkgver, $op2, $firstvuln ) );
 
-        print "DEBUG: pkg=$pkg / pkgver=$pkgver / firstvuln=$firstvuln / patchedver=$patchedver\n";
+        #print "DEBUG: pkg=$pkg / pkgver=$pkgver / firstvuln=$firstvuln / patchedver=$patchedver\n";
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve" );
