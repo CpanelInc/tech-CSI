@@ -265,7 +265,6 @@
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
 /etc/init.d/dlump
-/etc/init.d/network
 /etc/rc.d/rc1.d/s60dlump
 /etc/rc.d/rc2.d/s60dlump
 /etc/rc.d/rc3.d/s60dlump
