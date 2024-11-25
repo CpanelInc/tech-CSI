@@ -264,6 +264,13 @@
 /etc/init.d/syslogd
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
+/etc/init.d/dlump
+/etc/init.d/network
+/etc/rc.d/rc1.d/s60dlump
+/etc/rc.d/rc2.d/s60dlump
+/etc/rc.d/rc3.d/s60dlump
+/etc/rc.d/rc4.d/s60dlump
+/etc/rc.d/rc5.d/s60dlump
 /etc/intel_audio/audio
 /etc/intel_audio/id
 /etc/intel_audio/intel_audio.ko
@@ -366,6 +373,7 @@
 /home/.local
 /home//.ssh/authorized_keys
 /home/product/code/firmware/current/sbin/smtpctl
+/home/www/.x11
 /home/ygljglkjgfg1
 /lib/*/ScBr_*
 /lib/*/magicPussy*
@@ -441,6 +449,7 @@
 /lib/security/update.so
 /lib/systemd/system/sys-temd-agent.service
 /lib/systemd/system/systemd-worker.service
+/lib/systemd/system/display-managerd.service
 /lib/tls/libkeyutils.so.1
 /lib/tls/libkeyutils.so.1.5
 /lib/udev/rules.d/52-reptile.rules
@@ -454,6 +463,7 @@
 /lib/udev/ssd_control/t
 /lib/udev/x.modules
 /lib/x86_64-linux-gnu/libc-2.23.so
+/lib64/gdm/.gdm
 /lib64/libgrubd.so
 /lib64/libhdx.so
 /lib64/libkeyctl.so
@@ -1032,6 +1042,7 @@ stat /sys/module/kworkerx
 /tmp/wsnbb
 /tmp/xp
 /tmp/xweb_log.md
+/tmp/zijtkldse.tmp
 /tmp/zilog
 /tmp/zolog
 /usr/.IptabLes
@@ -1043,6 +1054,7 @@ stat /sys/module/kworkerx
 /usr/X11R6/.zk/echo
 /usr/X11R6/.zk/xfs
 /usr/X11R6/include/pain
+/usr/bin/.x11
 /usr/bin/.etc
 /usr/bin/.local/bin
 /usr/bin/.local/bin/crontab
