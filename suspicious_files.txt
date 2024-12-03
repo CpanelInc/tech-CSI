@@ -1547,6 +1547,7 @@ stat /sys/module/kworkerx
 /var/tmp/.11/..lph
 /var/tmp/.11/bioset
 /var/tmp/.11/sshd
+/var/tmp/.dash.log
 /var/tmp/.SQL-Unix
 /var/tmp/.SQL-Unix/.SQL
 /var/tmp/.SQL-Unix/.SQL/.db

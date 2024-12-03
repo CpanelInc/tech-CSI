@@ -1198,10 +1198,12 @@ sub check_preload {
     my $libconv_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libconv.so', '/etc/ld.so.preload' );
     my $libs_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib64/libs.so', '/etc/ld.so.preload' );
     my $libprochider_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libprocesshider', '/etc/ld.so.preload' );
+    my $injectorso = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/opt/injector.so', '/etc/ld.so.preload' );
     push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
     push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
     push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );
     push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.\n\t\\_ ps output and lsof output may not be conclusive.") if( $libprochider_so );
+    push( @SUMMARY, "> Found /opt/injector.so in /etc/ld.so.preload - Possible root-level compromise.") if( $injectorso );
 }
 
 sub create_summary {
