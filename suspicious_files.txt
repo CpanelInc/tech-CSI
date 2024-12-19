@@ -128,7 +128,7 @@
 /dev/shm/.bash/x86_64
 /dev/shm/.bin
 /dev/shm/.kauditd
-/dev/shm/.kauditd/[kauditd]
+/dev/shm/.kauditd/\[kauditd\]
 /dev/shm/.lck
 /dev/shm/.linux
 /dev/shm/.lwp
@@ -367,7 +367,7 @@
 /etc/…/.ice-unix/
 /etc/…/.ice-unix/.watch
 /hadooken
-/home/ ./root
+"/home/ ./root"
 /home/.config/apdl.cf
 /home/.local
 /home//.ssh/authorized_keys
@@ -1071,7 +1071,7 @@ stat /sys/module/kworkerx
 /usr/bin/NetworkManage
 /usr/bin/Perfctl
 /usr/bin/TNTwget
-/usr/bin/[kthrotlds]
+/usr/bin/\[kthrotlds\]
 /usr/bin/_-config
 /usr/bin/_-minerd
 /usr/bin/_-pud
@@ -1405,11 +1405,11 @@ stat /sys/module/kworkerx
 /usr/local/sbin/bin/start
 /usr/local/sbin/bin/t
 /usr/local/sbin/bin/upd
-/usr/local/share/. 
-/usr/local/share/. /Mailer
-/usr/local/share/. /fs
-/usr/local/share/. /ita
-/usr/local/share/. /ita/ita.gz
+"/usr/local/share/. "
+#/usr/local/share/. /Mailer"
+#/usr/local/share/. /fs"
+#/usr/local/share/. /ita"
+#/usr/local/share/. /ita/ita.gz"
 /usr/local/share/hadooken
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
@@ -1590,3 +1590,4 @@ stat /sys/module/kworkerx
 /var/www/html/Index.php
 /watchd0g.sh
 /xpnjdfx.txt
+/etc/udev/rules.d/*asedexpb*
