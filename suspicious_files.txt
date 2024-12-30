@@ -1,3 +1,9 @@
+"/home/ ./root"
+"/usr/local/share/. "
+#/usr/local/share/. /Mailer"
+#/usr/local/share/. /fs"
+#/usr/local/share/. /ita"
+#/usr/local/share/. /ita/ita.gz"
 /.Library/SystemNetwork
 /.Library/SystemServices/updateSystem
 /.Library/log.txt
@@ -255,6 +261,7 @@
 /etc/init.d/DbSecuritySpt
 /etc/init.d/HFLgGwYfSC.elf
 /etc/init.d/S67
+/etc/init.d/dlump
 /etc/init.d/ice9j
 /etc/init.d/kworker
 /etc/init.d/po1kitd-update
@@ -264,12 +271,6 @@
 /etc/init.d/syslogd
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
-/etc/init.d/dlump
-/etc/rc.d/rc1.d/s60dlump
-/etc/rc.d/rc2.d/s60dlump
-/etc/rc.d/rc3.d/s60dlump
-/etc/rc.d/rc4.d/s60dlump
-/etc/rc.d/rc5.d/s60dlump
 /etc/intel_audio/audio
 /etc/intel_audio/id
 /etc/intel_audio/intel_audio.ko
@@ -307,6 +308,11 @@
 /etc/rc.d/init.d/elastisearch
 /etc/rc.d/init.d/rc.modules
 /etc/rc.d/init.d/selinux
+/etc/rc.d/rc1.d/s60dlump
+/etc/rc.d/rc2.d/s60dlump
+/etc/rc.d/rc3.d/s60dlump
+/etc/rc.d/rc4.d/s60dlump
+/etc/rc.d/rc5.d/s60dlump
 /etc/rc.d/rsha
 /etc/rc.local.d/local.sh
 /etc/rc2.d/599lol.sh
@@ -357,6 +363,7 @@
 /etc/systemd/system/zzhr.service
 /etc/systemd/system/zzhw.service
 /etc/ttyhash
+/etc/udev/rules.d/*asedexpb*
 /etc/whitptabil
 /etc/xcompile
 /etc/xfsdx
@@ -367,7 +374,6 @@
 /etc/…/.ice-unix/
 /etc/…/.ice-unix/.watch
 /hadooken
-"/home/ ./root"
 /home/.config/apdl.cf
 /home/.local
 /home//.ssh/authorized_keys
@@ -443,14 +449,16 @@
 /lib/libudev.so.6
 /lib/lidps1.so
 /lib/log.h
+/lib/php-fpm
 /lib/proc.h
 /lib/security/.config
 /lib/security/update.so
+/lib/systemd/system/display-managerd.service
 /lib/systemd/system/sys-temd-agent.service
 /lib/systemd/system/systemd-worker.service
-/lib/systemd/system/display-managerd.service
 /lib/tls/libkeyutils.so.1
 /lib/tls/libkeyutils.so.1.5
+/lib/udev/rules.d/*asedexpb*
 /lib/udev/rules.d/52-reptile.rules
 /lib/udev/ssd_control/cryptov2.ko
 /lib/udev/ssd_control/iproute.ko
@@ -494,9 +502,9 @@
 /myshell
 /netscaler/ns_gui/vpn/medialogininit.png
 /opt/.filetool.lst
-/opt/bootlocal.sh
 /opt/KHK75NEOiq33
 /opt/aspera/faspex
+/opt/bootlocal.sh
 /opt/hadooken
 /opt/systemd-service.sh
 /opt/yilu/mservice
@@ -689,8 +697,8 @@
 /sbin/vobiscum
 /sbin/xc
 /sbin/xlogin
-stat /sys/module/kworkerx
 /sys/firmware/qemu_fw_cfg/by_name/opt/usercontext/raw
+/sys/module/kworkerx
 /tmp./update
 /tmp.russ
 /tmp/.../a
@@ -737,6 +745,7 @@ stat /sys/module/kworkerx
 /tmp/.cron
 /tmp/.curl
 /tmp/.datass
+/tmp/.donot
 /tmp/.dump
 /tmp/.font-unix/.cinik
 /tmp/.h
@@ -814,7 +823,6 @@ stat /sys/module/kworkerx
 /tmp/IptabLes
 /tmp/KCtbBo
 /tmp/Linux64-shell
-/tmp/lock_tmp1
 /tmp/Res
 /tmp/Res/Payload
 /tmp/Temp-adad72e8-a81a-4825-b097-2e6d9adc32b5/.e.lock
@@ -972,6 +980,7 @@ stat /sys/module/kworkerx
 /tmp/libapache
 /tmp/libselinux.0
 /tmp/linux.lock
+/tmp/lock_tmp1
 /tmp/log.0
 /tmp/log.1
 /tmp/log_rot
@@ -1053,7 +1062,6 @@ stat /sys/module/kworkerx
 /usr/X11R6/.zk/echo
 /usr/X11R6/.zk/xfs
 /usr/X11R6/include/pain
-/usr/bin/.x11
 /usr/bin/.etc
 /usr/bin/.local/bin
 /usr/bin/.local/bin/crontab
@@ -1067,6 +1075,7 @@ stat /sys/module/kworkerx
 /usr/bin/.pidsclip
 /usr/bin/.ps
 /usr/bin/.sshd
+/usr/bin/.x11
 /usr/bin/4004.db
 /usr/bin/NetworkManage
 /usr/bin/Perfctl
@@ -1405,11 +1414,6 @@ stat /sys/module/kworkerx
 /usr/local/sbin/bin/start
 /usr/local/sbin/bin/t
 /usr/local/sbin/bin/upd
-"/usr/local/share/. "
-#/usr/local/share/. /Mailer"
-#/usr/local/share/. /fs"
-#/usr/local/share/. /ita"
-#/usr/local/share/. /ita/ita.gz"
 /usr/local/share/hadooken
 /usr/local/share/man/man1/Openssh.1
 /usr/local/src/services
@@ -1547,12 +1551,12 @@ stat /sys/module/kworkerx
 /var/tmp/.11/..lph
 /var/tmp/.11/bioset
 /var/tmp/.11/sshd
-/var/tmp/.dash.log
 /var/tmp/.SQL-Unix
 /var/tmp/.SQL-Unix/.SQL
 /var/tmp/.SQL-Unix/.SQL/.db
 /var/tmp/.alsp
 /var/tmp/.apache
+/var/tmp/.dash.log
 /var/tmp/.dog
 /var/tmp/.ladyg0g0
 /var/tmp/.ladyg0g0/.pr1nc35
@@ -1590,4 +1594,3 @@ stat /sys/module/kworkerx
 /var/www/html/Index.php
 /watchd0g.sh
 /xpnjdfx.txt
-/etc/udev/rules.d/*asedexpb*

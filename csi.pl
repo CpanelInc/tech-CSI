@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.41";
+my $version = "3.5.42";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -424,6 +424,9 @@ sub scan {
     print_header('[ Checking for suspicious bitcoin miners ]');
     logit("Checking for suspicious bitcoin miners");
     bitcoin_chk();
+    print_header('[ Checking for suspicious mount points ]') if iam('cptech');
+    logit("Checking for suspicious mount points") if iam('cptech');;
+    check_mounts() if iam('cptech');
     print_header('[ Checking reseller ACLs ]');
     logit("Checking reseller ACLs");
     check_resellers_for_all_ACL();
@@ -537,7 +540,7 @@ sub scan {
                     print YARAFILE $yara_line . "\n";
                 }
                 close(YARAFILE);
-                my @dirs = qw( /bin /sbin /root /boot /etc /lib /lib64 /usr /tmp );
+                my @dirs = qw( /bin /boot /etc /lib /lib64 /opt /root /sbin /tmp /usr );
                 for my $dir (@dirs) {
                     chomp($dir);
                     next unless -d $dir;
@@ -551,7 +554,7 @@ sub scan {
                         my $showHeader = 0;
                         foreach my $yara_result (@results) {
                             chomp($yara_result);
-                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs} );
+                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs|access_log|swpDSK} );
                             my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
                             my $ignore = _ignore( $triggered_rule, $triggered_file );
                             next unless( $ignore );
@@ -581,6 +584,12 @@ sub scan {
     print_normal(' ');
 
     # Checking for recommendations
+    print_header('[ Checking for obsolete password hashes in /etc/shadow ]');
+    logit("Checking for obsolete password hashes");
+    check_for_obsolete_shadow_hashes();
+    print_header('[ Comparing hashes in /etc/shells to /sbin/nologin ]');
+    logit("Comparing hashes in /etc/shells to /sbin/nologin");
+    compare_hash_of_shells();
     print_header('[ Checking if updates are enabled ]');
     logit("Checking if updates are enabled");
     check_cpupdate_conf();
@@ -1468,6 +1477,33 @@ sub check_for_ebury_ssh_shmem {
     }
 }
 
+sub check_for_glutton_php {
+    return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-upnl' );
+    for my $line ( split( '\n', $netstat_out ) ) {
+        if ( $line =~ m{php-fpm} ) {
+            push( @SUMMARY, "> [Possible Glutton PHP Backdoor] - " . CYAN "php-fpm running on udp port: " . $line );
+            last;
+        }
+    }
+    return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-pnu' );
+    for my $line ( split( '\n', $netstat_out ) ) {
+        if ( $line =~ m{kworker} ) {
+            push( @SUMMARY, "> [Possible Glutton PHP Backdoor] - " . CYAN "kworker process ESTABLISHED on udp port: " . $line );
+            last;
+        }
+    }
+}
+
+sub check_for_melofee {
+    return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-tpn' );
+    for my $line ( split( '\n', $netstat_out ) ) {
+        if ( $line =~ m{kworkerx} ) {
+            push( @SUMMARY, "> [Possible Rootkit: Melofee] - " . CYAN "kworkerx kernel driver found: " . $line );
+            last;
+        }
+    }
+}
+
 sub check_for_ebury_socket {
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-nap' );
     for my $line ( split( '\n', $netstat_out ) ) {
@@ -1730,6 +1766,8 @@ sub all_malware_checks {
     check_for_evasive_libkey();
     check_for_ebury_ssh_G();
     check_for_ebury_ssh_shmem();
+    check_for_melofee();
+    check_for_glutton_php();
     check_for_ebury_socket();
     check_for_dragnet();
     check_for_exim_vuln();
@@ -3436,6 +3474,16 @@ sub getAWS_IPs {
     }
 }
 
+sub FileExists {
+    my $param = shift;
+    foreach my $file2 (@{$param}) {
+        if (-e "$file2") {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 sub look_for_suspicious_files {
     my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_files.txt');
     my $ua      = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
@@ -3446,10 +3494,19 @@ sub look_for_suspicious_files {
         $file =~ s/'//g;
         my $fileType;
         chomp($file);
-        next unless ( -f $file or -d $file and not -z $file and not -l $file );
-        my $fStat = lstat($file) or die($!);
-        $fileType = "file"      unless ( -d $file );
-        $fileType = "directory" unless ( -f $file );
+        my @arr = glob( $file );
+        my $result = FileExists(\@arr);
+        next unless( $result );
+        use File::Basename;
+        my $dirname=dirname($file);
+        if ( $dirname ) {
+            push @SUMMARY, "> A suspicious file was found within " . WHITE $dirname;
+            push @SUMMARY, CYAN "\t\\_ Run: " . MAGENTA "file $file" . CYAN " to get the full name.";
+            next;
+        }
+        my $fStat = lstat($file);
+        my $fileType = "file"      unless ( -d $file );
+        my $fileType = "directory" unless ( -f $file );
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         my $FileSize = $fStat->size;
@@ -3481,7 +3538,7 @@ sub look_for_suspicious_files {
         }
         else {
             push @SUMMARY,
-              expand( "> Suspicious $fileType found: "
+            expand( "> Suspicious $fileType found: "
                   . CYAN $file
                   . $isImmutable
                   . expand( YELLOW "\n\t\\_ Size: "
@@ -4708,6 +4765,45 @@ sub check_for_freedownloadmanager_malware {
         foreach my $line(@detected) {
             chomp($line);
             push @SUMMARY, "$line\n";
+        }
+    }
+}
+
+sub check_mounts {
+    return unless( iam('cptech'));
+    my $liscMounted = Cpanel::SafeRun::Timed::timedsaferun( 5, 'mount' );
+    my @liscMounted = split /\n/, $liscMounted;
+    return unless (@liscMounted);
+    foreach my $mount_line (@liscMounted) {
+        if ( $mount_line =~ m/cpanel.lisc|cpsanitycheck.so/ ) {
+            push( @SUMMARY, "Suspicious Mount Found:\n" . CYAN . "\t\\_  $mount_line\n" . RED "\t\\_ Send this to L3 Please!" );
+        }
+    }
+}
+
+sub check_for_obsolete_shadow_hashes {
+    my $md5hash=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-c', '\$1\$', '/etc/shadow' );
+    chomp($md5hash);
+    if ( $md5hash > 0 ) {
+        push( @INFO, "> Found $md5hash obsolete password hash(es) [MD5] in /etc/shadow file.");
+        push( @INFO, CYAN "\t\\_ Run: " . WHITE "grep '\\\$1\\\$' /etc/shadow" . CYAN " to find them.");
+    }
+}
+
+sub compare_hash_of_shells {
+    return unless( -f '/etc/shells' );
+    my ($nologinhash)=(split( /\s+/, Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha1sum', '/sbin/nologin' )))[0];
+    chomp($nologinhash);
+    open( my $fh, '<', '/etc/shells' );
+    while ( <$fh> ) {
+        chomp;
+        next if -l $_;
+        next unless -f $_;
+        my ($hashline,$shellfile)=(split( /\s+/, Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha1sum', $_ )));
+        chomp($hashline);
+        chomp($shellfile);
+        if ( $hashline eq $nologinhash ) {
+            push( @SUMMARY, "> The SHA1 hash for /sbin/nologin is identical to the one for $shellfile - Could indicate a compromise!" );
         }
     }
 }
