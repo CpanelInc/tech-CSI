@@ -4683,7 +4683,7 @@ sub check_for_susp_rc_modules {
 }
 
 sub check_for_lkm_rootkits {
-    my @lookfor=qw( reptile_module diamorphine );
+    my @lookfor=qw( reptile_module diamorphine sysinitd );
     foreach my $lkm(@lookfor) {
         chomp($lkm);
         my $lsmod=Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );

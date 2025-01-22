@@ -514,6 +514,9 @@
 /opt/yilu/work/xige/xige
 /opttest
 /private/etc/krb5d.conf
+/proc/abrtinfo
+/proc/brtinfo
+/proc/rtinfo
 /proc/.inl
 /proc/knark
 /proc/kset
@@ -1457,6 +1460,8 @@
 /usr/share/accounts-daemon/accounts-daemon.so
 /usr/share/boot.sync
 /usr/share/core.h
+/usr/share/empty/sysinitd.so
+/usr/share/empty/init/sysinitd.ko
 /usr/share/lsx/.ig.swr
 /usr/share/man/.urandom
 /usr/share/man/hu/aa
