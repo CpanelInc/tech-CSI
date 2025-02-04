@@ -4799,6 +4799,7 @@ sub compare_hash_of_shells {
         chomp;
         next if -l $_;
         next unless -f $_;
+        next if ( $_ eq '/sbin/nologin' );
         my ($hashline,$shellfile)=(split( /\s+/, Cpanel::SafeRun::Timed::timedsaferun( 0, 'sha1sum', $_ )));
         chomp($hashline);
         chomp($shellfile);
