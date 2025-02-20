@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.42";
+my $version = "3.5.43";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2168,6 +2168,15 @@ sub userscan {
         );
     }
 
+    # SOP-28 - look for massearchtraffic.top within fucntions.php file.
+    my $massearchtraffic_malware = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome", '-name', 'functions.php', '-not', '-path', "/home/virtfs/*", '-a', '-not', '-path', '*/[@.]*', '-exec', 'grep', 'massearchtraffic.top', '{}', '+' );
+    my $showHeader=0;
+    if ( $massearchtraffic_malware ) {
+        push( @SUMMARY, "> Found malicious redirect URL within functions.php file" ) unless( $showHeader );;
+        $showHeader=1;
+        push( @SUMMARY, MAGENTA "\t\\_  $massearchtraffic_malware") if ( $massearchtraffic_malware );
+    }
+
     my $susp_dir = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'd', '-print' );
     my @susp_dir = split /\n/, $susp_dir;
     my $showHeader=0;
@@ -2326,6 +2335,7 @@ sub userscan {
                 push @SUMMARY,
 "> A general Yara scan of the $lcUserToScan account found the following suspicious items...";
                 foreach my $yara_result (@results) {
+                    next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs|access_log|swpDSK|\.svg|\.txt|\.json|\.pot|\.js|\.md} );
                     my ( $triggered_rule, $triggered_file, $triggered_string );
                     chomp($yara_result);
                     if ( substr( $yara_result, 0, 2 ) eq "0x" ) {
