@@ -546,7 +546,6 @@
 /root/.cache/.sysud
 /root/.cache/pci.ids
 /root/.cache/root
-/root/.cargo/registry
 /root/.cd
 /root/.config/.accounts-daemon/accounts-daemon.login.conf
 /root/.config/cron/Perfctl
