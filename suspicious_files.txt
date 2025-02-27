@@ -1604,3 +1604,5 @@
 /var/www/html/Index.php
 /watchd0g.sh
 /xpnjdfx.txt
+/var/log/installlog.log.*
+/mnt/hgfsdisk.log.*
