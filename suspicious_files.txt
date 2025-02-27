@@ -397,6 +397,7 @@
 /lib/ldd.so
 /lib/ldlib.tk
 /lib/lib0UZ0LfvWZ.so
+/lib/libcext.so.2
 /lib/libgcc.so
 /lib/libgcc.so.bak
 /lib/libgcc4.4.so
@@ -471,6 +472,7 @@
 /lib/udev/x.modules
 /lib/x86_64-linux-gnu/libc-2.23.so
 /lib64/gdm/.gdm
+/lib64/libcext.so.2
 /lib64/libgrubd.so
 /lib64/libhdx.so
 /lib64/libkeyctl.so
@@ -514,12 +516,12 @@
 /opt/yilu/work/xige/xige
 /opttest
 /private/etc/krb5d.conf
+/proc/.inl
 /proc/abrtinfo
 /proc/brtinfo
-/proc/rtinfo
-/proc/.inl
 /proc/knark
 /proc/kset
+/proc/rtinfo
 /proc/rtkit
 /proc/syslogk
 /proc/udevd
@@ -889,6 +891,8 @@
 /tmp/cpuhp_1
 /tmp/cpuset
 /tmp/crondpid
+/tmp/cross/0[xX][0-9a-fA-F]+/tcp
+/tmp/cross/config-err-*
 /tmp/crun
 /tmp/crypto
 /tmp/cryptov2.ko
@@ -1459,8 +1463,8 @@
 /usr/share/accounts-daemon/accounts-daemon.so
 /usr/share/boot.sync
 /usr/share/core.h
-/usr/share/empty/sysinitd.so
 /usr/share/empty/init/sysinitd.ko
+/usr/share/empty/sysinitd.so
 /usr/share/lsx/.ig.swr
 /usr/share/man/.urandom
 /usr/share/man/hu/aa
@@ -1516,6 +1520,8 @@
 /var/lock/bash10
 /var/log/.log
 /var/log/.login
+/var/log/cross/auto-color
+/var/log/cross/config-err-*
 /var/log/secureecho
 /var/log/syslogd
 /var/log/utmp

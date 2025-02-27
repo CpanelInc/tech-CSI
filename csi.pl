@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.43";
+my $version = "3.5.44";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1208,6 +1208,7 @@ sub check_preload {
     my $libs_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib64/libs.so', '/etc/ld.so.preload' );
     my $libprochider_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libprocesshider', '/etc/ld.so.preload' );
     my $injectorso = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/opt/injector.so', '/etc/ld.so.preload' );
+    my $libcext_so_2 = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib*/libcext.so.2', '/etc/ld.so.preload' );
     push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
     push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
     push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );

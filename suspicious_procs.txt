@@ -287,3 +287,6 @@ filetool.sh
 wwwwww
 pskt
 \\[md\\]
+egg
+door
+Auto-color
