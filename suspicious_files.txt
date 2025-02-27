@@ -891,7 +891,7 @@
 /tmp/cpuhp_1
 /tmp/cpuset
 /tmp/crondpid
-/tmp/cross/0[xX][0-9a-fA-F]+/tcp
+/tmp/cross/*/tcp
 /tmp/cross/config-err-*
 /tmp/crun
 /tmp/crypto
