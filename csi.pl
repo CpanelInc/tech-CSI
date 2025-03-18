@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.44";
+my $version = "3.5.45";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -433,6 +433,9 @@ sub scan {
     print_header( '[ Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE ]');
     logit( "Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE");
     check_apitokens_json();
+    print_header( '[ Checking for root user as a cpanelid user ]');
+    logit( "Checking authn paths for cpanelid user belonging to root" );
+    check_authn_cpanelid();
     print_header( '[ Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes ]');
     logit("Checking api_tokens_log for passwd changes");
     check_api_tokens_log();
@@ -3589,6 +3592,12 @@ sub known_sha256_hashes {
     my $x=grep { /$checksum/ } @knownhashes;
     return 1 if ( grep { /$checksum/ } @knownhashes );
     return 0;
+}
+
+sub check_authn_cpanelid {
+    my $authn_user='/var/cpanel/authn/links/users/root/root.db';
+    return unless( -e $authn_user );
+    push( @SUMMARY, "> Found $authn_user file\n\t\\_ This is highly unusual and could indicate a root compromise!");
 }
 
 sub check_apitokens_json {

@@ -499,6 +499,8 @@
 /linux_avp
 /lost+found/mimipenguin-master/kautomount--pid-file-var-run-au
 /media/.cpuminer-gr-1.2.2-x86_64_linux
+/mfs/var/etc/syslog.conf0
+/mfs/var/etc/syslog.conf
 /mnt/-java
 /mnt/hadooken
 /myshell
@@ -1318,6 +1320,7 @@
 /usr/lib/libfsnkdev.so
 /usr/lib/libfsnldev.so
 /usr/lib/libgcwrap.so
+/usr/lib/libjucomm.so.1
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
 /usr/lib/liblog.o
@@ -1497,6 +1500,7 @@
 /var/.x/psotnic
 /var/adm/.profile
 /var/adm/sa/.adm
+/var/db/config/usage_db
 /var/elan2
 /var/html/lol
 /var/lib/cryptov2.ko
@@ -1525,9 +1529,13 @@
 /var/log/secureecho
 /var/log/syslogd
 /var/log/utmp
+/var/log/utx.log
+/var/log/utx.log0
 /var/log/wtmpecho
 /var/log/xmrig
 /var/opt/power
+/var/rundb
+/var/rundb+
 /var/run/+++php.run
 /var/run/+++screen.run
 /var/run/.netns.pid
@@ -1544,6 +1552,7 @@
 /var/run/npss.state
 /var/run/nscd/ns.pid
 /var/run/proc.pid
+/var/run/snmpd.pid
 /var/run/sshd/sshd.pid
 /var/run/sys_checker.pid
 /var/run/udev.pid
@@ -1590,9 +1599,12 @@
 /var/tmp/lib*
 /var/tmp/libutil.so
 /var/tmp/linux.lock
+/var/tmp/pfed_jdhcp6_trace.log
+/var/tmp/pfed_jdhcp6_trace.log.bak
 /var/tmp/php_cache
 /var/tmp/r
 /var/tmp/root/sysinfo/etc
+/var/tmp/rts
 /var/tmp/run.sh
 /var/tmp/salt-store
 /var/tmp/test.tar.gz
