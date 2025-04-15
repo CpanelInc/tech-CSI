@@ -290,3 +290,7 @@ pskt
 egg
 door
 Auto-color
+./upd
+./kswapd01
+kswap01
+./vshell_linux_amd64

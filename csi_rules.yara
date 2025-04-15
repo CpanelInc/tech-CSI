@@ -3355,3 +3355,42 @@ rule detect_Auto_Color {
         (filesize < 300KB) and ($elf at 0) and (5 of ($s*)) 
 }
 
+rule Linux_Hacktool_Outlaw_cf069e73 {
+    meta:
+        author = "Elastic Security"
+        description = "OUTLAW SSH bruteforce component fom the Dota3 package"
+        reference_sample = "c3efbd6b5e512e36123f7b24da9d83f11fffaf3023d5677d37731ebaa959dd27"
+    strings:
+        $ssh_key_1 = "MIIJrTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQI8vKBZRGKsHoCAggA"
+        $ssh_key_2 = "MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAECBBBC3juWsJ7DsDd2wH2XI+vUBIIJ"
+        $ssh_key_3 = "UCQ2viiVV8pk3QSUOiwionAoe4j4cBP3Ly4TQmpbLge9zRfYEUVe4LmlytlidI7H"
+        $ssh_key_4 = "O+bWbjqkvRXT9g/SELQofRrjw/W2ZqXuWUjhuI9Ruq0qYKxCgG2DR3AcqlmOv54g"
+        $path_1 = "/home/eax/up"
+        $path_2 = "/var/tmp/dota"
+        $path_3 = "/dev/shm/ip"
+        $path_4 = "/dev/shm/p"
+        $path_5 = "/var/tmp/.systemcache"
+        $cmd_1 = "cat /proc/cpuinfo | grep name | head -n 1 | awk '{print $4,$5,$6,$7,$8,$9;}'"
+        $cmd_2 = "cd ~; chattr -ia .ssh; lockr -ia .ssh"
+        $cmd_3 = "sort -R b | awk '{ if ( NF == 2 ) print } '> p || cat b | awk '{ if ( NF == 2 ) print } '> p; sort -R a"
+        $cmd_4 = "rm -rf /var/tmp/dota*"
+        $cmd_5 = "rm -rf a b c d p ip ab.tar.gz"
+    condition:
+        (all of ($ssh_key*)) or (3 of ($path*) and 3 of ($cmd*))
+}
+
+rule SNOWLIGHT_DROPPER_SYSDIG {
+        meta:
+                author = "Alessandra Rizzo"
+                description = "This rule detects strings seen in SNOWLIGHT malware acting as a dropper for fileless payloads."
+                md5 = "96f307b0ba3bb11715fab5db8d61191f"
+                platforms = "Linux"
+                malware_family = "SNOWLIGHT"
+        strings:
+                $http_get_request = { 77 73 5f 00 6c 36 34 00 47 45 54 20 2f 3f 61 3d 25 73 26 68 3d 25 73 26 74 3d 25 73 26 70 3d 25 64 }
+                $user_agent = { 55 73 65 72 2d 41 67 65 6e 74 3a 20 4d 6f 7a 69 6c 6c 61 2f 35 2e 30 20 28 57 69 6e 64 6f 77 73 20 4e 54 20 36 2e 31 3b 20 72 76 3a 34 38 2e 30 29 20 47 65 63 6b 6f 2f 32 30 31 30 30 31 30 31 20 46 69 72 65 66 6f 78 2f 34 38 2e 30 }
+  $fileless_payload_masked_name = { 5b 6b 77 6f 72 6b 65 72 2f 30 3a 32 }
+        condition:
+                uint32(0) == 0x464c457f and all of them
+}
+

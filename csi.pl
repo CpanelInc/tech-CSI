@@ -1531,7 +1531,8 @@ sub check_for_hiddenwasp {
             push @SUMMARY, "> Found HIDE_THIS_SHELL in the /lib/libselinux.a file. Could indicate HiddenWasp Rootkit";
         }
     }
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 );
+    # Check for specific TCP ports
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 );
     foreach my $port (@ports) {
         chomp($port);
         my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
@@ -1711,6 +1712,9 @@ sub check_authorized_keys_file {
         if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuhPmv3xdhU7JbMoc\/ecBTDxiGqFNKbe564p4aNT6JbYWjNwZ5z6E4iQQDQ0bEp7uBtB0/ ) {
             push( @SUMMARY, "> [dhcpd cryptominer SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
         }
+        if ( $_ =~ m/MIIJrTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQI8vKBZRGKsHoCAggA|MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAECBBBC3juWsJ7DsDd2wH2XI+vUBIIJ|UCQ2viiVV8pk3QSUOiwionAoe4j4cBP3Ly4TQmpbLge9zRfYEUVe4LmlytlidI7H|O+bWbjqkvRXT9g\/SELQofRrjw\/W2ZqXuWUjhuI9Ruq0qYKxCgG2DR3AcqlmOv54g/ ) {
+            push( @SUMMARY, "> [Outlaw cryptominer SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
+        }
     }
     close($fh);
 }
@@ -1759,7 +1763,7 @@ sub all_malware_checks {
     check_for_cronRAT();
     check_for_ncom_rootkit();
     check_env_for_susp_vars();
-    check_for_perfcc();
+    check_for_perfcc() if ( $full );
     check_for_xbash();
     check_for_cdorked_A();
     check_for_cdorked_B();
@@ -4213,6 +4217,7 @@ sub check_for_perfcc {
     my @suspfiles = qw( '*/.local/bin/ldd', '*/.local/bin/lsof', '*/.local/bin/top', '*/.local/bin/crontab' );
     my @suspfound;
     my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'd', '-iwholename', '*/.local/bin' );
+    return unless( $findit );
     push @suspfound, $findit if ( $findit );
     my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/ldd' );
     push @suspfound, $findit if ( $findit );

@@ -717,6 +717,8 @@
 /tmp/.ICE-unix/error.log
 /tmp/.IptabLes
 /tmp/.IptabLex
+/tmp/.X2h-unix/.rsync/c
+/tmp/.X2h-unix/.rsync/initall
 /tmp/.X11-unix/01
 /tmp/.X11-unix/11
 /tmp/.X11-unix/22
@@ -991,6 +993,7 @@
 /tmp/lock_tmp1
 /tmp/log.0
 /tmp/log.1
+/tmp/log_de.log
 /tmp/log_rot
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
