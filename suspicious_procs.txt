@@ -295,3 +295,4 @@ Auto-color
 kswap01
 ./vshell_linux_amd64
 wipefs
+./start

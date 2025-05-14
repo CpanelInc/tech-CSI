@@ -895,8 +895,7 @@ sub check_roots_history {
     my $histline;
     foreach $histline (@HISTORY) {
         chomp($histline);
-        #if ( $histline =~ m/\/etc\/cxs\/uninstall.sh|rm -rf \/etc\/apache2\/conf.d\/modsec|bash \/etc\/csf\/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd \/ev\/network/) {
-        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel}) {
+        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel|wget http://www.curl.by|cbrute.tgz|cbrute}) {
             push( @SUMMARY,
                 "> Suspicious entries found in /root/.bash_history" );
             push( @SUMMARY, expand( "\t\\_ $histline" ) );
@@ -1532,7 +1531,7 @@ sub check_for_hiddenwasp {
         }
     }
     # Check for specific TCP ports
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 );
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 tcp:6667 tcp:5822);
     foreach my $port (@ports) {
         chomp($port);
         my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
@@ -2766,7 +2765,7 @@ sub misc_checks {
                         . $cron
                         . "\n\t\t \\_ Contains: [ "
                         . RED $_
-                        . CYAN " ] $isImmutable" );
+                        . CYAN " ] $isImmutable" ) unless( $cron =~ m{BitdefenderRedline} );
                     }
                 }
             }
