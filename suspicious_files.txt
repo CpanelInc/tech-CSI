@@ -352,10 +352,13 @@
 /etc/systemd/system/custom.service
 /etc/systemd/system/griphon.service
 /etc/systemd/system/kmodaudit.service
+/etc/systemd/system/my_daemon.service
 /etc/systemd/system/myservice.service
+/etc/systemd/system/mysqI.service
 /etc/systemd/system/network-check.service
 /etc/systemd/system/ntp.service
 /etc/systemd/system/polkitd.service
+/etc/systemd/system/redis.service
 /etc/systemd/system/sshb.service
 /etc/systemd/system/sshm.service
 /etc/systemd/system/syslogd.service
@@ -453,6 +456,7 @@
 /lib/log.h
 /lib/php-fpm
 /lib/proc.h
+/lib/redis
 /lib/security/.config
 /lib/security/update.so
 /lib/systemd/system/display-managerd.service
@@ -1107,6 +1111,7 @@
 /usr/bin/chsh2
 /usr/bin/clbtx
 /usr/bin/cleaner
+/usr/bin/con.txt
 /usr/bin/crondr
 /usr/bin/cryptov2.ko
 /usr/bin/ddc
@@ -1123,6 +1128,7 @@
 /usr/bin/good
 /usr/bin/iproute.ko
 /usr/bin/ishit
+/usr/bin/jc.sh
 /usr/bin/jdc
 /usr/bin/jwvwvxoupv
 /usr/bin/kagbjahdic
@@ -1491,6 +1497,7 @@
 /usr/share/polkit-1/policy.in
 /usr/share/polkit-1/policy.out
 /usr/share/sshd.sync
+/usr/src/bao/networkxm
 /usr/src/.poop
 /usr/src/.puta
 /usr/src/linux/modules/autod.o

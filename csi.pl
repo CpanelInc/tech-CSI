@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.45";
+my $version = "3.5.46";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -596,9 +596,6 @@ sub scan {
     print_header('[ Checking if updates are enabled ]');
     logit("Checking if updates are enabled");
     check_cpupdate_conf();
-    print_header('[ Checking for mod_security ]');
-    logit("Checking if ModSecurity is enabled");
-    check_modsecurity();
     print_header('[ Checking for Two-Factor Authentication ]');
     logit("Checking if Two-Factor Authentication is enabled");
     check_2FA_enabled();
@@ -782,44 +779,6 @@ sub check_history {
     else {
         push @SUMMARY,
 "> /root/.bash_history is not present, this indicates possible root-level compromise";
-    }
-}
-
-sub check_modsecurity {
-    my $resultJSON = get_whmapi1('modsec_is_installed');
-    if ( !$resultJSON->{data}->{data}->{installed} ) {
-
-        push @RECOMMENDATIONS, "> Mod Security is disabled";
-        return;
-    }
-    my $modsec_vendorsJSON = get_whmapi1('modsec_get_vendors');
-    my $rules_found        = 0;
-    for my $modsec_vendor ( @{ $modsec_vendorsJSON->{data}->{vendors} } ) {
-        if ( $modsec_vendor->{cpanel_provided} ) {
-            if ( !defined( $modsec_vendor->{is_rpm} ) ) {
-                push @RECOMMENDATIONS,
-"> Using $modsec_vendor->{description} YAML rules - Please consider using the RPM\n"
-                  . CYAN expand( "\t\\_ yum install ea-modsec2-rules-owasp-crs" )
-                  unless ( $distro eq "ubuntu" );
-            }
-            if ( !defined( $modsec_vendor->{is_pkg} ) ) {
-                push @RECOMMENDATIONS,
-"> Using $modsec_vendor->{description} YAML rules - Please consider using the RPM\n"
-                  . CYAN expand( "\t\\_ apt install ea-modsec2-rules-owasp-crs" )
-                  unless ( $distro ne "ubuntu" );
-            }
-            if ( $modsec_vendor->{enabled} == 0 ) {
-                push @RECOMMENDATIONS,
-"> The $modsec_vendor->{description} is installed but not enabled\n\t\\_ Please consider running "
-                  . CYAN
-                  "/usr/local/cpanel/scripts/modsec_vendor enable OWASP3";
-            }
-        }
-        $rules_found = 1;
-    }
-    if ( !$rules_found ) {
-        push @RECOMMENDATIONS,
-"> Mod Security is installed but there were no active Mod Security vendor rules found.";
     }
 }
 
