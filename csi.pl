@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.46";
+my $version = "3.5.47";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -515,6 +515,11 @@ sub scan {
             logit("Checking for infected openssh config files");
             check_auth_keys_for_commands();
         }
+    }
+    if ( $full ) {
+        print_header( YELLOW '[ Additional check for Log4JShell hack attempts in log files ]' );
+        logit("Additional check for Log4JShell hack attempts in log files");
+        check_for_log4JShell_attempts();
     }
 
     if ( $full ) {
@@ -1509,6 +1514,9 @@ sub check_for_fritzfrog {
         next unless( $user eq 'root' );
         push @SUMMARY, "> Found possible FritzFrog malware. $binary running on pid $pid";
     }
+}
+
+sub check_for_log4JShell_attempts {
     my @logs2chk;
     my $regexp = '\$?\{jndi:(ldap|ldaps|rmi|dns):\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}\${lower:a}\${lower:p}:\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}a\${lower:p}:\/[\/]?[a-z-\.0-9].*';
     @logs2chk = glob( q{ /var/log/nginx/domains/*_log });
@@ -1721,7 +1729,7 @@ sub all_malware_checks {
     check_for_cronRAT();
     check_for_ncom_rootkit();
     check_env_for_susp_vars();
-    check_for_perfcc() if ( $full );
+    check_for_perfcc();
     check_for_xbash();
     check_for_cdorked_A();
     check_for_cdorked_B();
