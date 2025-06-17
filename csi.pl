@@ -2309,7 +2309,7 @@ sub userscan {
                 push @SUMMARY,
 "> A general Yara scan of the $lcUserToScan account found the following suspicious items...";
                 foreach my $yara_result (@results) {
-                    next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs|access_log|swpDSK|\.svg|\.txt|\.json|\.pot|\.js|\.md} );
+                    next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs|access_log|swpDSK|\.svg|\.json|\.pot|\.js|\.md} );
                     my ( $triggered_rule, $triggered_file, $triggered_string );
                     chomp($yara_result);
                     if ( substr( $yara_result, 0, 2 ) eq "0x" ) {
