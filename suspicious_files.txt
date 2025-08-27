@@ -366,6 +366,8 @@
 /etc/systemd/system/zzhh.service
 /etc/systemd/system/zzhr.service
 /etc/systemd/system/zzhw.service
+/etc/tinyproxy.conf
+/etc/tinyproxy/tinyproxy.conf
 /etc/ttyhash
 /etc/udev/rules.d/*asedexpb*
 /etc/whitptabil
@@ -523,6 +525,7 @@
 /opt/yilu/work/xige/xige
 /opttest
 /private/etc/krb5d.conf
+/proc/acpi/pcicard
 /proc/.inl
 /proc/abrtinfo
 /proc/brtinfo
@@ -1386,6 +1389,12 @@
 /usr/lib64/seahorses/nethoogs
 /usr/lib64/seahorses/soss
 /usr/lib64/seahorses/sshod
+/usr/lib64/tracker-fs
+/usr/include/tracker-fs/tracker-efs
+/etc/init.d/tracker-fs
+/etc/rc2.d/S55tracker-fs
+/etc/rc3.d/S55tracker-fs
+/etc/rc5.d/S55tracker-fs
 /usr/libexec/ssh-keysign
 /usr/libexec/x
 /usr/libexec/xmrig-2.4.3

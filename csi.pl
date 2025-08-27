@@ -154,6 +154,7 @@ if ( ! -e '/var/cpanel/dnsonly' ) {
 
 if ( $distro eq "ubuntu" ) {
     push @logfiles, '/var/log/syslog';
+    push @logfiles, '/var/log/kern.log';
     push @logfiles, '/var/log/auth.log';
     push @logfiles, '/var/log/mail.log';
 }
@@ -730,7 +731,6 @@ sub check_kernel_updates {
 
 sub check_logfiles {
     my $apachelogpath;
-    #$apachelogpath = "/etc/apache2/logs";
     $apachelogpath = "/var/log/apache2";
     chomp($apachelogpath);
     if ( !-d $apachelogpath ) {
@@ -742,7 +742,7 @@ sub check_logfiles {
         }
         elsif ( -z $log ) {
 
-   # Check if journal logging is enabled.  If so, these may be empty on purpose.
+        # Check if journal logging is enabled.  If so, these may be empty on purpose.
             my $HasJournalLogging = "";
             if ( -e "/run/systemd/journal/syslog" ) {
                 $HasJournalLogging =
@@ -750,6 +750,12 @@ sub check_logfiles {
             }
             push @SUMMARY,
               "> Log file $log exists, but is empty $HasJournalLogging";
+        }
+        # grep for suspicious strings within logfiles.
+        my @susp_strings=qw( vmwfxs );
+        foreach my $string(@susp_strings) {
+            my $found=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', $string, $log );
+            push @SUMMARY, "> Found suspicious string ( " . RED $string . YELLOW " ) in " . CYAN $log . YELLOW " file" if ( $found );
         }
     }
 }
