@@ -4632,7 +4632,7 @@ sub check_lsof_deleted {
         next unless( $line =~ m{(deleted)} );
         foreach my $suspbin(@suspicious_binaries) {
             if ( $line =~ m/$suspbin/ ) {
-                next if ( $line =~ m{dbus-brok} );
+                next if ( $line =~ m{dbus-brok|sw-engine} );
                 push @SUMMARY, "> Found deleted files/binaries running in memory that could be suspicious" unless( $showHeader );
                 $showHeader=1;
                 push @SUMMARY, "\t\\_  $line";
