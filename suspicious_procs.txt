@@ -297,3 +297,4 @@ kswap01
 wipefs
 ./start
 ./jc.sh
+./.>_

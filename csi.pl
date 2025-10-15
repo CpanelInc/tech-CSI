@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.47";
+my $version = "3.5.49";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -404,6 +404,9 @@ sub scan {
     print_header('[ Checking for suspicious files ]');
     logit("Checking for suspicious files");
     look_for_suspicious_files();
+    print_header('[ Checking for suspicious ELF binaries ]');
+    logit("Checking for suspicious ELF binaries");
+    check_if_file_is_binary();
     print_header('[ Checking if root bash history has been tampered with ]');
     logit("Checking roots bash_history for tampering");
     check_history();
@@ -2147,6 +2150,11 @@ sub userscan {
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
+    if ( -e "$RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php" ) {
+        push( @SUMMARY,
+"> Found possible malicious WordPress stealthy backdoor at $RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php"
+        );
+    }
 
     # SOP-28 - look for massearchtraffic.top within fucntions.php file.
     my $massearchtraffic_malware = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome", '-name', 'functions.php', '-not', '-path', "/home/virtfs/*", '-a', '-not', '-path', '*/[@.]*', '-exec', 'grep', 'massearchtraffic.top', '{}', '+' );
@@ -3346,6 +3354,19 @@ sub check_api_tokens_log {
         if ( $first_line eq $last_line ) {
             push @SUMMARY,
 "> Excessive (10 or more) password changes via root owned API token found in api_tokens_log file.\n\t\\_ Should be reviewed by an administrator or security consultant.";
+        }
+    }
+}
+
+sub check_if_file_is_binary {
+    my @dirs = qw( /root/sshd /root /tmp );
+    my @files = qw( .bash_logout apt.log );
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        for my $file (@files) {
+            my $fullpath = $dir . "/" . $file;
+            my $isELF = check_file_for_elf( $fullpath );
+            push @SUMMARY, "> Found $fullpath to be an ELF binary, known to be malware!" if( $isELF );
         }
     }
 }
