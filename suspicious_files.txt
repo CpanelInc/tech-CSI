@@ -287,6 +287,7 @@
 /etc/ld.so.hash
 /etc/ld.so.preload/libsystem.so
 /etc/libdns.so
+/etc/libld.so
 /etc/listpr
 /etc/my.conf
 /etc/mysql/lib/mysql
@@ -362,6 +363,7 @@
 /etc/systemd/system/sshb.service
 /etc/systemd/system/sshm.service
 /etc/systemd/system/syslogd.service
+/etc/systemd/system/systemd-resolveld.service
 /etc/systemd/system/zzhd.service
 /etc/systemd/system/zzhh.service
 /etc/systemd/system/zzhr.service
@@ -400,6 +402,7 @@
 /lib/hosts.h
 /lib/initr
 /lib/lblip.tk
+/lib/ld-linux.so
 /lib/ldd.so
 /lib/ldlib.tk
 /lib/lib0UZ0LfvWZ.so
@@ -633,6 +636,7 @@
 /root/.sysud
 /root/.tas
 /root/.tijd
+/root/.tmp~data.ok
 /root/.tmp/run/cp
 /root/.trqf
 /root/.tue
@@ -761,6 +765,7 @@
 /tmp/.cron
 /tmp/.curl
 /tmp/.datass
+/tmp/.del
 /tmp/.donot
 /tmp/.dump
 /tmp/.font-unix/.cinik
@@ -1319,6 +1324,8 @@
 /usr/lib/.fx
 /usr/lib/.kinetic
 /usr/lib/.sshd.h
+/usr/lib/.system
+/usr/lib/.system/.tmp~data.resolveld
 /usr/lib/.wormie
 /usr/lib/elm/arobia
 /usr/lib/gcc/x86_64-redhat-linux/.0

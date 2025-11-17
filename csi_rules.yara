@@ -3472,3 +3472,379 @@ rule MAL_ZYNOR {
        1 of ($s1, $s2) and 1 of ($s3, $s4)
 }
 
+rule MAL_LinkPro_ELF_Rootkit_Golang_Oct25 {
+  meta:
+    description = "Detects LinkPro rootkit"
+    author = "CSIRT Synacktiv, Théo Letailleur"
+    date = "2025-10-13"
+    reference = "https://www.synacktiv.com/en/publications/linkpro-ebpf-rootkit-analysis"
+    hash = "1368f3a8a8254feea14af7dc928af6847cab8fcceec4f21e0166843a75e81964"
+    hash = "d5b2202b7308b25bda8e106552dafb8b6e739ca62287ee33ec77abe4016e698b"
+  strings:
+    $linkp_mod = "link-pro/link-client" fullword ascii
+    $linkp_embed_libld = "resources/libld.so" fullword ascii
+    $linkp_embed_lkm = "resources/arp_diag.ko" fullword ascii
+    $linkp_ebpf_hide = "hidePrograms" fullword ascii
+    $linkp_ebpf_knock = "knock_prog" fullword ascii
+
+    $go_pty = "creack/pty" fullword ascii
+    $go_socks = "resocks" fullword ascii
+
+  condition:
+    uint32(0) == 0x464c457f and filesize > 5MB and elf.type == elf.ET_EXEC 
+    and 2 of ($linkp*) 
+    and 1 of ($go*)
+}
+
+rule MAL_LinkPro_Hide_ELF_BPF_Oct25 {
+  meta:
+    description = "Detects LinkPro Hide eBPF module"
+    author = "CSIRT Synacktiv, Théo Letailleur"
+    date = "2025-10-13"
+    reference = "https://www.synacktiv.com/en/publications/linkpro-ebpf-rootkit-analysis"
+    hash = "b8c8f9888a8764df73442ea78393fe12464e160d840c0e7e573f5d9ea226e164"
+  strings:
+    $hook_getdents = "/syscalls/sys_enter_getdents" fullword ascii
+    $hook_getdentsret = "/syscalls/sys_exit_getdents" fullword ascii
+    $hook_bpf = "/syscalls/sys_enter_bpf" fullword ascii
+    $hook_bpfret = "sys_bpf" fullword ascii
+    $str1 = "BPF cmd: %d, start_id: %u" fullword ascii
+    $str2 = "HIDING NEXT_ID: %u" fullword ascii
+    $str3 = ".tmp~data" fullword ascii
+
+  condition:
+    uint32(0) == 0x464c457f and uint16(0x12) == 0x00f7 // BPF Machine
+    and elf.type == elf.ET_REL  
+    and 2 of ($hook*)
+    and 1 of ($str*)
+}
+
+rule MAL_LinkPro_Knock_ELF_BPF_Oct25 {
+  meta:
+    description = "Detects LinkPro Knock eBPF module"
+    author = "CSIRT Synacktiv, Théo Letailleur"
+    date = "2025-10-13"
+    reference = "https://www.synacktiv.com/en/publications/linkpro-ebpf-rootkit-analysis"
+    hash = "364c680f0cab651bb119aa1cd82fefda9384853b1e8f467bcad91c9bdef097d3"
+  strings:
+    $hook_xdp = "xdp_ingress" fullword ascii
+    $hook_tc_egress = "tc_egress" fullword ascii
+    $str1 = "[DBG-XDP]" fullword ascii
+    $str2 = "[DBG-9999]" fullword ascii
+    $str3 = "[TC-MISS]" fullword ascii
+    $str4 = "[TC] REWRITE_BACK" fullword ascii
+  condition:
+    uint32(0) == 0x464c457f and uint16(0x12) == 0x00f7 // BPF Machine
+    and elf.type == elf.ET_REL 
+    and 1 of ($hook*)
+    and 2 of ($str*)
+}
+
+rule MAL_LinkPro_LdPreload_ELF_SO_Oct25 {
+  meta:
+    description = "Detects LinkPro ld preload module"
+    author = "CSIRT Synacktiv, Théo Letailleur"
+    date = "2025-10-13"
+    reference = "https://www.synacktiv.com/en/publications/linkpro-ebpf-rootkit-analysis"
+    hash = "b11a1aa2809708101b0e2067bd40549fac4880522f7086eb15b71bfb322ff5e7"
+  strings:
+    $hook_getdents = "getdents" fullword ascii
+    $hook_open = "open" fullword ascii
+    $hook_readdir = "readdir" fullword ascii
+    $hook_kill = "kill" fullword ascii
+    $linkpro = ".tmp~data" fullword ascii
+    $file_net = "/proc/net" fullword ascii
+    $file_persist = ".system" fullword ascii
+    $file_cron = "sshids" fullword ascii
+  condition:
+    uint32(0) == 0x464c457f and filesize < 500KB and elf.type == elf.ET_DYN
+    and $linkpro
+    and 2 of ($hook*)
+    and 2 of ($file*)
+}
+
+rule MAL_LinkPro_arpdiag_ELF_KO_Oct25 {
+  meta:
+    description = "Detects LinkPro LKM module"
+    author = "CSIRT Synacktiv, Théo Letailleur"
+    date = "2025-10-13"
+    reference = "https://www.synacktiv.com/en/publications/linkpro-ebpf-rootkit-analysis"
+    hash = "9fc55dd37ec38990bb27ea2bc18dff0bb2d16ad7aa562ab35a6b63453c397075"
+  strings:
+    $hook_udp6 = "hook_udp6_seq_show" fullword ascii
+    $hook_udp4 = "hook_udp4_seq_show" fullword ascii
+    $hook_tcp6 = "hook_tcp6_seq_show" fullword ascii
+    $hook_tcp4 = "hook_tcp4_seq_show" fullword ascii
+    $ftrace = "ftrace_thunk" fullword ascii
+    $hide_entry = "hide_port_init" fullword ascii
+    $hide_exit = "hide_port_exit" fullword ascii
+  condition:
+    uint32(0) == 0x464c457f and filesize < 2MB and elf.type == elf.ET_REL
+    and $ftrace
+    and 2 of ($hook*) 
+    and 1 of ($hide*)
+}
+
+rule MAL_vGet_ELF_Downloader_Rust_Oct25 {
+  meta:
+    description = "Detects vGet Downloader, observed to load vShell"
+    author = "CSIRT Synacktiv, Théo Letailleur"
+    date = "2025-10-13"
+    reference = "https://www.synacktiv.com/en/publications/linkpro-ebpf-rootkit-analysis"
+    hash = "0da5a7d302ca5bc15341f9350a130ce46e18b7f06ca0ecf4a1c37b4029667dbb"
+    hash = "caa4e64ff25466e482192d4b437bd397159e4c7e22990751d2a4fc18a6d95ee2"
+  strings:
+    $hc_rust = "RUST_BACKTRACE"  fullword ascii
+    $hc_symlink = "/tmp/.del"  fullword ascii
+    $hc_proxy = "Proxy-Authorization:"  fullword ascii
+    $lc_crypto_chacha = "expand 32-byte k"  fullword ascii
+    $lc_pdfuser = "cosmanking"  fullword ascii
+    $lc_local = "127.0.0.1" fullword ascii
+  condition:
+    uint32(0) == 0x464c457f and filesize > 500KB and filesize < 3MB 
+    and elf.type == elf.ET_DYN 
+    and all of ($hc*)
+    and 1 of ($lc*)
+}
+
+rule Linux_Rootkit_BrokePKG_7b7d4581 {
+    meta:
+        author = "Elastic Security"
+        id = "7b7d4581-ee4d-48c3-81e4-4264d68e8fe9"
+        fingerprint = "5d771035e2bc4ffea1b9fd6f29c76ff5d9278db42167d3dab90eb0ac8d4bdd78"
+        creation_date = "2024-11-13"
+        last_modified = "2024-11-22"
+        threat_name = "Linux.Rootkit.BrokePKG"
+        reference_sample = "97c5e011c7315a05c470eef4032030e461ec2a596513703beedeec0b0c6ed2da"
+        severity = 100
+        arch_context = "x86, arm64"
+        scan_context = "file, memory"
+        license = "Elastic License v2"
+        os = "linux"
+    strings:
+        $license1 = "author=R3tr074"
+        $license2 = "name=brokepkg"
+        $license3 = "description=Rootkit"
+        $license4 = "license=GPL"
+        $str1 = "brokepkg"
+        $str2 = "brokepkg: module revealed"
+        $str3 = "brokepkg: hidden module"
+        $str4 = "brokepkg: given away root"
+        $str5 = "brokepkg unloaded, my work has completed"
+        $str6 = "br0k3_n0w_h1dd3n"
+        $hook1 = "nf_inet_hooks"
+        $hook2 = "ftrace_hook"
+        $hook3 = "hook_getdents"
+        $hook4 = "hook_kill"
+        $hook5 = "hook_tcp4_seq_show"
+        $hook6 = "hook_tcp6_seq_show"
+        $hook7 = "orig_tcp6_seq_show"
+        $hook8 = "orig_tcp4_seq_show"
+        $hook9 = "orig_kill"
+        $hook10 = "orig_getdents"
+    condition:
+        3 of ($license*) or 2 of ($str*) or 4 of ($hook*)
+}
+
+rule Linux_Rootkit_Generic_61229bdf {
+    meta:
+        author = "Elastic Security"
+        id = "61229bdf-0b78-48b1-8a4d-09836dd2bcac"
+        fingerprint = "8180ee7a04fd5ba23700e77ad3be7f30d592e77cffa8ebee8de7094627446335"
+        creation_date = "2024-11-14"
+        last_modified = "2024-11-22"
+        threat_name = "Linux.Rootkit.Generic"
+        severity = 100
+        arch_context = "x86, arm64"
+        scan_context = "file, memory"
+        license = "Elastic License v2"
+        os = "linux"
+    strings:
+        $str1 = "dropshell"
+        $str2 = "fake_account_user_time"
+        $str3 = "fake_bpf_trace_printk"
+        $str4 = "fake_crash_kexec"
+        $str5 = "fake_loadavg_proc_show"
+        $str6 = "fake_sched_debug_show"
+        $str7 = "fake_seq_show_ipv4_tcp"
+        $str8 = "fake_seq_show_ipv4_udp"
+        $str9 = "fake_seq_show_ipv6_tcp"
+        $str10 = "fake_seq_show_ipv6_udp"
+        $str11 = "fake_trace_printk"
+        $str12 = "give_root"
+        $str13 = "hack_getdents"
+        $str14 = "hacked_getdents64"
+        $str15 = "hacked_kill"
+        $str16 = "hideModule"
+        $str17 = "hide_module"
+        $str18 = "hide_tcp4_port"
+        $str19 = "hide_tcp6_port"
+        $str20 = "hidden_tcp4_ports"
+        $str21 = "hidden_tcp6_ports"
+        $str22 = "hidden_udp4_ports"
+        $str23 = "hidden_udp6_ports"
+        $str24 = "hook_getdents"
+        $str25 = "hook_kill"
+        $str26 = "hook_local_in_func"
+        $str27 = "hook_local_out_func"
+        $str28 = "hook_tcp4_seq_show"
+        $str29 = "hook_tcp6_seq_show"
+        $str30 = "hooked_tcp6_seq_show"
+        $str31 = "hooked_udp4_seq_show"
+        $str32 = "hooked_udp6_seq_show"
+        $str33 = "is_invisible"
+        $str34 = "module_hide"
+        $str35 = "module_show"
+        $str36 = "nf_inet_hooks"
+        $str37 = "old_access"
+        $str38 = "old_fopen"
+        $str39 = "old_lxstat"
+        $str40 = "old_open"
+        $str41 = "old_opendir"
+        $str42 = "old_readdir"
+        $str43 = "old_rmdir"
+        $str44 = "old_unlink"
+        $str45 = "old_xstat"
+        $str46 = "orig_getdents"
+        $str47 = "orig_getdents64"
+        $str48 = "orig_kill"
+        $str49 = "orig_tcp4_seq_show"
+        $str50 = "orig_tcp6_seq_show"
+        $str51 = "secret_connection"
+        $str52 = "unhide_file"
+        $str53 = "unhide_proc"
+        $str54 = "unhide_tcp4_port"
+        $str55 = "unhide_tcp6_port"
+        $str56 = "unhide_udp4_port"
+        $str57 = "unhide_udp6_port"
+    condition:
+        4 of ($str*)
+}
+
+rule Linux_Rootkit_Generic_482bca48 {
+    meta:
+        author = "Elastic Security"
+        id = "482bca48-c337-45d9-9513-301909cbda73"
+        fingerprint = "a2a005777e1bc236a30f3efff8d85af360665bd9418b77aa8d0aaf72a72df88a"
+        creation_date = "2024-11-14"
+        last_modified = "2024-12-09"
+        threat_name = "Linux.Rootkit.Generic"
+        severity = 100
+        arch_context = "x86, arm64"
+        scan_context = "file, memory"
+        license = "Elastic License v2"
+        os = "linux"
+    strings:
+        $str1 = "sys_call_table"
+        $str2 = "kallsyms_lookup_name"
+        $str3 = "retpoline=Y"
+        $str4 = "kprobe"
+        $rk1 = "rootkit"
+        $rk2 = "hide_"
+        $rk3 = "hacked_"
+        $rk4 = "fake_"
+        $rk5 = "hooked_"
+        $hook1 = "_getdents"
+        $hook2 = "_kill"
+        $hook3 = "_seq_show_ipv4_tcp"
+        $hook4 = "_seq_show_ipv4_udp"
+        $hook5 = "_seq_show_ipv6_tcp"
+        $hook6 = "_seq_show_ipv6_udp"
+        $hook7 = "_tcp4_port"
+        $hook8 = "_tcp4_seq_show"
+        $hook9 = "_tcp6_port"
+        $hook10 = "_tcp6_seq_show"
+        $hook11 = "_udp4_port"
+        $hook12 = "_udp4_seq_show"
+        $hook13 = "_udp6_port"
+        $hook14 = "_udp6_seq_show"
+        $hook15 = "_unlink"
+    condition:
+        3 of ($str*) and ((all of ($rk*)) or (3 of ($rk*) and 5 of ($hook*)))
+}
+
+rule Linux_Rootkit_Generic_d0c5cfe0 {
+    meta:
+        author = "Elastic Security"
+        id = "d0c5cfe0-850b-432c-924d-547252ca0dd0"
+        fingerprint = "6c005d7126485220c8ea1a7fb2a3215ade16f1b9dda7b89daf7a8cc408288efa"
+        creation_date = "2024-11-14"
+        last_modified = "2024-12-09"
+        threat_name = "Linux.Rootkit.Generic"
+        severity = 100
+        arch_context = "x86, arm64"
+        scan_context = "file, memory"
+        license = "Elastic License v2"
+        os = "linux"
+    strings:
+        $str1 = "sys_call_table"
+        $str2 = "kallsyms_lookup_name"
+        $str3 = "retpoline=Y"
+        $str4 = "kprobe"
+        $init1 = "init_module"
+        $init2 = "finit_module"
+        $hook1 = "getdents"
+        $hook2 = "seq_show_ipv4_tcp"
+        $hook3 = "seq_show_ipv4_udp"
+        $hook4 = "seq_show_ipv6_tcp"
+        $hook5 = "seq_show_ipv6_udp"
+        $hook6 = "sys_kill"
+        $hook7 = "tcp4_port"
+        $hook8 = "tcp4_seq_show"
+        $hook9 = "tcp6_port"
+        $hook10 = "tcp6_seq_show"
+        $hook11 = "udp4_port"
+        $hook12 = "udp4_seq_show"
+        $hook13 = "udp6_port"
+        $hook14 = "udp6_seq_show"
+        $rk1 = "rootkit"
+        $rk2 = "dropper"
+        $rk3 = "hide"
+        $rk4 = "hook"
+        $rk5 = "hacked"
+    condition:
+        2 of ($str*) and 1 of ($init*) and 3 of ($hook*) and 3 of ($rk*)
+}
+
+rule Linux_Rootkit_Generic_f07bcabe {
+    meta:
+        author = "Elastic Security"
+        id = "f07bcabe-f91e-4872-8677-dee6307e79d0"
+        fingerprint = "7335426e705383ff6f62299943a139390b83ce2af4cbfc145cfe78c0f0015a26"
+        creation_date = "2024-12-02"
+        last_modified = "2024-12-09"
+        threat_name = "Linux.Rootkit.Generic"
+        severity = 100
+        arch_context = "x86, arm64"
+        scan_context = "file, memory"
+        license = "Elastic License v2"
+        os = "linux"
+    strings:
+        $str1 = "fh_install_hook"
+        $str2 = "fh_remove_hook"
+        $str3 = "fh_resolve_hook_address"
+    condition:
+        2 of them
+}
+
+rule Linux_Rootkit_Generic_5d17781b {
+    meta:
+        author = "Elastic Security"
+        id = "5d17781b-5d2a-4405-8806-274e6cabfe2c"
+        fingerprint = "220eff54c80a69c3df0d8f71aeacdd114cc2ea0675595c2bfde2ac47578c3a02"
+        creation_date = "2024-12-02"
+        last_modified = "2025-06-10"
+        threat_name = "Linux.Rootkit.Generic"
+        severity = 100
+        arch_context = "x86, arm64"
+        scan_context = "file, memory"
+        license = "Elastic License v2"
+        os = "linux"
+    strings:
+        $str = "kallsyms_lookup_name_t"
+        $lic1 = "license=Dual BSD/GPL"
+        $lic2 = "license=GPL"
+    condition:
+        $str and 1 of ($lic*)
+}
+
