@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.49";
+my $version = "3.5.50";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -4384,38 +4384,57 @@ sub check_for_cve_vulnerabilities {
         # If we get here, it is installed, now get the version number
         print CYAN "Getting version number of " . YELLOW $pkg . ": " if ( $debug );
         chomp( my $pkgver = get_pkg_version( $pkg ) );
-        my $digitpkgver = digit_to_alpha( $pkgver ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
+        my $digitpkgver;
+        $digitpkgver = digit_to_alpha( $pkgver ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
         chomp( $pkgver );
 
         # report first vulnerable version (if verbose or debug is enabled)
-        my $alphapkgver = alpha_to_digit( $firstvuln ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
+        my $alphapkgver;
+        $alphapkgver = alpha_to_digit( $firstvuln ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
 
         # check changelog for the CVE
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
         next unless( ! $found_in_changelog );
 
-        # check version against the nonvuln variable
-        my $op='>';
-        chomp($pkgver);
-        chomp($patchedver);
-        next if ( version_compare( $pkgver, $op, $patchedver ) );
+    	my $op1='>';
+    	chomp($pkgver);
+    	if ( $pkg =~ m{openssl} && $pkgver < 3) {
+        	$pkgver=$digitpkgver;
+    	}
+    	my $vercmp = ( version_compare( $pkgver, $op1, $patchedver ) ) ? "Yes - Patched" : "No";
+    	next if ( version_compare( $pkgver, $op1, $patchedver ) );
+	
+    	# check to see if version is less than the firstvuln variable
+    	my $op2='>';
+    	chomp($firstvuln);
+    	my $vercmp = ( version_compare( $pkgver, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
+    	next if ( version_compare( $pkgver, $op2, $firstvuln ) );
 
-        # check to see if version is less than the firstvuln variable
-        my $op2='<';
-        chomp($firstvuln);
-        next if ( version_compare( $pkgver, $op2, $firstvuln ) );
-
-        #print "DEBUG: pkg=$pkg / pkgver=$pkgver / firstvuln=$firstvuln / patchedver=$patchedver\n";
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve" );
         push @SUMMARY, expand( GREEN "\t\\_ The following check was used to verify this");
         if ( $distro eq 'ubuntu' ) {
-            push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
+			if ( $found_in_changelog ) {
+            	if ( -f "/usr/share/doc/$pkg/changelog.Debian.gz" ) {
+                	push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
+            	}
+            	if ( -f "/usr/share/doc/$pkg/CHANGES.gz" ) {
+                	push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/CHANGES.gz");
+            	}
+			}
+			else {
+				push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
+			}
         }
         else {
-            push @SUMMARY, expand( YELLOW "\t\\_ rpm -q --changelog " . $pkg . " | grep -E '" . $cve ."'");
-            push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
+			if ( $found_in_changelog ) {
+            	push @SUMMARY, expand( YELLOW "\t\\_ rpm -q " . $pkg . " --changelog | grep -E '" . $cve ."'");
+            	push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
+			}
+			else {
+				push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
+			}
         }
         push @SUMMARY, expand( BOLD BLUE "\t-----" );
     }
@@ -4492,26 +4511,25 @@ sub found_in_changelog {
     my $tcCVE = shift;
     my $in_chglog=0;
     my $in_chglog1=0;
+    my $in_chglog2=0;
     if ($distro eq 'ubuntu' ) {
-        if ( ! -f "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) {
-            print RED "\n\t\\_ WARNING! - /usr/share/doc/$tcPkg/changelog.Debian.gz IS MISSING!!! - ";
-            $in_chglog1=0;
-            return $in_chglog;
-        }
-        else {
+        if ( -f "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) {
             open( STDERR, '>', '/dev/null' ) if ( ! $debug );
             $in_chglog1 = ( Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/changelog.Debian.gz" ) ) ? 1 : 0;
             close( STDERR ) if ( ! $debug );
-            $in_chglog=1 unless( $in_chglog1 == 0 );
-            return $in_chglog;
         }
+        if ( -f "/usr/share/doc/$tcPkg/CHANGES.gz" ) {
+            open( STDERR, '>', '/dev/null' ) if ( ! $debug );
+            $in_chglog2 = ( Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', "$tcCVE", "/usr/share/doc/$tcPkg/CHANGES.gz" ) ) ? 1 : 0 unless( $in_chglog1 );
+            close( STDERR ) if ( ! $debug );
+        }
+        $in_chglog=1 unless( $in_chglog1 == 0 && $in_chglog2 == 0 );
     }
     else {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
         $in_chglog1 = Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', "$tcPkg", '--changelog' );
         close( STDERR ) if ( ! $debug );
         $in_chglog = ( grep { /$tcCVE/ } $in_chglog1 ) ? 1 : 0;
-        return $in_chglog;
     }
     if ( $in_chglog == 0 && $gl_is_kernel == 1 ) {
         return $in_chglog unless( -x '/usr/bin/kcarectl' );
@@ -4521,9 +4539,8 @@ sub found_in_changelog {
         close( STDERR ) if ( ! $debug );
         my @patchinfo = split /\n/, $patchinfo;
         my $in_chglog = ( grep { /$tcCVE/ } @patchinfo ) ? 1 : 0;
-        return $in_chglog;
     }
-    #return $in_chglog;
+    return $in_chglog;
 }
 
 sub is_installed {
