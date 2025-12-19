@@ -1016,7 +1016,7 @@ rule WEBSHELL_PHP_OBFUSC
         reference = "Internal Research"
         score = 75
         date = "2021/01/12"
-        modified = "2024-03-11"
+        modified = "2025-09-22"
         hash = "eec9ac58a1e763f5ea0f7fa249f1fe752047fa60"
         hash = "181a71c99a4ae13ebd5c94bfc41f9ec534acf61cd33ef5bce5fb2a6f48b65bf4"
         hash = "76d4e67e13c21662c4b30aab701ce9cdecc8698696979e504c288f20de92aee7"
@@ -1039,6 +1039,9 @@ rule WEBSHELL_PHP_OBFUSC
         $gfp10 = "[][}{;|]\\|\\\\[+=]\\|<?=>?"
         $gfp11 = "(eval (getenv \"EPROLOG\")))"
         $gfp12 = "ZmlsZV9nZXRfY29udGVudHMoJ2h0dHA6Ly9saWNlbnNlLm9wZW5jYXJ0LWFwaS5jb20vbGljZW5zZS5waHA/b3JkZXJ"
+        $gfp13 = "assert(\\\""
+        $gfp14 = "PhutilUTF8TestCase"
+        $gfp15 = "chr(195).chr(128) => 'A',"  // 3d413ceb54e929d6af2e64ebb8df7ba2452a7aac876dddcf6336c3445e7bcc91, wordpress formatter.php
 
         //strings from private rule capa_php_old_safe
         $php_short = "<?" wide ascii
@@ -2026,7 +2029,7 @@ rule WEBSHELL_PHP_Dynamic_Big
         author = "Arnim Rupp (https://github.com/ruppde)"
         reference = "Internal Research"
         date = "2021/02/07"
-        modified = "2024-02-23"
+        modified = "2025-08-18"
         score = 50
         hash = "6559bfc4be43a55c6bb2bd867b4c9b929713d3f7f6de8111a3c330f87a9b302c"
         hash = "9e82c9c2fa64e26fd55aa18f74759454d89f968068d46b255bd4f41eb556112e"
@@ -2041,7 +2044,8 @@ rule WEBSHELL_PHP_Dynamic_Big
         id = "a5caab93-7b94-59d7-bbca-f9863e81b9e5"
     strings:
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
         //strings from private rule capa_php_new_long
@@ -2216,6 +2220,8 @@ rule WEBSHELL_PHP_Dynamic_Big
         $fp2 = "* @package   PHP_CodeSniffer" ascii
         $fp3 = ".jQuery===" ascii
         $fp4 = "* @param string $lstat encoded LStat string" ascii
+        $fp5 = "' => array('horde:"
+        $fp6 = "$messages['fileuploaderror'] = '"
     condition:
         //any of them or
         not (
@@ -2224,7 +2230,8 @@ rule WEBSHELL_PHP_Dynamic_Big
             uint32be(0) == 0x3c3f786d  or
             // <?XML
             uint32be(0) == 0x3c3f584d  or
-            $dex at 0 or
+            $dex1 at 0 or
+            $dex2 at 0 or
             $pack at 0 or
             // fp on jar with zero compression
             uint16(0) == 0x4b50 or
@@ -2531,7 +2538,7 @@ rule WEBSHELL_PHP_By_String_Known_Webshell
         author = "Arnim Rupp (https://github.com/ruppde)"
         reference = "Internal Research"
         date = "2021-01-09"
-        modified = "2023-04-05"
+        modified = "2025-08-18"
         score = 70
         hash = "d889da22893536d5965541c30896f4ed4fdf461d"
         hash = "10f4988a191774a2c6b85604344535ee610b844c1708602a355cf7e9c12c3605"
@@ -2634,7 +2641,8 @@ rule WEBSHELL_PHP_By_String_Known_Webshell
         $php_new3 = "<script language=\"php" nocase wide ascii
 
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
     condition:
@@ -2650,7 +2658,8 @@ rule WEBSHELL_PHP_By_String_Known_Webshell
         )
         and not (
         uint16(0) == 0x5a4d or
-        $dex at 0 or
+        $dex1 at 0 or
+        $dex2 at 0 or
         $pack at 0 or
         // fp on jar with zero compression
         uint16(0) == 0x4b50
@@ -4203,7 +4212,7 @@ rule WEBSHELL_ASP_Generic_Tiny
         reference = "Internal Research"
         score = 75
         date = "2021/01/07"
-        modified = "2023-07-05"
+        modified = "2025-08-18"
         hash = "990e3f129b8ba409a819705276f8fa845b95dad0"
         hash = "52ce724580e533da983856c4ebe634336f5fd13a"
         hash = "0864f040a37c3e1cef0213df273870ed6a61e4bc"
@@ -4288,7 +4297,8 @@ rule WEBSHELL_ASP_Generic_Tiny
         $asp_text2 = ".Text" wide ascii
 
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
         //strings from private rule capa_asp_payload
@@ -4376,7 +4386,8 @@ rule WEBSHELL_ASP_Generic_Tiny
         )
         and not 1 of ( $fp* ) and not (
         uint16(0) == 0x5a4d or
-        $dex at 0 or
+        $dex1 at 0 or
+        $dex2 at 0 or
         $pack at 0 or
         // fp on jar with zero compression
         uint16(0) == 0x4b50
@@ -4410,7 +4421,7 @@ rule WEBSHELL_ASP_Generic : FILE {
         author = "Arnim Rupp (https://github.com/ruppde)"
         reference = "Internal Research"
         date = "2021-03-07"
-        modified = "2023-07-05"
+        modified = "2025-08-18"
         score = 60
         hash = "a8c63c418609c1c291b3e731ca85ded4b3e0fba83f3489c21a3199173b176a75"
         hash = "4cf6fbad0411b7d33e38075f5e00d4c8ae9ce2f6f53967729974d004a183b25c"
@@ -4546,7 +4557,8 @@ rule WEBSHELL_ASP_Generic : FILE {
 
 
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
         //strings from private rule capa_asp_input
@@ -4649,7 +4661,8 @@ rule WEBSHELL_ASP_Generic : FILE {
         )
         and not (
         uint16(0) == 0x5a4d or
-        $dex at 0 or
+        $dex1 at 0 or
+        $dex2 at 0 or
         $pack at 0 or
         // fp on jar with zero compression
         uint16(0) == 0x4b50
@@ -5784,7 +5797,7 @@ rule WEBSHELL_JSP_Generic
         reference = "Internal Research"
         score = 75
         date = "2021/01/07"
-        modified = "2024-12-09"
+        modified = "2025-08-18"
         hash = "4762f36ca01fb9cda2ab559623d2206f401fc0b1"
         hash = "bdaf9279b3d9e07e955d0ce706d9c42e4bdf9aa1"
         hash = "ee9408eb923f2d16f606a5aaac7e16b009797a07"
@@ -5805,7 +5818,8 @@ rule WEBSHELL_JSP_Generic
         $fp1 = "command = \"cmd.exe /c set\";"
 
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
         //strings from private rule capa_jsp_safe
@@ -5842,7 +5856,8 @@ rule WEBSHELL_JSP_Generic
     condition:
         filesize < 300KB and not (
         uint16(0) == 0x5a4d or
-        $dex at 0 or
+        $dex1 at 0 or
+        $dex2 at 0 or
         $pack at 0 or
         // fp on jar with zero compression
         uint16(0) == 0x4b50
@@ -5878,7 +5893,7 @@ rule WEBSHELL_JSP_Generic_Base64
         reference = "Internal Research"
         score = 75
         date = "2021/01/24"
-        modified = "2024-12-09"
+        modified = "2025-08-18"
         hash = "8b5fe53f8833df3657ae2eeafb4fd101c05f0db0"
         hash = "1b916afdd415dfa4e77cecf47321fd676ba2184d"
 
@@ -5920,7 +5935,8 @@ rule WEBSHELL_JSP_Generic_Base64
         $cjsp_long7 = "< %" ascii wide
 
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
     condition:
@@ -5937,7 +5953,8 @@ rule WEBSHELL_JSP_Generic_Base64
         )
         and not (
         uint16(0) == 0x5a4d or
-        $dex at 0 or
+        $dex1 at 0 or
+        $dex2 at 0 or
         $pack at 0 or
         // fp on jar with zero compression
         uint16(0) == 0x4b50
@@ -6253,7 +6270,7 @@ rule WEBSHELL_JSP_By_String
         reference = "Internal Research"
         score = 75
         date = "2021/01/09"
-        modified = "2024-12-09"
+        modified = "2025-08-18"
         hash = "e9060aa2caf96be49e3b6f490d08b8a996c4b084"
         hash = "4c2464503237beba54f66f4a099e7e75028707aa"
         hash = "06b42d4707e7326aff402ecbb585884863c6351a"
@@ -6303,14 +6320,16 @@ rule WEBSHELL_JSP_By_String
         $cjsp_long7 = "< %" ascii wide
 
         //strings from private rule capa_bin_files
-        $dex   = { 64 65 ( 78 | 79 ) 0a 30 }
+        $dex1 = "dex\n0"
+        $dex2 = "dey\n0"
         $pack  = { 50 41 43 4b 00 00 00 02 00 }
 
     condition:
         //any of them or
         not (
             uint16(0) == 0x5a4d or
-            $dex at 0 or
+            $dex1 at 0 or
+            $dex2 at 0 or
             $pack at 0 or
             // fp on jar with zero compression
             uint16(0) == 0x4b50
@@ -6891,4 +6910,3 @@ rule WEBSHELL_Cookie_Post_Obfuscation {
     condition:
     ( uint16(0) == 0x3f3c and filesize < 100KB and ( all of them ))
 }
-
