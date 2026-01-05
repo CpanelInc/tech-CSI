@@ -355,6 +355,7 @@
 /etc/skysapdd
 /etc/smarvtd
 /etc/ssh.tar
+/etc/sshd
 /etc/ssh/.sshd_auth
 /etc/ssh/notepad++
 /etc/sudoers.d/ebpfbackdoor
