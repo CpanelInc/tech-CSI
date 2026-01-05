@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.50";
+my $version = "3.5.51";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -4576,19 +4576,19 @@ sub get_pkg_version {
     }
     else {
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
-        $pkgversion=Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', '--queryformat', '%{Version}-%{Release}', $tcPkg );
+        $pkgversion=Cpanel::SafeRun::Timed::timedsaferun( 0, 'rpm', '-q', '--queryformat', '%{Version}-%{Release}', "$tcPkg" );
         close( STDERR ) if ( ! $debug );
     }
     if ( $gl_is_kernel == 0 ) {
         $pkgversion =~ s/$tcPkg//g;
     }
     chomp($pkgversion);
-    $pkgversion =~ s/$tcPkg//g;
-    $pkgversion =~ s/^\.\.//;
-    $pkgversion =~ s/^\-\-//;
-    $pkgversion =~ s/\-/\./g;
-    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|\.deb.*|\.noarch|.1ubuntu.*|ubuntu.*|\.cp\d+.*|\.el.*|\+.*)//g;
-
+    $pkgversion =~ s/\Q$tcPkg\E//g;
+    $pkgversion =~ s/^(?:\.\.|\-\-)//;
+    $pkgversion =~ s/\-.*//;
+    $pkgversion =~ s/[0-9]\://;
+    $pkgversion =~ s/[a-z][0-9]//;
+    $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|p2.*|\.deb.*|\.noarch|.1ubuntu.*|ubuntu.*|\.cp\d+.*|\.el.*|\+.*)//g;
     return $pkgversion;
 }
 

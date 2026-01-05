@@ -87,3 +87,5 @@ zmreplchkr
 zsvc
 /etc/cpanelmod/diallicense
 /var/lib/postgresql/data/pg_mem
+react.x86_64.persisted
+/etc/rondo/rondo
