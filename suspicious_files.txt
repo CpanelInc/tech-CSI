@@ -143,10 +143,12 @@
 /dev/shm/.lwp/.out
 /dev/shm/.lwp/.rsync
 /dev/shm/.magic
+/dev/shm/.pulse-*
 /dev/shm/.shmdiskvg.log
 /dev/shm/.ssh/./x86_64
 /dev/shm/.systemd/.systemd
 /dev/shm/.t
+/dev/shm/.vl_*
 /dev/shm/.x
 /dev/shm/callservice
 /dev/shm/cfgas
@@ -161,6 +163,7 @@
 /dev/shm/libdl.so
 /dev/shm/mnem
 /dev/shm/mycron
+/dev/shm/nginx_scan.txt
 /dev/shm/ngrok
 /dev/shm/php-shared
 /dev/shm/sd
@@ -355,9 +358,9 @@
 /etc/skysapdd
 /etc/smarvtd
 /etc/ssh.tar
-/etc/sshd
 /etc/ssh/.sshd_auth
 /etc/ssh/notepad++
+/etc/sshd
 /etc/sudoers.d/ebpfbackdoor
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
@@ -793,6 +796,8 @@
 /tmp/.donot
 /tmp/.dump
 /tmp/.font-unix/.cinik
+/tmp/.font-unix/.cmd.sh
+/tmp/.font-unix/.tmp.ko
 /tmp/.h
 /tmp/.helpdd
 /tmp/.init
@@ -804,6 +809,8 @@
 /tmp/.mysqli/mysqlc
 /tmp/.netscalerd
 /tmp/.netscalerd/uuid
+/tmp/nginx_scan.txt
+/tmp/.domain_group_map.conf
 /tmp/.orbit
 /tmp/.perf.c
 /tmp/.perf.c/.apid
@@ -837,6 +844,11 @@
 /tmp/.unlock
 /tmp/.user
 /tmp/.uua
+/tmp/.vl_cmd.sh
+/tmp/.vl_config
+/tmp/.vl_k[3-6].ko
+/tmp/.vl_ss_loader
+/tmp/.x
 /tmp/.x/kworker
 /tmp/.xdiag
 /tmp/.xdiag/cp
@@ -1104,6 +1116,8 @@
 /tmp/zolog
 /usr/.IptabLes
 /usr/.IptabLex
+/usr/java/jre-vmware/bin/bkmgr
+/usr/sbin/vsm-boot-monitordvcenter
 /usr/.SQL-Unix/.SQL/.db
 /usr/.stabip
 /usr/IptabLes
@@ -1708,6 +1722,7 @@
 /var/tmp/.pipe.sock
 /var/tmp/.t
 /var/tmp/.update-logs
+/var/tmp/.vl_*
 /var/tmp/Documents
 /var/tmp/all.txt
 /var/tmp/cb

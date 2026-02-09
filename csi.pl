@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.51";
+my $version = "3.5.52";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -437,9 +437,6 @@ sub scan {
     print_header( '[ Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE ]');
     logit( "Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE");
     check_apitokens_json();
-    print_header( '[ Checking for root user as a cpanelid user ]');
-    logit( "Checking authn paths for cpanelid user belonging to root" );
-    check_authn_cpanelid();
     print_header( '[ Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes ]');
     logit("Checking api_tokens_log for passwd changes");
     check_api_tokens_log();
@@ -626,14 +623,13 @@ sub scan {
     print_header('[ Checking for deprecated plugins/modules ]');
     logit("Checking for deprecated plugins");
     check_for_deprecated();
-    print_header( '[ Gathering the IP addresses that logged on successfully as root ]');
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM("root");
     get_session_logins("root:");
     get_whm_terminal_logins("root");
     get_last_logins_SSH("root");
     check_secure_log("root");
-    get_root_pass_changes("root");
+    get_user_pass_changes("root");
     push( @INFO, CYAN "\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist.");
 
     if ( $full or $secadv ) {
@@ -843,7 +839,7 @@ sub check_uids {
             get_whm_terminal_logins($_);
             get_last_logins_SSH($_);
             check_secure_log($_);
-            get_root_pass_changes($_);
+            get_user_pass_changes($_);
         }
     }
 }
@@ -2056,6 +2052,10 @@ sub userscan {
         );
     }
 
+    check_secure_log( $lcUserToScan );
+    get_user_pass_changes( $lcUserToScan );
+    get_usernotifications_passwd_changes( $lcUserToScan );
+
     # Check for Troldesh Ransomware
     print_status( "Checking for Troldesh Ransomware in "
           . $RealHome
@@ -2136,10 +2136,6 @@ sub userscan {
 "> Found possible malicious RotaJakiro backdoor at $RealHome/.X11/.X11-lock"
         );
     }
-
-    # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
-    print_status("Checking for malicious WordPress plugins");
-    logit("Checking for malicious WordPress plugins");
     if ( -e "$RealHome/$pubhtml/wp-content/plugins/supersociall" ) {
         push( @SUMMARY,
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/supercociall/"
@@ -2155,6 +2151,10 @@ sub userscan {
 "> Found possible malicious WordPress stealthy backdoor at $RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php"
         );
     }
+
+    # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
+    print_status("Checking for malicious WordPress plugins");
+    logit("Checking for malicious WordPress plugins");
 
     # SOP-28 - look for massearchtraffic.top within fucntions.php file.
     my $massearchtraffic_malware = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome", '-name', 'functions.php', '-not', '-path', "/home/virtfs/*", '-a', '-not', '-path', '*/[@.]*', '-exec', 'grep', 'massearchtraffic.top', '{}', '+' );
@@ -3178,25 +3178,21 @@ sub get_last_logins_SSH {
 
 sub check_secure_log {
     my $lcUser = shift;
+    print_status( "Checking for IP addresses that logged on successfully as $lcUser" ) if ( $userscan );
+    print_header( "[ Gathering the IP addresses that logged on successfully as $lcUser ]" ) unless ( $userscan );
     my $max_output = 3;
     my $hasJctl = ( -x '/usr/bin/journalctl' ) ? 1 : 0;
-    my $secure_log_file;
-    if ( $distro eq 'ubuntu' ) {
-        $secure_log_file = '/var/log/auth.log';
-    }
-    else {
-        $secure_log_file = '/var/log/secure';
-    }
+    my $secure_log_file = ( $distro eq 'ubuntu' ) ? '/var/log/auth.log' : '/var/log/secure';
     if ( -f $secure_log_file ) {
         my $output_line=0;
         my $showHeader=0;
         open( my $fh, '<', $secure_log_file );
         while( <$fh> ) {
             chomp($_);
-            next unless( $_ =~ m/Accepted publickey|Accepted password/ );
-            if ( $_ =~ m/for $lcUser from/ ) {
+            next unless( $_ =~ m/Accepted publickey|Accepted password|session opened for/ );
+            if ( $_ =~ m/$lcUser/ ) {
                 next if( $_ =~ m/208\.74\.123|184\.94\.197/ );
-                push( @INFO, "> The following entries for $lcUser were found in $secure_log_file:" ) unless( $showHeader );;
+                push( @INFO, "> The following entries for $lcUser were found in $secure_log_file:" ) unless( $showHeader );
                 $showHeader=1;
                 push @INFO, expand( CYAN "\t\\_ $_") unless( $output_line > $max_output );
                 $output_line++;
@@ -3296,7 +3292,7 @@ sub get_session_logins {
     }
 }
 
-sub get_root_pass_changes {
+sub get_user_pass_changes {
     my $lcUser = shift;
     my $dt     = DateTime->now;
     my $year   = $dt->year;
@@ -3312,7 +3308,7 @@ sub get_root_pass_changes {
           ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8 ];
         if (    $user eq "$lcUser"
             and $status eq "200"
-            and $chpass =~ m/chrootpass/
+            and $chpass =~ m/chrootpass|changepass.html/
             and $date   =~ m/$year/ )
         {
             push( @Success, "$ipaddr" );
@@ -3325,7 +3321,8 @@ sub get_root_pass_changes {
     my $headerPrinted = 0;
     foreach $success (@unique_ips) {
         if ( $headerPrinted == 0 ) {
-            push( @INFO, "> The following IP address(es) changed roots password via WHM (in $year):");
+            push( @INFO, "> The following IP address(es) changed the $lcUser password via the cPanel UI (in $year):") if ( $userscan );
+            push( @INFO, "> The following IP address(es) changed the $lcUser password via the WHM UI (in $year):") unless( $userscan );
             $headerPrinted = 1;
         }
         chomp($success);
@@ -3589,12 +3586,6 @@ sub known_sha256_hashes {
     my $x=grep { /$checksum/ } @knownhashes;
     return 1 if ( grep { /$checksum/ } @knownhashes );
     return 0;
-}
-
-sub check_authn_cpanelid {
-    my $authn_user='/var/cpanel/authn/links/users/root/root.db';
-    return unless( -e $authn_user );
-    push( @SUMMARY, "> Found $authn_user file\n\t\\_ This is highly unusual and could indicate a root compromise!");
 }
 
 sub check_apitokens_json {
@@ -3902,7 +3893,7 @@ sub check_resellers_for_all_ACL {
             get_whm_terminal_logins($lcReseller);
             get_last_logins_SSH($lcReseller);
             check_secure_log($lcReseller);
-            get_root_pass_changes($lcReseller);
+            get_user_pass_changes($lcReseller);
             next;
         }
     }
@@ -4841,6 +4832,23 @@ sub compare_hash_of_shells {
         if ( $hashline eq $nologinhash ) {
             push( @SUMMARY, "> The SHA1 hash for /sbin/nologin is identical to the one for $shellfile - Could indicate a compromise!" );
         }
+    }
+}
+
+sub get_usernotifications_passwd_changes {
+    my $lcUser=shift;
+    my $notify_passwd_changes = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "/var/cpanel/user_notifications/$lcUser", '-iname', '*password*' );
+    my @notify_passwd_changes = split /\n/, $notify_passwd_changes;
+    return unless( @notify_passwd_changes );
+    push @INFO, "> Found the following Change Password notifications for " . MAGENTA $lcUser . YELLOW ":";
+    foreach my $line(@notify_passwd_changes) {
+        my ($dataline)=(split /\//, $line)[6];
+        my ($timestamp)=(split /_/, $dataline)[0];
+        $dataline =~ s/$timestamp\_//;
+        $dataline =~ s/\.eml//;
+        my $date = scalar localtime $timestamp;
+        chomp($date);
+        push @INFO, expand( CYAN "\t\\_ [ " . GREEN $date . CYAN " ] - $dataline" );
     }
 }
 
