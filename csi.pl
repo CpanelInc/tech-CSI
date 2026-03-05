@@ -2261,22 +2261,46 @@ sub userscan {
         }
     }
 
+    print_status("Checking images/ico files for hidden malware");
+    logit("Checking images/ico files for hidden malware");
     # Check images and favicon.ico files for shellcode/malware
-    find( { wanted => \&imagefiles, }, "$RealHome/$pubhtml/");
-    my $showHeader=0;
-    sub imagefiles {
-        return if( -d $File::Find::name );
-        if ( $File::Find::name =~ m{.jpg$|.jpeg$|.gif$|.png$|.ico$} ) {
-            my $header = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', $File::Find::name );
-            my $found=0;
-            if ( $header =~ m{eval|function|String.from|CharCode|<\?php|halt_compiler|bin.*bash} ) {
-                push @SUMMARY, "> Possible malware/shellcode injection found within the following files:" unless( $showHeader );
-                $showHeader=1;
-                push @SUMMARY, "\t\\_ $File::Find::name";
-            }
+    sub extract_printable {
+        my ($file) = @_;
+        my $content = '';
+        open( my $fh, '<:raw', $file ) or return '';
+        while ( read( $fh, my $buf, 65536 ) ) {
+            # Extract runs of printable ASCII (mimics `strings` behavior)
+            $content .= join( "\n", ( $buf =~ /[ -~]{4,}/g ) );
         }
+        close($fh);
+        return $content;
     }
 
+    my $cnt        = 0;
+    my $showHeader = 0;
+    my @hits;
+    my $IMAGE_RE   = qr/\.(?:jpe?g|gif|png|ico)$/i;
+    my $MALWARE_RE = qr/eval|function|String\.from|CharCode|<\?php|halt_compiler|bin.*bash/;
+
+    find( { wanted => sub {
+            return if -d $File::Find::name;
+            return unless $File::Find::name =~ $IMAGE_RE;
+            spin();
+            $cnt++;
+
+            my $printable = extract_printable($File::Find::name);
+            if ( $printable =~ $MALWARE_RE ) {
+                push @hits, $File::Find::name;
+            }
+        },
+        no_chdir => 1,       # avoids chdir overhead per directory
+        }, "$RealHome/$pubhtml/");
+    if (@hits) {
+        push @SUMMARY, "> Possible malware/shellcode injection found within the following files:";
+        push @SUMMARY, CYAN "\t\\_ $_" for @hits;
+    }
+
+    # Userscan using Yara
     if ( -d "$RealHome/$pubhtml" ) {
         logit("Running a user scan for $lcUserToScan");
         my $yara_available = check_for_yara();
@@ -4198,18 +4222,18 @@ sub check_env_for_susp_vars {
 }
 
 sub check_for_perfcc {
-    my @suspfiles = qw( '*/.local/bin/ldd', '*/.local/bin/lsof', '*/.local/bin/top', '*/.local/bin/crontab' );
+    my $maxdepth=8;
     my @suspfound;
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'd', '-iwholename', '*/.local/bin' );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'd', '-iwholename', '*/.local/bin' );
     return unless( $findit );
     push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/ldd' );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/ldd' );
     push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/lsof' );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/lsof' );
     push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/top' );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/top' );
     push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-type', 'f', '-iwholename', '*/.local/bin/crontab' );
+    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/crontab' );
     push @suspfound, $findit if ( $findit );
     my $x=@suspfound;
     if ( $x > 1 ) {
