@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.52";
+my $version = "3.5.53";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -3076,7 +3076,7 @@ sub check_for_Super_privs {
     my @MySQLSuperPriv = split /\n/, $MySQLSuperPriv;
     my $showHeader=0;
     foreach $MySQLSuperPriv(@MySQLSuperPriv) {
-        next if( $MySQLSuperPriv =~ m{root|mysql.session} );
+        next if( $MySQLSuperPriv =~ m{root|mysql.session|mysql} );
         push @SUMMARY, "> The following MySQL users have the Super Privilege:" unless($showHeader);
         $showHeader=1;
         my ( $MySQLHost, $MySQLUser ) = ( split( /\s+/, $MySQLSuperPriv ) );
