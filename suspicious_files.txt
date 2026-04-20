@@ -811,6 +811,7 @@
 /tmp/.netscalerd/uuid
 /tmp/nginx_scan.txt
 /tmp/.domain_group_map.conf
+/tmp/.node_gc.js
 /tmp/.orbit
 /tmp/.perf.c
 /tmp/.perf.c/.apid
@@ -824,6 +825,7 @@
 /tmp/.pg_stat.1
 /tmp/.profile
 /tmp/.psy
+/tmp/redis_exec.sh
 /tmp/.rewt
 /tmp/.salted
 /tmp/.session-unix
@@ -844,6 +846,7 @@
 /tmp/.unlock
 /tmp/.user
 /tmp/.uua
+/tmp/vps_shell.sh
 /tmp/.vl_cmd.sh
 /tmp/.vl_config
 /tmp/.vl_k[3-6].ko

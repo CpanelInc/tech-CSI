@@ -864,7 +864,7 @@ sub check_roots_history {
     my $histline;
     foreach $histline (@HISTORY) {
         chomp($histline);
-        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel|wget http://www.curl.by|cbrute.tgz|cbrute}) {
+        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel|wget http://www.curl.by|cbrute.tgz|cbrute|noprofile|norc}) {
             push( @SUMMARY,
                 "> Suspicious entries found in /root/.bash_history" );
             push( @SUMMARY, expand( "\t\\_ $histline" ) );
@@ -1500,7 +1500,7 @@ sub check_for_hiddenwasp {
         }
     }
     # Check for specific TCP ports
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 tcp:6667 tcp:5822);
+    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 tcp:6667 tcp:5822 tcp:8888);
     foreach my $port (@ports) {
         chomp($port);
         my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
@@ -4701,13 +4701,17 @@ sub check_for_bpfdoor {
     push @SUMMARY, "> Found evidence of possible BPFDoor hack $wait_for_more_packets" if( $wait_for_more_packets );
     my $start_port=42391;
     my $end_port=43391;
-    my $chk_iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
+    my $maxlinecnt=5;
+    my $linecnt=0;
+    my $chk_iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-v' );
     my @chk_iptables = split /\n/, $chk_iptables;
-    while( $start_port <= $end_port ) {
+    while( $start_port <= $end_port || $linecnt >= $maxlinecnt ) {
         if ( grep { /$start_port/ } @chk_iptables ) {
-            push @SUMMARY, "> Found evidence of possible BFPDoor hack $chk_iptables";
+            push @SUMMARY, "> Found evidence of the BFPDoor hack [The following ports $start_port to $end_port may be  open ]" if ( $linecnt == 0 );
         }
+        $linecnt++;
         $start_port++;
+        last if ( $linecnt >= $maxlinecnt );
     }
 }
 
