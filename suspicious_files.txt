@@ -656,6 +656,7 @@
 /root/.rsvor
 /root/.satj
 /root/.sczuf
+/root/.sorry_exist
 /root/.sqlmap/output
 /root/.ssh/./.sshd
 /root/.ssh/./sshd

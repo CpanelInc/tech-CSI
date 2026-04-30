@@ -54,3 +54,4 @@ README_MAORI.txt
 read-me3.txt
 HOW_RETURN_YOUR_DATA.TXT
 ReadMeForDecrypt.txt
+README.md
