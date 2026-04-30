@@ -640,6 +640,8 @@
 /root/.mxt
 /root/.nlu
 /root/.ntp
+/root/nuclear.x86
+/root/nuclear.x86.[1-9]
 /root/.ojgwa
 /root/.omu
 /root/.onxv

@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.53";
+my $version = "3.5.54";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -868,7 +868,7 @@ sub check_roots_history {
     my $histline;
     foreach $histline (@HISTORY) {
         chomp($histline);
-        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel|wget http://www.curl.by|cbrute.tgz|cbrute|noprofile|norc}) {
+        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel|wget http://www.curl.by|cbrute.tgz|cbrute|noprofile|norc|nuclear.x86}) {
             push( @SUMMARY,
                 "> Suspicious entries found in /root/.bash_history" );
             push( @SUMMARY, expand( "\t\\_ $histline" ) );
@@ -1027,11 +1027,11 @@ sub check_ssh {
                 $rpmBuildHost = $rpmLine if( $rpmLine =~ m/Build Host/ );
                 $rpmSignature = $rpmLine if( $rpmLine =~ m/Signature/ );
             }
-            $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc.|Rocky/) );
+            $ssh_error_cnt++ unless ( $rpmVendor =~ (m/CloudLinux|AlmaLinux|CentOS|Red Hat, Inc.|TuxCare/) );
             $ssh_error_cnt++ if ( $rpmVendor =~ (m/none/) );
             $ssh_error_cnt++ unless ( $rpmBuildHost =~ ( m/cloudlinux.com|buildfarm0|centos.org|redhat.com|rockylinux.org|almalinux.org/));
             $ssh_error_cnt++ if ( $rpmBuildHost =~ (m/none/) );
-            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716|702d426d350d275d|2ae81e8aced7258b/));
+            $ssh_error_cnt++ unless ( $rpmSignature =~ ( m/24c6a8a7f4a80eb5|8c55a6628608cb71|199e2f91fd431d51|51d6647ec21ad6ea|15af5dac6d745a60|d36cb86cb86b3716|702d426d350d275d|2ae81e8aced7258b|d07bf2a08d50eb66/));
             $ssh_error_cnt++ if ( $rpmSignature =~ (m/none/) );
         }
     }
@@ -1760,6 +1760,7 @@ sub all_malware_checks {
     check_for_dirtycow_passwd();
     check_for_lilocked_ransomware();
     check_for_filenew_ransomware();
+    check_for_sorry_ransomware();
     check_for_sedexp();
     check_for_junglesec();
     check_for_panchan();
@@ -3446,6 +3447,7 @@ sub get_conf {
 }
 
 sub check_for_lilocked_ransomware {
+    print_header("[ Checking for evidence of lilocked ransomware ]");
     my $lilockedFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.lilocked", '-print' );
     my @lilockedFound = split /\n/, $lilockedFound;
     if ($lilockedFound) {
@@ -3458,6 +3460,7 @@ sub check_for_lilocked_ransomware {
 }
 
 sub check_for_filenew_ransomware {
+    print_header("[ Checking for evidence of filenew ransomware ]");
     my $filenewFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.filenew", '-print' );
     my @filenewFound = split /\n/, $filenewFound;
     if ($filenewFound) {
@@ -3468,8 +3471,24 @@ sub check_for_filenew_ransomware {
         }
     }
     if ( -e '/root/How-To-Restore-Your-Files.txt' ) {
-        push( @SUMMARY, "> Evidence of ransomware detected." );
+        push( @SUMMARY, "> Evidence of filenewransomware detected." );
         push( @SUMMARY, expand( CYAN "\t\\_ How-To-Restore-Your-Files.txt ransome note found in /root." ) );
+    }
+}
+
+sub check_for_sorry_ransomware {
+    print_header("[ Checking for evidence of sorry ransomware ]");
+    my $sorryfound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.sorry", '-print' );
+    my @sorryfound = split /\n/, $sorryfound;
+    my $max_detected=5;
+    my $cnt=0;
+    if ( $sorryfound ) {
+        push( @SUMMARY, "> Evidence of sorry ransomware detected. Listing the first " . CYAN $max_detected );
+        foreach $sorryfound (@sorryfound) {
+            chomp($sorryfound);
+            push( @SUMMARY, expand( CYAN "\t\\_ $sorryfound" ) ) unless( $cnt >= $max_detected );
+            $cnt++;
+        }
     }
 }
 
