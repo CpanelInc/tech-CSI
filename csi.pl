@@ -383,12 +383,16 @@ sub scan {
     print_header('[ Checking installed packages for CVEs ]');
     logit("Checking installed packages for CVEs");
     check_for_cve_vulnerabilities();
-    print_header('[ Checking if polkit/policykit has been exploited by CVE-2021-4034 ]');
-    logit("Checking if polkit/policykit has been exploited by CVE-2021-4034");
-    check_for_cve_2021_4034();
     print_header('[ Checking for BPFDoor ]');
     logit("Checking for BPFDoor");
     check_for_bpfdoor();
+#    print_header('[ Checking for cpsess hacks ]');
+#    logit("Checking for cpsess hacks");
+#    check_for_cpsess_hacks();
+    print_header('[ Checking for suspicious environ in /proc/*/ ]');
+    logit("Checking for suspicious environ in /proc/*/");
+    # RIGHT HERE
+    check_proc_environ();
     print_header('[ Checking for suspicious /etc/rc.modules file ]');
     logit("Checking for suspicious /etc/rc.modules file");
     check_for_susp_rc_modules();
@@ -419,7 +423,7 @@ sub scan {
     print_header('[ Checking for LKM rootkits ]');
     logit("Checking for Loadable Kernel Module rootkits");
     check_for_lkm_rootkits();
-    print_header('[ Checking /dev/shm for binaries that are scripts or ELF fileyptes ]');
+    print_header('[ Checking /dev/shm for binaries that are scripts or ELF filetypes ]');
     logit("Checking /dev/shm for scripts and ELF file types");
     check_dev_shm_for_elf();
     print_header('[ Checking process list for suspicious processes ]');
@@ -3072,7 +3076,8 @@ sub user_crons {
 
 sub check_for_Super_privs {
     return if !-e "/var/lib/mysql/mysql.sock";
-    my $MySQLSuperPriv = Cpanel::SafeRun::Timed::timedsaferun( 5, 'mysql', '-BNe', "SELECT Host,User FROM mysql.user WHERE Super_priv='Y'" );
+    my $MYSQL_BIN=find_mysql_bin();
+    my $MySQLSuperPriv = Cpanel::SafeRun::Timed::timedsaferun( 5, $MYSQL_BIN, '-BNe', "SELECT Host,User FROM mysql.user WHERE Super_priv='Y'" );
     my @MySQLSuperPriv = split /\n/, $MySQLSuperPriv;
     my $showHeader=0;
     foreach $MySQLSuperPriv(@MySQLSuperPriv) {
@@ -3086,7 +3091,8 @@ sub check_for_Super_privs {
 
 sub check_for_mysqlbackups_user {
     return if !-e "/var/lib/mysql/mysql.sock";
-    my $mysqlbackups_user = Cpanel::SafeRun::Timed::timedsaferun( 5, 'mysql', '-BNe', "SELECT User FROM mysql.user WHERE User LIKE 'mysqlbackups%'" );
+    my $MYSQL_BIN=find_mysql_bin();
+    my $mysqlbackups_user = Cpanel::SafeRun::Timed::timedsaferun( 5, $MYSQL_BIN, '-BNe', "SELECT User FROM mysql.user WHERE User LIKE 'mysqlbackups%'" );
     if ($mysqlbackups_user) {
         push @SUMMARY, CYAN
 "> Found mysqlbackups user in MySQL.user table - Could be a MySQL backdoor";
@@ -3119,6 +3125,28 @@ sub get_cron_files {
     }
     return @cronlist;
 }
+
+#sub check_for_cpsess_hacks {
+# WAS INFORMED THAT THIS CHECK IS NOT RELIABLE!!
+#    open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
+#    my @ACCESSLOG = <ACCESSLOG>;
+#    close(ACCESSLOG);
+#    my $accessline;
+#    my @Success;
+#
+#    foreach $accessline (@ACCESSLOG) {
+#        chomp($accessline);
+#        my ( $ipaddr, $user, $date, $hascpsess, $status, $cmd ) = ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8, 11 ];
+#        if ( $hascpsess =~ m/cpsess[0-9]{10}.*/ and $hascpsess =~ m/myprivs/ and $status eq "200" and $cmd =~ m/python-requests\/2.28.1/ ) {
+#            push( @Success, CYAN "\t\\_ $ipaddr - $user - $date - $hascpsess - $status - $cmd" );
+#        }
+#    }
+#    if ( @Success ) {
+#        my $showHeader=0;
+#        push ( @SUMMARY, "> Found suspicious entries in /usr/local/cpanel/logs/access_log file:" ) unless ( $showHeader );
+#        push( @SUMMARY, @Success );
+#    }
+#}
 
 sub get_last_logins_WHM {
     my $lcUser = shift;
@@ -4270,10 +4298,11 @@ sub check_for_xbash {
             next unless ( $database =~ m/PLEASE_READ|README_TO_RECOVER|GODRANSOM/ );
             push( @SUMMARY, "> Possible Xbash variant ransomware detected. Database's missing? Database " . CYAN $database . YELLOW " exists!" );
             if ( -e '/run/mysqld/mysqld.pid' ) {
-                $XBash_Table = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SHOW TABLES FROM $database;" );
+                my $MYSQL_BIN=find_mysql_bin();
+                $XBash_Table = Cpanel::SafeRun::Timed::timedsaferun( 6, $MYSQL_BIN, '-BNe', "SHOW TABLES FROM $database;" );
                 chomp($XBash_Table);
                 if ($XBash_Table) {
-                    $RansomwareNote = Cpanel::SafeRun::Timed::timedsaferun( 6, 'mysql', '-BNe', "SELECT * FROM $database.$XBash_Table;" );
+                    $RansomwareNote = Cpanel::SafeRun::Timed::timedsaferun( 6, $MYSQL_BIN, '-BNe', "SELECT * FROM $database.$XBash_Table;" );
                     if ($RansomwareNote) {
                         chomp($RansomwareNote);
                         push( @SUMMARY, expand( CYAN "\t\\_ Ransomeware Note: $RansomwareNote" ) );
@@ -4324,17 +4353,19 @@ sub check_for_cronRAT {
             push @SUMMARY, expand( CYAN "\t \\_ " . $found . " exists" );
         }
     }
+}
 
-    my @globfiles = glob( '/proc/*/environ' );
-    my $searchstring = 'LD_L1BRARY_PATH';
+sub check_proc_environ {
+    my @patterns = qw( LD_L1BRARY_PATH nuclear.x86);
+    my @procs = glob( '/proc/*/environ' );
+    my $found=0;
+    my @found=undef;
     my $showHeader=0;
-    foreach my $environ_proc(@globfiles) {
-        chomp($environ_proc);
-        my $found = Cpanel::SafeRun::Timed::timedsaferun( 4, 'grep', '--text', $searchstring, $environ_proc );
-        if ( $found ) {
-            push( @SUMMARY, "> Suspicious process(es) found: possible cronRAT exploit." ) unless( $showHeader );
-            $showHeader=1;
-            push( @SUMMARY, expand( CYAN "\t \\_ " . $found ) ) unless ( !$found );
+    foreach my $file(@procs) {
+        chomp($file);
+        for my $pattern (@patterns) {
+            $found = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-a', $pattern, $file );
+            push @SUMMARY, "> Suspicious string found in: " . WHITE $file . "\n\t\\_ " . CYAN $pattern if ( $found );
         }
     }
 }
@@ -4657,61 +4688,52 @@ sub get_suspicious_cron_strings {
     return \@susp_cron_strings;
 }
 
-sub check_for_cve_2021_4034 {
-    my $authlog;
-    if ( $distro eq 'ubuntu' ) {
-        $authlog = '/var/log/auth.log';
-    }
-    else {
-        $authlog = '/var/log/secure';
-    }
-    open( my $fh, '<', $authlog);
-    while( <$fh> ) {
-        if ( $_ =~ m{The value for the SHELL variable was not found the /etc/shells file} ) {
-            push @SUMMARY, "> Found possible root compromise using CVE-2021-4034";
-            push @SUMMARY, expand( "\t\\_ The string " . CYAN "The value for the SHELL variable was not found the /etc/shells file" . YELLOW " was found in the $authlog file" );
-            last;
-        }
-    }
-    close($fh);
-}
-
 sub check_lsof_deleted {
-    my @suspicious_binaries = qw( memfd perfctl );
+    my %options = (
+        suspicious_binaries => [qw( memfd perfctl )],
+        excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock )],
+    );
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
-    my @lsof = split /\n/, $lsof;
-    my $showHeader=0;
-    foreach my $line(@lsof) {
-        next unless( $line =~ m{(deleted)} );
-        foreach my $suspbin(@suspicious_binaries) {
-            if ( $line =~ m/$suspbin/ ) {
-                next if ( $line =~ m{dbus-brok|sw-engine} );
-                push @SUMMARY, "> Found deleted files/binaries running in memory that could be suspicious" unless( $showHeader );
-                $showHeader=1;
-                push @SUMMARY, "\t\\_  $line";
-            }
+    return unless $lsof;
+    my @excluded = map { qr/$_/ } @{ $options{excluded_patterns} };
+    my $showHeader = 0;
+    foreach my $line ( split /\n/, $lsof ) {
+        next unless $line =~ /\(deleted\)/;
+        my $is_excluded = grep { $line =~ $_ } @excluded;
+        next if $is_excluded;
+        if ( grep { $line =~ /\Q$_\E/ } @{ $options{suspicious_binaries} } ) {
+            push @SUMMARY, "> Found deleted files/binaries running in memory that could be suspicious" unless ($showHeader);
+            $showHeader=1;
+            push @SUMMARY, "\t\\_  $line";
         }
     }
 }
 
 sub check_for_bpfdoor {
-    my $has_packet_recvmsg = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', 'packet_recvmsg', "/proc/*/stack" );
-    push @SUMMARY, "> Found evidence of possible BPFDoor hack $has_packet_recvmsg" if( $has_packet_recvmsg );
-    my $wait_for_more_packets = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', 'wait_for_more_packets', "/proc/*/stack" );
-    push @SUMMARY, "> Found evidence of possible BPFDoor hack $wait_for_more_packets" if( $wait_for_more_packets );
-    my $start_port=42391;
-    my $end_port=43391;
-    my $maxlinecnt=5;
-    my $linecnt=0;
-    my $chk_iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-v' );
-    my @chk_iptables = split /\n/, $chk_iptables;
-    while( $start_port <= $end_port || $linecnt >= $maxlinecnt ) {
-        if ( grep { /$start_port/ } @chk_iptables ) {
-            push @SUMMARY, "> Found evidence of the BFPDoor hack [The following ports $start_port to $end_port may be  open ]" if ( $linecnt == 0 );
-        }
-        $linecnt++;
-        $start_port++;
-        last if ( $linecnt >= $maxlinecnt );
+    my %options = (
+        bpfdoor_signatures => [qw( packet_recvmsg wait_for_more_packets )],
+        port_range         => [42391, 43391],
+        max_findings     => 5,
+    );
+    foreach my $sig ( @{ $options{bpfdoor_signatures} } ) {
+        my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', $sig, '/proc/*/stack' );
+        push @SUMMARY, "> Found evidence of possible BPFDoor hack: $sig" if $result;
+    }
+    my $iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
+    my $ip6tables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ip6tables', '-L', '-n' );
+    return unless $iptables || $ip6tables;
+    my @lines = grep { /\d+/ } split /\n/, "$iptables\n$ip6tables";
+    my ($start, $end) = @{ $options{port_range} };
+    my $max    = $options{max_findings};
+    my @found;
+    foreach my $port ( $start .. $end ) {
+        last if @found >= $max;
+        my $regex = qr/\b$port\b/;
+        push @found, $port if grep { $_ =~ $regex } @lines;
+    }
+    if (@found) {
+        push @SUMMARY, "> Found evidence of BPFDoor hack: firewall allows ports " 
+          . join( ',', @found );
     }
 }
 
@@ -4840,7 +4862,7 @@ sub check_for_obsolete_shadow_hashes {
     chomp($md5hash);
     if ( $md5hash > 0 ) {
         push( @INFO, "> Found $md5hash obsolete password hash(es) [MD5] in /etc/shadow file.");
-        push( @INFO, CYAN "\t\\_ Run: " . WHITE "grep '\\\$1\\\$' /etc/shadow" . CYAN " to find them.");
+        push( @INFO, CYAN "\t\\_ Run: " . WHITE "grep '\\\$1\\\$' /etc/shadow | cut -d : -f1" . CYAN " to find them.");
     }
 }
 
@@ -4906,6 +4928,12 @@ sub get_apt_href {
         };
     }
     return \%rpms;
+}
+
+sub find_mysql_bin {
+    my $mysql_bin = '/usr/bin/mysql';
+    $mysql_bin = '/usr/bin/mariadb' if ( -l $mysql_bin );
+    return $mysql_bin;
 }
 
 sub check_email_filters {

