@@ -759,8 +759,8 @@
 /tmp/./xL.2
 /tmp/.138171241
 /tmp/.cp_info.log
-/tmp/cp_audit_[0-9].*\.log
-/tmp/.FILE/stak 
+/tmp/cp_audit_*
+/tmp/.FILE/stak
 /tmp/.ICE-unix/error.log
 /tmp/.IptabLes
 /tmp/.IptabLex
