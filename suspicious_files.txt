@@ -190,6 +190,7 @@
 /drgjghsaef.txt
 /etc/.bmbl
 /etc/.bmbl/sk
+/etc/.cpa.lock
 /etc/.enyelkmHIDE^IT.ko
 /etc/.httpd/…/httpd
 /etc/.ip
@@ -236,6 +237,7 @@
 /etc/cron.d/tmp00
 /etc/cron.d/zzh
 /etc/cron.daily/0
+/etc/cron.daily/cpanel_sync
 /etc/cron.daily/pwnrig
 /etc/cron.hourly.0
 /etc/cron.hourly/0
@@ -756,6 +758,8 @@
 /tmp/./xL.1
 /tmp/./xL.2
 /tmp/.138171241
+/tmp/.cp_info.log
+/tmp/cp_audit_[0-9].*\.log
 /tmp/.FILE/stak 
 /tmp/.ICE-unix/error.log
 /tmp/.IptabLes
@@ -1145,6 +1149,7 @@
 /usr/bin/.pidsclip
 /usr/bin/.ps
 /usr/bin/.sshd
+/usr/bin/.system_cache
 /usr/bin/.x11
 /usr/bin/4004.db
 /usr/bin/NetworkManage

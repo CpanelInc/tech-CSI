@@ -470,7 +470,7 @@ sub scan {
     logit("Checking for modified/hacked ssh");
     check_ssh();
     print_header('[ Checking /root/.bash_history for anomalies ]');
-    logit("Checking /root/.bash_history");
+    logit("Checking /root/.bash_history for TTY shell spawns");
     check_for_TTY_shell_spawns();
     check_roots_history();
     print_header( '[ Checking for non-root users with ALL privileges in /etc/sudoers file ]');
@@ -865,13 +865,20 @@ m/pty.spawn("\/bin\/sh")|pty.spawn\("\/bin\/bash"\)|os.system\('\/bin\/bash'\)|o
 }
 
 sub check_roots_history {
-    my $histline;
-    foreach $histline (@HISTORY) {
-        chomp($histline);
-        if ( $histline =~ m{/etc/cxs/uninstall.sh|rm -rf /etc/apache2/conf.d/modsec|bash /etc/csf/uninstall.sh|yum remove -y cpanel-clamav|remove bcm-agent|mdkri|unaem 0a|cd /ev/network/|unset HISTFILE|grep -c ^processor /proc/cpuinfo|/usr/bin/tactu_cpanel|wget http://www.curl.by|cbrute.tgz|cbrute|noprofile|norc|nuclear.x86}) {
-            push( @SUMMARY,
-                "> Suspicious entries found in /root/.bash_history" );
-            push( @SUMMARY, expand( "\t\\_ $histline" ) );
+    print_header('[ Checking /root/.bash_history for anomalies ]');
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_history.txt');
+    my $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+    my $res = $ua->get($url);
+    my $susp_history  = $res->decoded_content;
+    my @susp_history  = split /\n/, $susp_history;
+    my $showHeader = 0;
+    foreach my $suspicious_history (@susp_history) {
+        chomp($suspicious_history);
+        my $found = grep { /$suspicious_history/ } @HISTORY;
+        if ( $found ) {
+            push( @SUMMARY, "> Suspicious entries found in /root/.bash_history" ) unless( $showHeader );
+            $showHeader=1;
+            push( @SUMMARY, expand( CYAN "\t\\_ $suspicious_history" ) );
         }
     }
 }
@@ -4123,7 +4130,7 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper sudev jewbags );
+    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper sudev jewbags systembackadmin );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
         open( STDERR, '>', '/dev/null' ) if ( ! $debug );
