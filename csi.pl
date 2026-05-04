@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.54";
+my $version = "3.5.55";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -2156,6 +2156,11 @@ sub userscan {
     if ( -e "$RealHome/$pubhtml/wp-content/plugins/blockspluginn" ) {
         push( @SUMMARY,
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
+        );
+    }
+    if ( -e "$RealHome/$pubhtml/seabot.php" ) {
+        push( @SUMMARY,
+"> Found possible malicious nuclear.x86 file in $RealHome/$pubhtml/seabot.php/"
         );
     }
     if ( -e "$RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php" ) {

@@ -311,6 +311,7 @@
 /etc/profile.d/diskmanagerd
 /etc/profile.d/emacs.sh
 /etc/profile.d/kacpi_notify
+/etc/profile.d/system_profiled_service.sh
 /etc/rc-Zobk0jpi/PgSD93ql
 /etc/rc.d/init.d/.IptabLes
 /etc/rc.d/init.d/.IptabLex
@@ -637,6 +638,7 @@
 /root/.liaq
 /root/.lkl
 /root/.local/toxssin
+/root/.local/bin/system-service
 /root/.lvagq
 /root/.lwk
 /root/.mxt
@@ -655,10 +657,12 @@
 /root/.rfyyn
 /root/.rm
 /root/.ronhcje
+/root/README.md
 /root/.rsvor
 /root/.satj
 /root/.sczuf
 /root/.sorry_exist
+/root/sshd
 /root/.sqlmap/output
 /root/.ssh/./.sshd
 /root/.ssh/./sshd
@@ -836,6 +840,7 @@
 /tmp/redis_exec.sh
 /tmp/.rewt
 /tmp/.salted
+/tmp/seobot.zip
 /tmp/.session-unix
 /tmp/.ssh
 /tmp/.ssh/redis.sh
@@ -1466,6 +1471,8 @@
 /usr/local/UMBREON
 /usr/local/__UMBREON__
 /usr/local/bin/.../bktd
+/usr/local/bin/.netmon
+/usr/local/bin/.netmon/systemd-helper
 /usr/local/bin/4004.db
 /usr/local/bin/bin
 /usr/local/bin/bnrffa4
