@@ -825,6 +825,7 @@
 /tmp/.domain_group_map.conf
 /tmp/.node_gc.js
 /tmp/.orbit
+/tmp/obsHub/obs-check-update
 /tmp/.perf.c
 /tmp/.perf.c/.apid
 /tmp/.perf.c/Loader

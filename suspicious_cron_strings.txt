@@ -90,3 +90,4 @@ zsvc
 react.x86_64.persisted
 /etc/rondo/rondo
 node_gc
+obsHub/obs-check-update
