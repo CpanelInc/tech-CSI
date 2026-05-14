@@ -1,39 +1,53 @@
+.Library/SystemServices/updateSystem
+.configrc6
+.xmr
+/bin/systemctl stop imunify-antivirus.service
+/bin/systemctl stop imunify360.service
+/dev/shm/.kauditd/[kauditd]
+/dev/shm/mycron
+/etc/cpanelmod/diallicense
+/etc/rondo/rondo
+/etc/selinux/targeted/plugins
+/tmp/./xL
+/tmp/linux
+/var/lib/postgresql/data/pg_mem
+/var/tmp/vm.lock
+1.sh
 111.90.159.106
 122.51.164.83
 146.71.79.230
 185.181.10.234
 195.3.146.118
 195.3.146.118/ae.sh
-1.sh
-31.210.20.181
 3.215.110.66.one
 3.sh
+31.210.20.181
 45.137.151.106
 53 23 31 2 3
 5b51f9dea
 6hsnefbp
+BORING
+CRON11
+DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
+Perfctl
+QLNX_MANAGED
+R9T8kK9w
+ScBr_
 acb.sh
 aliyun.one
 ap.sh
-base64 -d
 base64 --decode
+base64 -d
 bash /etc/csf/uninstall.sh
 bfdrive
 bigd1ck.com
-/bin/systemctl stop imunify360.service
-/bin/systemctl stop imunify-antivirus.service
 bioset
 bitcoin
 bnrffa4
 brict.sh
 cr2.sh
-CRON11
-/dev/shm/.kauditd/[kauditd]
-/dev/shm/mycron
-DO NOT REMOVE THIS LINE. SEED PRNG. #gs-bd-kernel
-/etc/selinux/targeted/plugins
-fczyo-cron
 fTakK8lVE
+fczyo-cron
 givemexyz
 iamhex
 import hashlib
@@ -41,7 +55,6 @@ ipfswallet
 kavachelf
 kinsing
 lib.pygensim.com
-.Library/SystemServices/updateSystem
 linux1213
 localhost.xyd
 logo0
@@ -50,44 +63,39 @@ logo9
 lsd.systemten.org
 magicPussy
 mimic_
+mine.sh
 mr.sh
 n5slskx
 newdat.sh
+node_gc
 oanacroane
+obsHub/obs-check-update
 oka
 onion
-.configrc6
 opentab
 oracleservice
 pastebin
+pcp
+pcpcat
 perfclean
-Perfctl
 pg_stat.sh
 politrict.sh
-R9T8kK9w
+proxy.sh
+react.x86_64.persisted
 restrict.sh
-ScBr_
 seed prng gs-bd-kernel
 systemd-service.sh
 t.amynx.com
-/tmp/linux
-/tmp/./xL
+teampcp
 tor2web
 truct.sh
 unix.sh
 unk.sh
 usbdriver
-/var/tmp/vm.lock
 watchd0g.sh
-.xmr
 xmr.ipzse.com
-yxarsh.shop
+xmrig
 yx=hashlib
+yxarsh.shop
 zmreplchkr
 zsvc
-/etc/cpanelmod/diallicense
-/var/lib/postgresql/data/pg_mem
-react.x86_64.persisted
-/etc/rondo/rondo
-node_gc
-obsHub/obs-check-update

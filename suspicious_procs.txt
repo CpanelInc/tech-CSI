@@ -307,3 +307,4 @@ bash /tmp/proxy.sh
 block-bindings
 _inc/img/
 nuclear.x86
+.u[0-9]{6}

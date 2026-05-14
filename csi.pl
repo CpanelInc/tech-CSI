@@ -391,7 +391,6 @@ sub scan {
 #    check_for_cpsess_hacks();
     print_header('[ Checking for suspicious environ in /proc/*/ ]');
     logit("Checking for suspicious environ in /proc/*/");
-    # RIGHT HERE
     check_proc_environ();
     print_header('[ Checking for suspicious /etc/rc.modules file ]');
     logit("Checking for suspicious /etc/rc.modules file");
@@ -935,12 +934,14 @@ sub bitcoin_chk {
               . CYAN $xmrig_cron;
         }
     }
-    my $xm2sg_socket = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-plant' );
-    my @xm2sg_socket = split /\n/, $xm2sg_socket;
-    if ( grep { /xm2sg/ } @xm2sg_socket ) {
-        push @SUMMARY,
-          "> Found evidence of possible bitcoin miner via "
-          . CYAN "netstat -plant | grep 'xm2sg'";
+    if ( has_command('netstat') ) {
+        my $xm2sg_socket = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-plant' );
+        my @xm2sg_socket = split /\n/, $xm2sg_socket;
+        if ( grep { /xm2sg/ } @xm2sg_socket ) {
+            push @SUMMARY,
+              "> Found evidence of possible bitcoin miner via "
+              . CYAN "netstat -plant | grep 'xm2sg'";
+        }
     }
 }
 
@@ -1191,11 +1192,13 @@ sub check_preload {
     my $libprochider_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libprocesshider', '/etc/ld.so.preload' );
     my $injectorso = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/opt/injector.so', '/etc/ld.so.preload' );
     my $libcext_so_2 = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib*/libcext.so.2', '/etc/ld.so.preload' );
+    my $qlnx_preload = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'pam_security', '/etc/ld.so.preload' );
     push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
     push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
     push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );
     push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.\n\t\\_ ps output and lsof output may not be conclusive.") if( $libprochider_so );
     push( @SUMMARY, "> Found /opt/injector.so in /etc/ld.so.preload - Possible root-level compromise.") if( $injectorso );
+    push( @SUMMARY, "> Found PAM backdoor (QLNX) in /etc/ld.so.preload - Possible root-level compromise.") if( $qlnx_preload );
 }
 
 sub create_summary {
@@ -1303,6 +1306,11 @@ sub print_header {
     print BOLD CYAN "$text\n" unless( $cron );
 }
 
+sub print_indented {
+    my $text = shift;
+    print BOLD RED "\t$text\n" unless( $cron );
+}
+
 sub print_status {
     my $text = shift;
     print YELLOW "$text\n" unless( $cron );
@@ -1329,6 +1337,7 @@ sub print_recommendations {
 }
 
 sub check_for_cdorked_A {
+    print_indented( "Checking for evidence of cDorked A)" );
     return unless defined $HTTPD_PATH;
     return unless -f $HTTPD_PATH;
     my $max_bin_size = 10_485_760;
@@ -1374,6 +1383,7 @@ sub check_for_cdorked_A {
 }
 
 sub check_for_cdorked_B {
+    print_indented( "Checking for evidence of cDorked B)" );
     my $has_cdorked_b = 0;
     my @files = ( '/usr/sbin/arpd ', '/usr/sbin/tunelp ', '/usr/bin/s2p ' );
     my $cdorked_files;
@@ -1393,13 +1403,16 @@ sub check_for_cdorked_B {
 }
 
 sub check_for_evasive_libkey {
+    print_indented( "Checking for evidence of evasive libkey)" );
     my $EvasiveLibKey = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/etc/ld.so.cache' );
-    if ( grep { /\/tls/ } $EvasiveLibKey ) {
+    return unless defined $EvasiveLibKey && length $EvasiveLibKey;
+    if ( $EvasiveLibKey =~ m{/tls} ) {
         push( @SUMMARY, "> [Possible Rootkit: Ebury/Libkeys] - " . CYAN "Hidden/Evasive evidence of Ebury/Libkeys Rootkit found.\n\t \\_ TECH-759");
     }
 }
 
 sub check_for_unowned_libkeyutils_files {
+    print_indented( "Checking for evidence of unowned libkeyutil files)" );
     return if !$LIBKEYUTILS_FILES_REF;
     my @unowned_libs;
     for my $lib (@$LIBKEYUTILS_FILES_REF) {
@@ -1422,6 +1435,7 @@ sub check_for_unowned_libkeyutils_files {
 }
 
 sub check_for_ebury_ssh_G {
+    print_indented( "Checking for evidence of eBury SSH G)" );
     my $ssh = '/usr/bin/ssh';
     return if !-e $ssh;
     return if !-f _;
@@ -1441,6 +1455,7 @@ sub check_for_ebury_ssh_G {
 }
 
 sub check_for_ebury_ssh_shmem {
+    print_indented( "Checking for evidence of eBury SSH shmem)" );
     return if !defined( $IPCS_REF->{root}{mp} );
     for my $href ( @{ $IPCS_REF->{root}{mp} } ) {
         my $shmid = $href->{shmid};
@@ -1461,6 +1476,8 @@ sub check_for_ebury_ssh_shmem {
 }
 
 sub check_for_glutton_php {
+    print_indented( "Checking for evidence of glutton PHP backdoor)" );
+    return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-upnl' );
     for my $line ( split( '\n', $netstat_out ) ) {
         if ( $line =~ m{php-fpm} ) {
@@ -1478,6 +1495,8 @@ sub check_for_glutton_php {
 }
 
 sub check_for_melofee {
+    print_indented( "Checking for evidence of melofee)" );
+    return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-tpn' );
     for my $line ( split( '\n', $netstat_out ) ) {
         if ( $line =~ m{kworkerx} ) {
@@ -1488,6 +1507,8 @@ sub check_for_melofee {
 }
 
 sub check_for_ebury_socket {
+    print_indented( "Checking for evidence of eBury Socket" );
+    return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-nap' );
     for my $line ( split( '\n', $netstat_out ) ) {
         if ( $line =~ m{@/proc/udevd|@/run/systemd/log} ) {
@@ -1498,12 +1519,14 @@ sub check_for_ebury_socket {
 }
 
 sub check_for_ngioweb {
+    print_indented( "Checking for evidence of ngioweb" );
     return if ( !-e "/etc/machine-id" );
     return unless (Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', 'ddb0b49d10ec42c38b1093b8ce9ad12a', '/etc/machine-id' ) );
     push( @SUMMARY, "Found evidence of Linux.Ngioweb Rootkit\n\t\\_ /etc/machine-id contains: ddb0b49d10ec42c38b1093b8ce9ad12a");
 }
 
 sub check_for_hiddenwasp {
+    print_indented( "Checking for evidence of HiddenWasp Shell" );
     if ( -e ("/lib/libselinux.a") ) {
         my $HideShell = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/lib/libselinux.a' );
         if ( grep { /HIDE_THIS_SHELL/ } $HideShell ) {
@@ -1511,16 +1534,25 @@ sub check_for_hiddenwasp {
         }
     }
     # Check for specific TCP ports
+    return unless has_command('lsof');
     my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 tcp:6667 tcp:5822 tcp:8888);
-    foreach my $port (@ports) {
-        chomp($port);
-        my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', $port );
-        push @SUMMARY, "> Found socket listening on port $port. Could indicate possible root compromise" if( $lsof );
+    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', '-P', '-n' );
+    if ( defined $lsof && length $lsof ) {
+        foreach my $port (@ports) {
+            chomp($port);
+            my ( $proto, $portnum ) = split( /:/, $port, 2 );
+            if ( $lsof =~ /\b${portnum}\b/ ) {
+                push @SUMMARY, "> Found socket listening on port $portnum. Could indicate possible root compromise";
+            }
+        }
     }
 }
 
 sub check_for_fritzfrog {
+    print_indented( "Checking for evidence of FritzFrog Rootkit" );
+    return unless has_command('lsof');
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
+    return unless defined $lsof && length $lsof;
     my @lsof = split /\n/, $lsof;
     foreach $lsof(@lsof) {
         chomp($lsof);
@@ -1533,6 +1565,7 @@ sub check_for_fritzfrog {
 }
 
 sub check_for_log4JShell_attempts {
+    print_indented("Checking for evidence of log4JShell attempts");
     my @logs2chk;
     my $regexp = '\$?\{jndi:(ldap|ldaps|rmi|dns):\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}\${lower:a}\${lower:p}:\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}a\${lower:p}:\/[\/]?[a-z-\.0-9].*';
     @logs2chk = glob( q{ /var/log/nginx/domains/*_log });
@@ -1559,7 +1592,7 @@ sub check_for_log4JShell_attempts {
 }
 
 sub check_for_dirtycow_passwd {
-    print_header("[ Checking for evidence of DirtyCow within /etc/passwd ]");
+    print_indented("Checking for evidence of DirtyCow within /etc/passwd");
     return unless my $gecos = ( getpwuid(0) )[6];
     if ( $gecos eq "pwned" ) {
         push( @SUMMARY,
@@ -1593,6 +1626,7 @@ sub check_for_dirtycow_passwd {
 }
 
 sub check_for_dragnet {
+    print_indented( "Checking for evidence of Dragnet Rootkit)" );
     my $found = 0;
     if ( open my $fh, '<', '/proc/self/maps' ) {
         while (<$fh>) {
@@ -1611,6 +1645,7 @@ sub check_for_dragnet {
 }
 
 sub check_for_suckit {
+    print_indented( "Checking for evidence of Suckit Rootkit)" );
     my $SuckItCount = 0;
     my @dirs =
       qw( /sbin /etc/rc.d/rc0.d /etc/rc.d/rc1.d /etc/rc.d/rc2.d /etc/rc.d/rc3.d /etc/rc.d/rc4.d /etc/rc.d/rc5.d /etc/rc.d/rc6.d /etc/.MG /usr/share/locale/sk/.sk12 /dev/sdhu0/tehdrakg /usr/lib/perl5/site_perl/i386-linux/auto/TimeDate/.packlist /dev/.golf /lib );
@@ -1627,23 +1662,27 @@ sub check_for_suckit {
     }
     if ( -e "/sbin/init" ) {
         my $SuckItStrings = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '-a', '/sbin/init' );
-        if ( grep { m{HOME=[a-zA-Z0-9]|fuck|backdoor|bin/rcpc|bin/login}i } $SuckItStrings ) {
+        if ( defined $SuckItStrings && $SuckItStrings =~ m{HOME=[a-zA-Z0-9]|fuck|backdoor|bin/rcpc|bin/login}i ) {
             $SuckItCount++;
         }
     }
     my $procMaps = Cpanel::SafeRun::Timed::timedsaferun( 4, 'cat', '/proc/1/maps' );
-    if ( grep { m{init\.}i } $procMaps ) {
+    if ( defined $procMaps && $procMaps =~ m{init\.}i ) {
         $SuckItCount++;
     }
     my $initSymLink    = Cpanel::SafeRun::Timed::timedsaferun( 2, 'ls', '-li', '/sbin/init' );
     my $telinitSymLink = Cpanel::SafeRun::Timed::timedsaferun( 2, 'ls', '-li', '/sbin/telinit' );
-    my ( $SLInode1, $isLink1 ) = ( split( /\s+/, $initSymLink ) )[ 0, 1 ];
-    my ( $SLInode2, $isLink2 ) = ( split( /\s+/, $telinitSymLink ) )[ 0, 1 ];
-    if ( $SLInode1 == $SLInode2 and substr( $isLink1, 0, 1 ) ne "l" or substr( $isLink2, 0, 1 ) ne "l" ) {
-        $SuckItCount++;
+    if ( defined $initSymLink && defined $telinitSymLink ) {
+        my ( $SLInode1, $isLink1 ) = ( split( /\s+/, $initSymLink ) )[ 0, 1 ];
+        my ( $SLInode2, $isLink2 ) = ( split( /\s+/, $telinitSymLink ) )[ 0, 1 ];
+        if ( defined $SLInode1 && defined $SLInode2 && defined $isLink1 && defined $isLink2 ) {
+            if ( $SLInode1 == $SLInode2 and substr( $isLink1, 0, 1 ) ne "l" or substr( $isLink2, 0, 1 ) ne "l" ) {
+                $SuckItCount++;
+            }
+        }
     }
-    my $SuckItHidden = Cpanel::SafeRun::Timed::timedsaferun( 2, 'touch', "$csidir/suckittest.mem", "$csidir/suckittest.xrk" );
-    if ( !-e "$csidir/suckittest.mem" or !-e "$csidir/suckittest.xrk" ) {
+    my $touch_result = Cpanel::SafeRun::Timed::timedsaferun( 2, 'touch', "$csidir/suckittest.mem", "$csidir/suckittest.xrk" );
+    if ( !defined $touch_result && ( !-e "$csidir/suckittest.mem" or !-e "$csidir/suckittest.xrk" ) ) {
         $SuckItCount++;
     }
     if ( $SuckItCount > 1 ) {
@@ -1702,10 +1741,14 @@ sub check_authorized_keys_file {
 }
 
 sub check_for_linux_lady {
+    print_indented( "Checking for evidence of Linux Lady Rootkit" );
+    return unless has_command('lsof');
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 2, 'lsof', '-i', 'tcp:6379' );
+    return unless defined $lsof && length $lsof;
     my @lsof = split /\n/, $lsof;
     foreach $lsof(@lsof) {
         chomp($lsof);
+        next unless $lsof =~ /\S/;
         my ( $comm, $pid, $user ) = (split( /\s+/, $lsof));
         next unless( $user eq 'root' );
         push @SUMMARY, "> Found socket listening on port 6379 (Redis server?). Running as root - " . RED "VERY DANGEROUS!" . expand( CYAN "\n\t\\_[ Could indicate LinuxLady rootkit ]" );
@@ -1714,6 +1757,8 @@ sub check_for_linux_lady {
 }
 
 sub check_for_twink {
+    print_indented( "Checking for evidence of Twink" );
+    return unless has_command('lsof');
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 2, 'lsof', '-i', 'tcp:322' );
     return unless( $lsof );
     my $roots_crontab = Cpanel::SafeRun::Timed::timedsaferun( 3, 'crontab', '-l', '-u', 'root' );
@@ -1727,6 +1772,7 @@ sub check_for_twink {
 }
 
 sub check_for_libkeyutils_symbols {
+    print_indented( "Checking for evidence of libkeyutils symbols" );
     local $ENV{'LD_DEBUG'} = 'symbols';
     my $output = timed_run( 0, '/bin/true' );
     return unless $output;
@@ -1772,6 +1818,7 @@ sub all_malware_checks {
     check_for_junglesec();
     check_for_panchan();
     check_for_chaos();
+    check_for_pack2theroot();
 }
 
 sub get_httpd_path {
@@ -2156,11 +2203,6 @@ sub userscan {
     if ( -e "$RealHome/$pubhtml/wp-content/plugins/blockspluginn" ) {
         push( @SUMMARY,
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
-        );
-    }
-    if ( -e "$RealHome/$pubhtml/seabot.php" ) {
-        push( @SUMMARY,
-"> Found possible malicious nuclear.x86 file in $RealHome/$pubhtml/seabot.php/"
         );
     }
     if ( -e "$RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php" ) {
@@ -2560,6 +2602,7 @@ sub check_for_symlinks {
 }
 
 sub check_for_sedexp {
+    print_indented("Checking for evidence of sedexp malware");
     my $find_sedexp=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udef/*' );
     return unless( $find_sedexp );
     push( @SUMMARY, YELLOW "> Found possible sedexp malware in /lib/udev directory");
@@ -2990,6 +3033,7 @@ sub chk_shadow_hack {
 }
 
 sub check_for_exim_vuln {
+    print_indented( "Checking for evidence of Exim Vulnerability)" );
     my $chk_eximlog;
     $chk_eximlog = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', '\${run', '/var/log/exim_mainlog' ) unless( ! -e '/var/log/exim_mainlog' );;
     $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.1.gz' ) unless( ! -e '/var/log/exim_mainlog.1.gz' );
@@ -3459,7 +3503,7 @@ sub get_conf {
 }
 
 sub check_for_lilocked_ransomware {
-    print_header("[ Checking for evidence of lilocked ransomware ]");
+    print_indented("Checking for evidence of lilocked ransomware");
     my $lilockedFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.lilocked", '-print' );
     my @lilockedFound = split /\n/, $lilockedFound;
     if ($lilockedFound) {
@@ -3472,7 +3516,7 @@ sub check_for_lilocked_ransomware {
 }
 
 sub check_for_filenew_ransomware {
-    print_header("[ Checking for evidence of filenew ransomware ]");
+    print_indented("Checking for evidence of filenew ransomware");
     my $filenewFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.filenew", '-print' );
     my @filenewFound = split /\n/, $filenewFound;
     if ($filenewFound) {
@@ -3489,7 +3533,7 @@ sub check_for_filenew_ransomware {
 }
 
 sub check_for_sorry_ransomware {
-    print_header("[ Checking for evidence of sorry ransomware ]");
+    print_indented("Checking for evidence of .sorry ransomware");
     my $sorryfound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.sorry", '-print' );
     my @sorryfound = split /\n/, $sorryfound;
     my $max_detected=5;
@@ -3705,14 +3749,17 @@ sub get_api_tokens {
 }
 
 sub check_for_junglesec {
-    my $iptables_rules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
-    my @iptables_rules = split /\n/, $iptables_rules;
-    foreach my $IPRule(@iptables_rules) {
-        next unless( $IPRule =~ m{dport 64321} );
-        if ( $IPRule =~ m{j ACCEPT} ) {
-            push( @SUMMARY, "> Port 64321 set to ACCEPT in firewall - evidence of backdoor created by JungleSec Ransomware");
+    print_indented("Checking for evidence of junglesec ransomware");
+    if ( has_command('iptables') ) {
+        my $iptables_rules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
+        my @iptables_rules = split /\n/, $iptables_rules;
+        foreach my $IPRule(@iptables_rules) {
+            next unless( $IPRule =~ m{dport 64321} );
+            if ( $IPRule =~ m{j ACCEPT} ) {
+                push( @SUMMARY, "> Port 64321 set to ACCEPT in firewall - evidence of backdoor created by JungleSec Ransomware");
+            }
+            last;
         }
-        last;
     }
     my $SearchJungleSec = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', '*junglesec*', '-print' );
     if ($SearchJungleSec) {
@@ -3722,13 +3769,29 @@ sub check_for_junglesec {
 }
 
 sub check_for_chaos {
+    print_indented("Checking for evidence of Chaos Rootkit");
     my $uname_output = Cpanel::SafeRun::Timed::timedsaferun( 4, 'uname', '-a' );
     return unless( $uname_output =~ m/获取失败/ );
     push( @SUMMARY, "> Found possible evidence of Chaos Rootkit" );
     push( @SUMMARY, expand( "\t\\_ uname -a command returned 获取失败 which translates to GET failed and is evidence of this rootkit" ));
 }
 
+sub check_for_pack2theroot {
+    print_indented("Checking for evidence of Pack2TheRoot Malware");
+    my $check_for_packagekit = Cpanel::SafeRun::Timed::timedsaferun( 0, 'journalctl', '--no-pager', '-u', 'packagekt' );
+    my @check_for_packagekit = split /\n/, $check_for_packagekit;
+    my $showHeader=0;
+    foreach my $line( @check_for_packagekit ) {
+        if ( $line =~ m/emitted_finished/i ) {
+            push( @SUMMARY, "> Found possible evidence of Pack2TheRoot [CVE-2026-41651]" ) unless( $showHeader );
+            $showHeader=1;
+            push( @SUMMARY, expand( "\t\\_ $line" ));
+        }
+    }
+}
+
 sub check_for_panchan {
+    print_indented("Checking for evidence of panchan botnet");
     my $persist=0;
     my $binary=0;
     my $listening_port=0;
@@ -3742,12 +3805,14 @@ sub check_for_panchan {
     my $xinetd_files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/.*', '-maxdepth', '1', '-name', 'xinetd', '-type', 'f' );
     my @xinetd_files = split /\n/, $xinetd_files;
     if ( grep { /xinetd/ } @xinetd_files ) {
-        $persist=1;
+        $binary=1;
     }
-    my $check_port = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-lno' );
-    my @check_port = split /\n/, $check_port;
-    if ( grep { /1919/ } @check_port ) {
-        $listening_port=1;
+    if ( has_command('netstat') ) {
+        my $check_port = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-lno' );
+        my @check_port = split /\n/, $check_port;
+        if ( grep { /1919/ } @check_port ) {
+            $listening_port=1;
+        }
     }
     if ( $persist && $binary && $listening_port ) {
         push @SUMMARY, "> Found evidence of possible panchan botnet";
@@ -3988,6 +4053,12 @@ sub check_for_ransomwareEXX {
         push( @SUMMARY, "> Found evidence of the EXX ransomware!" );
         push( @SUMMARY, expand("\t\\_ $rwEXX") );
     }
+}
+
+sub has_command {
+    my $cmd = shift;
+    return 1 if Cpanel::FindBin::findbin($cmd);
+    return 0;
 }
 
 sub has_ps_command {
@@ -4244,6 +4315,7 @@ sub get_whmapi1 {
 }
 
 sub check_for_ncom_rootkit {
+    print_indented( "Checking for evidence of NCOM Rootkit" );
     return if !-e "/etc/ld.so.preload";
     return if -e "/lib/libgrubd.so";
     my @strings =
@@ -4254,7 +4326,7 @@ sub check_for_ncom_rootkit {
         my @load_preload = split /\n/, $load_preload;
         foreach my $preload (@load_preload) {
             chomp($preload);
-            if ( grep { /$preload/ } @strings ) {
+            if ( grep { $preload =~ /$_/ } @strings ) {
                 push( @SUMMARY,
 expand( "\t\\_ /etc/ld.so.preload contains evidence of NCOM rootkit [ "
                       . CYAN $preload
@@ -4265,7 +4337,10 @@ expand( "\t\\_ /etc/ld.so.preload contains evidence of NCOM rootkit [ "
 }
 
 sub check_env_for_susp_vars {
-    my @env = Cpanel::SafeRun::Timed::timedsaferun( 0, 'env' );
+    print_indented( "Checking for evidence of suspicious environment variables" );
+    my $env_output = Cpanel::SafeRun::Timed::timedsaferun( 0, 'env' );
+    return unless defined $env_output && length $env_output;
+    my @env = split /\n/, $env_output;
     if ( grep { /HIDE_THIS_SHELL/ } @env ) {
         push @SUMMARY, "> Found HIDE_THIS_SHELL environment variable. Could indicate presence of the Azazel Rootkit";
     }
@@ -4281,30 +4356,31 @@ sub check_env_for_susp_vars {
 }
 
 sub check_for_perfcc {
+    print_indented( "Checking for evidence of perfcc" );
     my $maxdepth=8;
     my @suspfound;
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'd', '-iwholename', '*/.local/bin' );
-    return unless( $findit );
-    push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/ldd' );
-    push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/lsof' );
-    push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/top' );
-    push @suspfound, $findit if ( $findit );
-    my $findit=Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', 'f', '-iwholename', '*/.local/bin/crontab' );
-    push @suspfound, $findit if ( $findit );
-    my $x=@suspfound;
-    if ( $x > 1 ) {
-        push @SUMMARY, "> Found evidence of the Perf.cc/Perfctl malware: ";
-        foreach my $suspfile(@suspfound) {
-            chomp($suspfile);
-            push @SUMMARY, expand( CYAN "\t\\_ $suspfile" );
-        }
+    my @patterns = (
+        [ 'd', '*/.local/bin' ],
+        [ 'f', '*/.local/bin/ldd' ],
+        [ 'f', '*/.local/bin/lsof' ],
+        [ 'f', '*/.local/bin/top' ],
+        [ 'f', '*/.local/bin/crontab' ],
+    );
+    foreach my $pattern (@patterns) {
+        my ( $type, $path ) = @$pattern;
+        my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $HOMEDIR, '-maxdepth', $maxdepth, '-type', $type, '-iwholename', $path );
+        push @suspfound, $result if ( defined $result && length $result );
+    }
+    return unless @suspfound > 1;
+    push @SUMMARY, "> Found evidence of the Perf.cc/Perfctl malware: ";
+    foreach my $suspfile(@suspfound) {
+        chomp($suspfile);
+        push @SUMMARY, expand( CYAN "\t\\_ $suspfile" );
     }
 }
 
 sub check_for_xbash {
+    print_indented( "Checking for evidence of XBASH (MySQL Ransomware)" );
     return if( ! -f '/etc/my.cnf' );
     my $XBash_Table;
     my $RansomwareNote;
@@ -4345,6 +4421,7 @@ sub check_for_xbash {
 }
 
 sub check_for_cronRAT {
+    print_indented( "Checking for evidence of cronRAT" );
 
     # check for evidence of cronRAT - https://sansec.io/research/cronrat
     my @dirs = qw( /dev/shm /tmp /var/tmp );
@@ -4720,6 +4797,7 @@ sub get_suspicious_cron_strings {
 }
 
 sub check_lsof_deleted {
+    return unless has_command('lsof');
     my %options = (
         suspicious_binaries => [qw( memfd perfctl )],
         excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock )],
@@ -4750,21 +4828,23 @@ sub check_for_bpfdoor {
         my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', $sig, '/proc/*/stack' );
         push @SUMMARY, "> Found evidence of possible BPFDoor hack: $sig" if $result;
     }
-    my $iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
-    my $ip6tables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ip6tables', '-L', '-n' );
-    return unless $iptables || $ip6tables;
-    my @lines = grep { /\d+/ } split /\n/, "$iptables\n$ip6tables";
-    my ($start, $end) = @{ $options{port_range} };
-    my $max    = $options{max_findings};
-    my @found;
-    foreach my $port ( $start .. $end ) {
-        last if @found >= $max;
-        my $regex = qr/\b$port\b/;
-        push @found, $port if grep { $_ =~ $regex } @lines;
-    }
-    if (@found) {
-        push @SUMMARY, "> Found evidence of BPFDoor hack: firewall allows ports " 
-          . join( ',', @found );
+    if ( has_command('iptables') || has_command('ip6tables') ) {
+        my $iptables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
+        my $ip6tables = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ip6tables', '-L', '-n' );
+        return unless $iptables || $ip6tables;
+        my @lines = grep { /\d+/ } split /\n/, "$iptables\n$ip6tables";
+        my ($start, $end) = @{ $options{port_range} };
+        my $max    = $options{max_findings};
+        my @found;
+        foreach my $port ( $start .. $end ) {
+            last if @found >= $max;
+            my $regex = qr/\b$port\b/;
+            push @found, $port if grep { $_ =~ $regex } @lines;
+        }
+        if (@found) {
+            push @SUMMARY, "> Found evidence of BPFDoor hack: firewall allows ports "
+              . join( ',', @found );
+        }
     }
 }
 
@@ -4776,11 +4856,11 @@ sub check_for_susp_rc_modules {
     }
     my @ignore = qw( acpiphp ip_conntrack_ftp );
     my $line;
+    my $showHeader=0;
     open( my $fh, '<', '/etc/rc.modules' );
     while ( <$fh> ) {
         $line = $_;
         chomp($line);
-        my $showHeader=0;
         next if ( grep { $line =~ $_ } @ignore );
         push @SUMMARY, "> Possible rootkit presence in /etc/rc.modules file - contains suspicious entry." unless($showHeader);
         $showHeader=1;
@@ -4791,10 +4871,11 @@ sub check_for_susp_rc_modules {
 
 sub check_for_lkm_rootkits {
     my @lookfor=qw( reptile_module diamorphine sysinitd );
+    my $lsmod=Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
+    return unless defined $lsmod && length $lsmod;
+    my @lsmod=split /\n/,$lsmod;
     foreach my $lkm(@lookfor) {
         chomp($lkm);
-        my $lsmod=Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
-        my @lsmod=split /\n/,$lsmod;
         foreach my $lsmod_line(@lsmod) {
             chomp( $lsmod_line );
             my ( $lsmodule ) = (split( /\s+/, $lsmod_line ));
