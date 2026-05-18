@@ -75,7 +75,6 @@ onion
 opentab
 oracleservice
 pastebin
-pcp
 pcpcat
 perfclean
 pg_stat.sh
