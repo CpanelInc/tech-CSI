@@ -4094,3 +4094,507 @@ rule Multi_Hacktool_Gsocket_761d3a0f {
     condition:
         3 of them
 }
+
+rule Babuk_Payload_Ransomware_ESXi {
+    meta:
+        id = "BsSWXZd0LuupvmhUQc8Tla"
+        fingerprint = "91664e63f9a66b83da3ac2cf4d24a5c98f837c579415a0baa68c556ca88b4d67"
+        version = "1.0"
+        date = "2026-03-15"
+        modified = "2026-03-15"
+        status = "RELEASED"
+        sharing = "TLP:CLEAR"
+        source = "HTTPS://GITHUB.COM/KIRKDERP/YARA"
+        author = "kirkderp"
+        description = "Babuk Payload ransomware Linux/ESXi variant - Curve25519 + ChaCha20 encryption, FBI RC4 footer key, ESXi VM inventory targeting"
+        category = "MALWARE"
+        malware = "BABUK"
+        malware_type = "RANSOMWARE"
+        mitre_att = "T1486"
+        reference = "https://github.com/kirkderp/yara"
+        triage_score = 10
+        triage_description = "Babuk Payload ransomware ESXi locker detected. Curve25519 ECDH + ChaCha20 file encryption targeting VMware ESXi."
+        yarahub_uuid = "240635a3-ad8a-45ec-9176-815e4fa86fb2"
+        yarahub_license = "CC0 1.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+        yarahub_reference_md5 = "e0fd8ff6d39e4c11bdaf860c35fd8dc0"
+
+    strings:
+        // "FBI" fused with thread pool format string -- builder artifact
+        // FBI is the 3-byte RC4 key for footer encryption, concatenated with thpool format
+        $fbi_thpool = "FBIthread-pool-%d" ascii
+
+        // ChaCha20 constant
+        $chacha = "expand 32-byte k" ascii
+
+        // Branding
+        $payload = "payload" ascii
+
+        // Ransom note extension (RECOVERY-xx0001.txt)
+        $note_ext = ".xx0001" ascii
+
+        // Anti-debug: reads TracerPid from /proc/self/status
+        $antidebug = "TracerPid:" ascii
+
+        // Self-inspection
+        $proc_self = "/proc/self/exe" ascii
+
+        // Thread pool error messages (C-Thread-Pool library)
+        $thpool_err1 = "thpool_init(): Could not allocate memory for thread pool" ascii
+        $thpool_err2 = "thpool_add_work(): Could not allocate memory for new job" ascii
+        $thpool_err3 = "thread_do(): cannot handle SIGUSR1" ascii
+
+    condition:
+        uint32(0) == 0x464C457F
+        and filesize > 20KB and filesize < 500KB
+        and (
+            // High confidence: FBI+thpool artifact + ChaCha20 (unique to Payload builder)
+            ($fbi_thpool and $chacha)
+            or
+            // High confidence: FBI+thpool + payload branding + note extension
+            ($fbi_thpool and $payload and $note_ext)
+            or
+            // Medium confidence: ChaCha20 + payload branding + anti-debug + thpool errors
+            ($chacha and $payload and $antidebug and 1 of ($thpool_err1, $thpool_err2, $thpool_err3))
+            or
+            // Medium confidence: note ext + ChaCha20 + proc inspection + thpool
+            ($note_ext and $chacha and $proc_self and 1 of ($thpool_err1, $thpool_err2))
+        )
+}
+
+rule ELF_RANSOMWARE_BLACKCAT : LinuxMalware {
+    meta:
+        description = "Detect Linux version of BlackCat Ransomware"
+        author = "Jesper Mikkelsen"
+        reference = "https://www.virustotal.com/gui/file/056d28621dca8990caf159f8e14069a2343b48146473d2ac586ca9a51dfbbba7"
+        date = "2022-05-10"
+        yarahub_reference_md5 = "c7e39ead7df59e09be30f8c3ffbf4d28"
+        yarahub_uuid = "4354fe5a-ee0c-47e3-a595-2824dd82928d"
+        yarahub_license = "CC0 1.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+        techniques = "File and Directory Permissions Modification: Linux and Mac File and Directory Permissions Modification"
+        tactic = "Defense Evasion"
+        mitre_att = "T1222.002"
+        sharing = "TLP:WHITE"
+        dname = "Ransom.Linux.BLACKCAT.YXCDFZ"
+        score = 75
+    strings:
+        $pattern0 = "sbin*/cdrom*/dev*/etc*/lib**lost+found*/proc*/run*/snap*/tmp*/sys*/usr*/bi"
+        $pattern1 = "n `vim-cmd vmsvc/getallvms| awk '{print$1}'`;do vim-cmd vmsvc/sn"
+        $pattern2 = { BB 6C EA 3F AA 84 31 C4 13 19 F2
+               4C 47 F1 29 B7 FE 88 43 CA EF 60
+               98 31 56 7A 97 30 CD 92 4C CB 74
+               EB 26 B6 65 03 FD 4D DC D1 A1 A7
+               CC 39 7A 5C 75 40 10 21 64 A8 CB
+               DA DD B2 C4 DB 46 5A 1F 20 }
+        $pattern3 = { 78 15 58 9C 99 1A C5 47 BC 7B B9
+               31 5D 74 24 C7 E9 E0 72 B1 08 EF
+               EF 6A 2D 8E 93 1C CC 81 0E DC 66
+               4C 6B AA 87 43 F6 71 A2 22 8A 07
+               43 2D 17 9D CB 0B 27 EB 2A 04 BA
+               30 0F 65 C6 46 EE 6A 5B 86 }
+        $pattern4 = { 72 78 B3 93 0F 69 5B 48 F4 D0 89
+               14 1E C0 61 CF E5 79 18 A5 98 68
+               F0 7E 63 D1 EA 71 62 4A 02 AA 99
+               F3 7B C0 E4 E2 93 1B 1F 5B 0E D8
+               97 0F E6 03 6C B6 9F 69 11 A7 77
+               B2 EA 1E 6D BD EB 85 85 66 }
+        $pattern5 = { 39 67 68 97 DB 59 03 55 34 5A B8
+               62 DF 64 D3 A0 30 D1 0A 58 A9 EF
+               61 9A 46 EC DA AD AD D2 B1 6F 42
+               AB AA B3 A0 95 C1 71 4F 96 7A 46
+               A4 A8 11 84 4B 25 4A 8F BA 1B 21
+               4D 55 18 9A 7A BE 26 F1 B8 51 }
+        $pattern6 = { 4B 35 35 C4 3D D4 3A 59 A7 5C 1C
+               69 D1 BD 13 F4 0A 98 72 88 7C 79
+               7D 15 BC D3 B0 70 CA 32 BF ED 11
+               17 DE 91 67 F6 D1 0C 91 42 45 5A
+               E7 A3 4A C7 3C 86 2B BB 4A 67 24
+               26 8A CD E9 43 FC 2C E6 DE 27 09
+               87 A2 51 E8 88 3F }
+        $pattern7 = { 6B DA AE D5 B0 21 17 CF BF 20 8C
+               27 64 DB 35 5E 0E A6 24 B6 D5 5D
+               9D 2B 16 D5 C9 C3 CD 2E 70 BA A7
+               53 61 52 7C A8 D8 48 73 A9 43 A0
+               A8 52 FA D9 C2 2F EB 31 19 D4 52
+               BB F0 87 4E 53 2B 7C F7 2A 41 01
+               E6 C2 9A FA 5F D8 95 FB C4 }
+    condition:
+        all of them
+}
+
+rule ELF_RAT_Bifrost_March2024 {
+    meta:
+        Description = "Detects x86 based Version of Bifrost RAT Targeting Linux"
+        author = "Yashraj Solanki - Cyber Threat Intelligence Analyst at Bridewell"
+        Reference = "https://unit42.paloaltonetworks.com/new-linux-variant-bifrost-malware/"
+        Hash = "8e85cb6f2215999dc6823ea3982ff4376c2cbea53286e95ed00250a4a2fe4729"
+        date = "2024-03-04"
+        yarahub_author_twitter = "@RustyNoob619"
+        yarahub_reference_md5 = "e527b3f10217c1d663e567e041947033"
+        yarahub_uuid = "78f51ca6-2127-4e25-a710-2479388c1504"
+        yarahub_license = "CC0 1.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+        malpedia_family = "elf.bifrost"
+
+   strings:
+        $msg1 = "begin st=socket(..)"
+        $msg2 = "ip=%s dns_server=%s"
+        $msg3 = "sleep sleeptime_1 %ds"
+        $msg4 = "recvData timeout :%d"
+        $msg5 = "send data %d : %s"
+        $msg6 = "restlen=%d"
+
+        $cmd1 = "getpwuid_r"
+        $cmd2 = "passwd"
+        $cmd3 = "shadow"
+        $cmd4 = "search cache=%s"
+        $cmd5 = "lookup in file=%s"
+
+        $dir1 = "/proc/self/maps"
+        $dir2 = "/usr/share/zoneinfo"
+        $dir3 = "/etc/nsswitch.conf"
+        $dir4 = "/var/run/.nscd_socket"
+        $dir5 = "/etc/suid-debug"
+        $dir6 = "/usr/lib/gconv"
+        $dir7 = "/usr/lib/locale/locale-archive"
+        $dir8 = "/etc/resolv.conf"
+        $dir9 = "/etc/ld.so.cache"
+        $dir10 = "/proc/self/exe"
+
+        //$_c2 = "168.95.1.1"
+        $wide = "jjjjjj" wide
+
+   condition:
+         uint32be(0) == 0x7F454C46 //ELF
+         and 4 of ($msg*)
+         and 3 of ($cmd*)
+         and 6 of ($dir*)
+         and $wide
+}
+
+rule ELF_RAT_Dinodas_April2024 {
+    meta:
+        Description = "Detects Linux Variant of Dinodas RAT"
+        author = "Yashraj Solanki - Cyber Threat Intelligence Analyst at Bridewell"
+        Reference = "https://securelist.com/dinodasrat-linux-implant/112284/"
+        File_Hash_1 = "15412d1a6b7f79fad45bcd32cf82f9d651d9ccca082f98a0cca3ad5335284e45"
+        File_Hash_2 = "bf830191215e0c8db207ea320d8e795990cf6b3e6698932e6e0c9c0588fc9eff"
+        date = "2024-04-01"
+        yarahub_author_twitter = "@RustyNoob619"
+        yarahub_reference_md5 = "8138f1af1dc51cde924aa2360f12d650"
+        yarahub_uuid = "3262efcd-9716-4030-8afa-a4e4c8d71c54"
+        yarahub_license = "CC0 1.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+        malpedia_family = "win.dinodas_rat"
+
+    strings:
+        $key1 = {A1 A1 18 AA 10 F0 FA 16 06 71 B3 08 AA AF 31 A1} // For C2 encryption
+        $key2 = {A0 21 A1 FA 18 E0 C1 30 1F 9F C0 A1 A0 A6 6F B1} // For name encryption
+
+        $c2 = "update.centos-yum.com:443" fullword     // Hardcoded C2 domain
+
+        $etc1 = "/etc/rc.d/rc.local" fullword
+        $etc2 = "/etc/init.d/%s" fullword
+        $etc3 = "cat /proc/version" fullword
+        $etc4 = "cat /etc/lsb-release" fullword
+        $etc5 = "/etc/rc.local" fullword
+
+        $chck1 = "chkconfig --add %s" fullword
+        $chck2 = "chkconfig zentao %s" fullword
+        $chck3 = "whereis chkconfig" fullword
+        $chck4 = "chkconfig --list" fullword
+        $chck5 = "chkconfig --del %s" fullword
+
+        $cmd1 = "kill %u" fullword
+        $cmd2 = "kill %s" fullword
+        $cmd3 = "rm -rf" fullword
+        $cmd4 = "getconf LONG_BIT" fullword
+        $cmd5 = "ls -l /proc/%s/exe" fullword
+        $cmd6 = "service %s start" fullword
+        $cmd7 = "service %s stop" fullword
+        $cmd8 = "nslookup %s %s" fullword
+
+        $info1 = "ExecStart=/etc/rc.local start" fullword
+        $info2 = "After=network.target" fullword
+        $info3 = "Default-Start: 2 3 4 5" fullword
+        $info4 = "Default-Stop: 0 1 6" fullword
+        $info5 = "multi-user.target" fullword
+
+    condition:
+        uint32be(0) == 0x7F454C46  //ELF Header
+        and any of ($key*)
+
+        and ($c2 or
+        (any of ($chck*)
+        and 2 of ($etc*)
+        and 3 of ($cmd*)
+        and 2 of ($info*)))
+
+        and filesize < 1MB
+}
+
+rule elf_rekoobe_b3_06c9 {
+    meta:
+        author                    = "Johannes Bader"
+        date                      = "2022-09-02"
+        description               = "detects the Rekoobe Linux backdoor"
+        hash1_md5                 = "55ab7e652976d25997875f678c935de7"
+        hash1_sha1                = "dc6beb5019ee21ab207c146ece5080d00f20a103"
+        hash1_sha256              = "a89ebd7157336141eb14ed9084491cc5bdfce103b4db065e433dff47a1803731"
+        tlp                       = "TLP:WHITE"
+        version                   = "v1.0"
+        yarahub_author_email      = "yara@bin.re"
+        yarahub_author_twitter    = "@viql"
+        yarahub_license           = "CC BY-SA 4.0"
+        yarahub_reference_md5     = "55ab7e652976d25997875f678c935de7"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp  = "TLP:WHITE"
+        yarahub_uuid              = "06c95657-8897-443c-bc8e-f0f5cf6cf055"
+    strings:
+        $sha_1  = {01 23 45 67 [0-10] 89 AB CD EF [0-10] FE DC BA 98 [0-10] 76 54 32 10 [0-10] F0 E1 D2 C3}
+
+        $hmac_1 = {36 36 36 36 36 36 36 36}
+        $hmac_2 = {5C 5C 5C 5C 5C 5C 5C 5C}
+
+        $str_term_1  = {C6 00 54}
+        $str_term_2  = {C6 40 03 4D}
+        $str_term_3  = {C6 40 01 45}
+        $str_term_4  = {C6 40 04 3D}
+        $str_term_5  = {C6 40 02 52}
+        $str_term_6  = {C6 40 02 52}
+
+        $str_histfile_1 = {C6 00 48}
+        $str_histfile_2 = {C6 40 05 49}
+        $str_histfile_3 = {C6 40 01 49}
+        $str_histfile_4 = {C6 40 06 4C}
+        $str_histfile_5 = {C6 40 02 53}
+        $str_histfile_6 = {C6 40 07 45}
+        $str_histfile_7 = {C6 40 03 54}
+        $str_histfile_8 = {C6 40 08 3D}
+        $str_histfile_9 = {C6 40 04 46}
+    condition:
+        uint32(0) == 0x464C457F and
+        (
+            all of them
+        )
+}
+
+rule Linux_Downloader {
+    meta:
+        author = "@P4nd3m1cb0y"
+        description = "Detects a Linux downloader targeting x64, x86, and arm64 architectures."
+        date = "2024-08-18"
+        reference = "https://x.com/Huntio/status/1823280152845107543"
+        hash = "3fd87c6e3d681d7f7909902899e1bce6c5095cf5" // x86 version
+        hash = "7b276653c3e09010c4ec0afe3f44859ec1f5d65d" // x64 version
+        hash = "12cbba0f00dbf73ce66ed33e115dee2e9a25add2" // arm64 version
+
+        yarahub_reference_md5 = "85d2c22b576a80d2d1da591b0d3a5d26"
+        yarahub_uuid = "cc1c56e6-a083-41d2-bbee-9f62e8af37c3"
+        yarahub_license = "CC BY 4.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+    strings:
+        $s1 = "/usr/sbin/systemd" ascii
+        $s2 = "./systemd" ascii
+        $s3 = "[kworker/0:2]" ascii
+        $arch1 = "l64" ascii
+        $arch2 = "l32" ascii
+        $arch3 = "a64" ascii
+
+        $sock_x64 = { BA 00 00 00 00 BE 01 00 00 00 BF 02 00 00 00 E8 ?? ?? ?? ?? }
+        /*
+            BA 00 00 00 00  mov     edx, IPPROTO_IP
+            BE 01 00 00 00  mov     esi, SOCK_STREAM
+            BF 02 00 00 00  mov     edi, AF_INET
+            E8 ?? ?? ?? ??  call    socket
+        */
+        $sock_x86 = { 6A 00 6A 01 6A 02 E8 ?? ?? ?? }
+        /*
+            6A 00           push    0
+            6A 01           push    1
+            6A 02           push    2
+            E8 ?? ?? ??     call    socket
+        */
+        $sock_arm64 = { 02 00 80 52 21 00 80 52 40 00 80 52 ?? 69 00 94 }
+        /*
+            02 00 80 52     mov        w2,#0x0
+            21 00 80 52     mov        w1,#0x1
+            40 00 80 52     mov        w0,#0x2
+            ?? 69 00 94     bl         socket
+        */
+    condition:
+        uint32(0) == 0x464C457F and
+        filesize < 1MB and
+        (3 of ($s*) and 1 of ($sock*) and 1 of ($arch*))
+}
+
+rule Linux_SSHBruteforce_PRG_OLDTEAM {
+    meta:
+        description = "Linux SSH brute-force toolkit (PRG / OLDTEAM), often masquerading as image"
+        author = "noopoo/0XFF1"
+        date = "2026-02-06"
+        malware_family = "PRG-OLDTEAM"
+        yarahub_license = "CC0 1.0"
+        yarahub_uuid = "d3c74bf4-4cf9-4ff2-b6c6-c0767888e68c"
+        reference = "MalwareBazaar upload"
+        yarahub_reference_md5 = "d1ca004fbda5fedcd6583b09b679c581"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+    strings:
+        /* Identity / Ego */
+        $id1 = "PRG-oldTeam" ascii nocase
+        $id2 = "OLDTEAM" ascii
+        $id3 = "LET'S MAKE SOME ADMINS TO CRY" ascii nocase
+        $id4 = "CREATED BY PRG" ascii
+
+        /* Config / workflow */
+        $cfg1 = "ips.lst" ascii
+        $cfg2 = "pass.lst" ascii
+        $cfg3 = "uidThreads" ascii
+        $cfg4 = "usrThreads" ascii
+        $cfg5 = "Banner grabber starting" ascii
+
+        /* SSH / libssh2 internals */
+        $ssh1 = "Invalid MAC received" ascii
+        $ssh2 = "Channel open failure" ascii
+        $ssh3 = "libssh2" ascii
+        $ssh4 = "Unable to send channel data" ascii
+
+        /* Packaging / structure */
+        $pkg1 = ".stx/" ascii
+        $pkg2 = "ustar" ascii
+        $pkg3 = "gzip compressed data" ascii
+    condition:
+        /* Identity is mandatory */
+        1 of ($id*) and
+
+        /* Must show brute-force behavior */
+        2 of ($cfg*) and
+        2 of ($ssh*) and
+
+        /* Plus archive / delivery context */
+        1 of ($pkg*)
+}
+
+rule Linux_XMR_Miner_xmra64 {
+    meta:
+        author = "0xFF1"
+        description = "Linux XMR miner payload (xmra64) used by multi-stage cron-based droppers"
+        date = "2026-02-05"
+        yarahub_reference_md5 = "3d4ebdfc02146e6df1784a4ebd7621ff"
+        yarahub_uuid = "5ec18f06-9675-403b-9ec0-fdf1e8444ac5"
+        yarahub_license = "CC0 1.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+    strings:
+        /* Miner identifier */
+        $miner1 = "xmra64" ascii
+
+        /* Common execution locations */
+        $path1 = "/dev/shm" ascii
+        $path2 = "/var/tmp" ascii
+    condition:
+        uint32(0) == 0x464c457f and
+        filesize > 1MB and filesize < 5MB and
+        $miner1 and
+        1 of ($path*)
+}
+
+rule MAL_Linux_IoT_MultiArch_BotnetLoader_Generic {
+    meta:
+        author = "Anish Bogati"
+        description = "Technique-based detection of IoT/Linux botnet loader shell scripts downloading binaries from numeric IPs, chmodding, and executing multi-architecture payloads"
+        date = "2025-12-01"
+        yarahub_reference_md5       = "e72fbbe6906052e1d8f3546644602849"
+        yarahub_uuid                = "4b0e3b57-6d91-4c3a-8f5d-0d7c6b2ff101"
+        yarahub_license             = "CC0 1.0"
+        yarahub_rule_matching_tlp   = "TLP:WHITE"
+        yarahub_rule_sharing_tlp    = "TLP:WHITE"
+        reference                   = "MalwareBazaar sample lilin.sh"
+        yarahub_reference_link      = "https://bazaar.abuse.ch/sample/8cc4dbecbbd2d5dcd4722a63b936a694893aefa99db815284117a325d19f2fdc/"
+        reference_sha256            = "8cc4dbecbbd2d5dcd4722a63b936a694893aefa99db815284117a325d19f2fdc"
+    strings:
+        // --- Technique: Downloaders ---
+        $wget1    = "wget http://" ascii
+        $wget2    = "wget -q http://" ascii
+        $bb_wget  = "busybox wget" ascii
+        $curl1    = "curl -fsS" ascii
+        $curl2    = "curl -fsSO http://" ascii
+
+        // Numeric IPv4 URL with optional port and path
+        $re_ip_http = /http:\/\/[0-9]{1,3}(\.[0-9]{1,3}){3}(:[0-9]{1,5})?\/[A-Za-z0-9._\-\/]+/ ascii
+
+        // --- Technique: Make downloaded files executable ---
+        $chmod1  = "chmod 777" ascii
+        $chmod2  = "chmod +x" ascii
+
+        // --- Multi-arch evidence in FILENAMES / EXTENSIONS ---
+        // e.g. Fantazy.mips, rondo.armv7l, irannet.mipsel, *.x86_64, *.sparc, *.arc700, *.i686, *.spc
+        $re_ext_arch = /\.(mips(el)?|arm(v[4567]l|5|6|7)?|x86(_64)?|m68k|ppc|sparc|spc|sh4|arc700|i[3456]86)\b/ ascii
+
+        // --- Multi-arch evidence in EXECUTION lines ---
+        // e.g. ./mips, ./x86_64, ./Fantazy.mips, ./irannet.mipsel, ./arm7, ./ppc
+        $re_exec_arch = /\.\/[A-Za-z0-9._\-]*(mips(el)?|arm(v[4567]l|5|6|7)?|x86(_64)?|m68k|ppc|sparc|spc|sh4|arc700|i[3456]86)\b/ ascii
+    condition:
+        // Script-like file, not a binary
+        filesize < 50KB and
+        uint32(0) != 0x7F454C46 and  // ELF
+        uint16(0) != 0x4D5A and      // MZ (PE)
+
+        // 1) Downloader present
+        ( $wget1 or $wget2 or $bb_wget or $curl1 or $curl2 ) and
+
+        // 2) Numeric-IP HTTP URLs present
+        #re_ip_http >= 1 and
+
+        // 3) chmod to make payload executable
+        ( $chmod1 or $chmod2 ) and
+
+        // 4) Strong multi-arch evidence:
+        //    sum of filename-arch matches + exec-arch matches >= 2
+        ( #re_ext_arch + #re_exec_arch ) >= 2
+}
+
+rule RANSOM_ESXiArgs_Ransomware_Encryptor_Feb23 {
+    meta:
+        author = "SECUINFRA Falcon Team (@SI_FalconTeam)"
+        description = "Detects the ESXiArgs Ransomware 'encrypt' binary"
+        reference = "https://www.secuinfra.com/en/techtalk/hide-your-hypervisor-analysis-of-esxiargs-ransomware/"
+        date = "2023-02-07"
+        tlp = "CLEAR"
+        yarahub_reference_md5 = "87b010bc90cd7dd776fb42ea5b3f85d3"
+        yarahub_uuid = "5eed9fd1-410e-4d38-a355-d89617398785"
+        yarahub_license = "CC BY 4.0"
+        yarahub_rule_matching_tlp = "TLP:WHITE"
+        yarahub_rule_sharing_tlp = "TLP:WHITE"
+        yarahub_author_twitter = "@SI_FalconTeam"
+    strings:
+        // Sosemanuk Pseudo-Random Number Generator
+        $sosemanuk_prng = {48 8b 45 f8 48 01 45 e0 48 8b 45 f8 48 29 45 d8 48 8b 45 e8 8b 90 80 00 00 00 48 8b 45 f8 01 c2 48 8b 45 e8 89 90 80 00 00 00}
+
+        // Sosemanuk Multiplication Tables
+        // based on Findcrypt3 rule https://github.com/polymorf/findcrypt-yara/blob/ad165a6b2bd5b56932657b96edffa851b5b00b15/findcrypt3.rules#L1522
+        $sosemanuk_mul_a = {00 00 00 00 13 CF 9F E1 26 37 97 6B 35 F8 08 8A [992] DE 4D 5B B5 CD 82 C4 54 F8 7A CC DE EB B5 53 3F}
+        $sosemanuk_mul_ia = {00 00 00 00 CD 40 0F 18 33 80 1E 30 FE C0 11 28 [992] 1C 65 E2 9E D1 25 ED 86 2F E5 FC AE E2 A5 F3 B6}
+
+        $interpreter = "/lib64/ld-linux-x86-64.so.2"
+
+        $debug0 = "encrypt_bytes: too big data"
+        $debug1 = "Progress: %f"
+
+        $help = "usage: encrypt <public_key> <file_to_encrypt> [<enc_step>] [<enc_size>] [<file_size>]"
+    condition:
+        uint32be(0x0) == 0x7F454C46
+        and all of ($sosemanuk_*)
+        and $interpreter
+        and 2 of ($debug*)
+        and $help
+}
+
+

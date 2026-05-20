@@ -1814,3 +1814,15 @@
 /var/www/html/Index.php
 /watchd0g.sh
 /xpnjdfx.txt
+/usr/bin/systemd-exec
+/root/.local/share
+/root/.local/share/.CC1C7D3B6737F0
+/root/.local/share/.CB3942076F2DE33B29B6
+/root/.local/share/.pkg
+/etc/profile.d/systemd.sh
+/usr/libexec/upowerd
+/lib/libseconf/
+/lib/libntpVnQE6mk/
+/lib/locate/
+/etc/cron.hourly/0
+/lib/fuckwhitehatshome/

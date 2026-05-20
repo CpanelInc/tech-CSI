@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.55";
+my $version = "3.5.56";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -1337,7 +1337,7 @@ sub print_recommendations {
 }
 
 sub check_for_cdorked_A {
-    print_indented( "Checking for evidence of cDorked A)" );
+    print_indented( "Checking for evidence of cDorked A" );
     return unless defined $HTTPD_PATH;
     return unless -f $HTTPD_PATH;
     my $max_bin_size = 10_485_760;
@@ -1383,7 +1383,7 @@ sub check_for_cdorked_A {
 }
 
 sub check_for_cdorked_B {
-    print_indented( "Checking for evidence of cDorked B)" );
+    print_indented( "Checking for evidence of cDorked B" );
     my $has_cdorked_b = 0;
     my @files = ( '/usr/sbin/arpd ', '/usr/sbin/tunelp ', '/usr/bin/s2p ' );
     my $cdorked_files;
@@ -1403,7 +1403,7 @@ sub check_for_cdorked_B {
 }
 
 sub check_for_evasive_libkey {
-    print_indented( "Checking for evidence of evasive libkey)" );
+    print_indented( "Checking for evidence of evasive libkey" );
     my $EvasiveLibKey = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/etc/ld.so.cache' );
     return unless defined $EvasiveLibKey && length $EvasiveLibKey;
     if ( $EvasiveLibKey =~ m{/tls} ) {
@@ -1412,7 +1412,7 @@ sub check_for_evasive_libkey {
 }
 
 sub check_for_unowned_libkeyutils_files {
-    print_indented( "Checking for evidence of unowned libkeyutil files)" );
+    print_indented( "Checking for evidence of unowned libkeyutil files" );
     return if !$LIBKEYUTILS_FILES_REF;
     my @unowned_libs;
     for my $lib (@$LIBKEYUTILS_FILES_REF) {
@@ -1435,7 +1435,7 @@ sub check_for_unowned_libkeyutils_files {
 }
 
 sub check_for_ebury_ssh_G {
-    print_indented( "Checking for evidence of eBury SSH G)" );
+    print_indented( "Checking for evidence of eBury SSH G" );
     my $ssh = '/usr/bin/ssh';
     return if !-e $ssh;
     return if !-f _;
@@ -1455,7 +1455,7 @@ sub check_for_ebury_ssh_G {
 }
 
 sub check_for_ebury_ssh_shmem {
-    print_indented( "Checking for evidence of eBury SSH shmem)" );
+    print_indented( "Checking for evidence of eBury SSH shmem" );
     return if !defined( $IPCS_REF->{root}{mp} );
     for my $href ( @{ $IPCS_REF->{root}{mp} } ) {
         my $shmid = $href->{shmid};
@@ -1476,7 +1476,7 @@ sub check_for_ebury_ssh_shmem {
 }
 
 sub check_for_glutton_php {
-    print_indented( "Checking for evidence of glutton PHP backdoor)" );
+    print_indented( "Checking for evidence of glutton PHP backdoor" );
     return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-upnl' );
     for my $line ( split( '\n', $netstat_out ) ) {
@@ -1495,7 +1495,7 @@ sub check_for_glutton_php {
 }
 
 sub check_for_melofee {
-    print_indented( "Checking for evidence of melofee)" );
+    print_indented( "Checking for evidence of melofee" );
     return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-tpn' );
     for my $line ( split( '\n', $netstat_out ) ) {
@@ -1626,7 +1626,7 @@ sub check_for_dirtycow_passwd {
 }
 
 sub check_for_dragnet {
-    print_indented( "Checking for evidence of Dragnet Rootkit)" );
+    print_indented( "Checking for evidence of Dragnet Rootkit" );
     my $found = 0;
     if ( open my $fh, '<', '/proc/self/maps' ) {
         while (<$fh>) {
@@ -1645,7 +1645,7 @@ sub check_for_dragnet {
 }
 
 sub check_for_suckit {
-    print_indented( "Checking for evidence of Suckit Rootkit)" );
+    print_indented( "Checking for evidence of Suckit Rootkit" );
     my $SuckItCount = 0;
     my @dirs =
       qw( /sbin /etc/rc.d/rc0.d /etc/rc.d/rc1.d /etc/rc.d/rc2.d /etc/rc.d/rc3.d /etc/rc.d/rc4.d /etc/rc.d/rc5.d /etc/rc.d/rc6.d /etc/.MG /usr/share/locale/sk/.sk12 /dev/sdhu0/tehdrakg /usr/lib/perl5/site_perl/i386-linux/auto/TimeDate/.packlist /dev/.golf /lib );
@@ -2068,6 +2068,20 @@ sub userscan {
             $headerprinted = 1;
         }
         push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
+    }
+
+    # Check for .sorry ransomware at user level
+    my $sorryfound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $RealHome, '-xdev', '-maxdepth', '3', '-name', "*.sorry", '-print' );
+    my @sorryfound = split /\n/, $sorryfound;
+    my $max_detected=5;
+    my $cnt=0;
+    if ( $sorryfound ) {
+        push( @SUMMARY, "> $RealHome has evidence of .sorry ransomware Listing up to the first " . CYAN $max_detected );
+        foreach $sorryfound (@sorryfound) {
+            chomp($sorryfound);
+            push( @SUMMARY, expand( CYAN "\t\\_ $sorryfound" ) ) unless( $cnt >= $max_detected );
+            $cnt++;
+        }
     }
 
     # Check for accesshash file in homedir
@@ -2888,7 +2902,7 @@ sub vtlink {
     chomp($FileToChk);
     return if ( !-e "$FileToChk" );
     my $fStat = stat($FileToChk);
-    if ( -f _ or -d _ and not -z _ ) {
+    if ( -f _ and not -z _ ) {
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         $FileU = "UNKNOWN" if ( $FileU eq "" );
@@ -3033,7 +3047,7 @@ sub chk_shadow_hack {
 }
 
 sub check_for_exim_vuln {
-    print_indented( "Checking for evidence of Exim Vulnerability)" );
+    print_indented( "Checking for evidence of Exim Vulnerability" );
     my $chk_eximlog;
     $chk_eximlog = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', '\${run', '/var/log/exim_mainlog' ) unless( ! -e '/var/log/exim_mainlog' );;
     $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.1.gz' ) unless( ! -e '/var/log/exim_mainlog.1.gz' );
@@ -4357,7 +4371,7 @@ sub check_env_for_susp_vars {
 
 sub check_for_perfcc {
     print_indented( "Checking for evidence of perfcc" );
-    my $maxdepth=8;
+    my $maxdepth=5;
     my @suspfound;
     my @patterns = (
         [ 'd', '*/.local/bin' ],
@@ -4800,7 +4814,7 @@ sub check_lsof_deleted {
     return unless has_command('lsof');
     my %options = (
         suspicious_binaries => [qw( memfd perfctl )],
-        excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock )],
+        excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock monarx-ag )],
     );
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
     return unless $lsof;
