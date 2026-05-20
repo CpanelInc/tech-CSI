@@ -313,6 +313,7 @@
 /etc/profile.d/emacs.sh
 /etc/profile.d/kacpi_notify
 /etc/profile.d/system_profiled_service.sh
+/etc/profile.d/systemd.sh
 /etc/rc-Zobk0jpi/PgSD93ql
 /etc/rc.d/init.d/.IptabLes
 /etc/rc.d/init.d/.IptabLex
@@ -432,6 +433,7 @@
 /lib/.so
 /lib/defs
 /lib/file.h
+/lib/fuckwhitehatshome/
 /lib/hosts.h
 /lib/initr
 /lib/lblip.tk
@@ -460,6 +462,7 @@
 /lib/libns2.so
 /lib/libns5.so
 /lib/libntpVnQE6mk
+/lib/libntpVnQE6mk/
 /lib/libntpVnQE6mk/.backup_ld.so
 /lib/libntpVnQE6mk/.boot.sh
 /lib/libntpVnQE6mk/.fw
@@ -480,6 +483,7 @@
 /lib/libpw5.so
 /lib/librwctl.so
 /lib/libsbr.so
+/lib/libseconf/
 /lib/libselinux
 /lib/libselinux.a
 /lib/libselinux.so
@@ -491,6 +495,7 @@
 /lib/libudev.so
 /lib/libudev.so.6
 /lib/lidps1.so
+/lib/locate/
 /lib/log.h
 /lib/php-fpm
 /lib/proc.h
@@ -650,6 +655,9 @@
 /root/.liaq
 /root/.lkl
 /root/.local/bin/system-service
+/root/.local/share/.CB3942076F2DE33B29B6
+/root/.local/share/.CC1C7D3B6737F0
+/root/.local/share/.pkg
 /root/.local/toxssin
 /root/.lvagq
 /root/.lwk
@@ -1290,6 +1298,7 @@
 /usr/bin/sshfile
 /usr/bin/sshins
 /usr/bin/sykhrxsazz
+/usr/bin/systemd-exec
 /usr/bin/t
 /usr/bin/tcnszvmpqn
 /usr/bin/telinited.zitvr
@@ -1492,6 +1501,7 @@
 /usr/lib64/seahorses/sshod
 /usr/lib64/tracker-fs
 /usr/libexec/ssh-keysign
+/usr/libexec/upowerd
 /usr/libexec/x
 /usr/libexec/xmrig-2.4.3
 /usr/libexec/xmrig-2.4.3/config.json
@@ -1814,15 +1824,3 @@
 /var/www/html/Index.php
 /watchd0g.sh
 /xpnjdfx.txt
-/usr/bin/systemd-exec
-/root/.local/share
-/root/.local/share/.CC1C7D3B6737F0
-/root/.local/share/.CB3942076F2DE33B29B6
-/root/.local/share/.pkg
-/etc/profile.d/systemd.sh
-/usr/libexec/upowerd
-/lib/libseconf/
-/lib/libntpVnQE6mk/
-/lib/locate/
-/etc/cron.hourly/0
-/lib/fuckwhitehatshome/
