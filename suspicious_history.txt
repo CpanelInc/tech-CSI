@@ -12,8 +12,8 @@ grep -c ^processor /proc/cpuinfo
 wget    http://www.curl.by
 cbrute.tgz
 cbrute
-noprofile
-norc
+--noprofile
+--norc
 nuclear.x86
 0xa59ac734/i
 __CMD_DONE_
