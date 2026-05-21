@@ -1501,7 +1501,6 @@
 /usr/lib64/seahorses/sshod
 /usr/lib64/tracker-fs
 /usr/libexec/ssh-keysign
-/usr/libexec/upowerd
 /usr/libexec/x
 /usr/libexec/xmrig-2.4.3
 /usr/libexec/xmrig-2.4.3/config.json
