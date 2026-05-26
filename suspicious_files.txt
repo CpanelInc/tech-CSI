@@ -1714,7 +1714,6 @@
 /var/run/npss.state
 /var/run/nscd/ns.pid
 /var/run/proc.pid
-/var/run/snmpd.pid
 /var/run/sshd/sshd.pid
 /var/run/sys_checker.pid
 /var/run/udev.pid
