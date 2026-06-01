@@ -19,3 +19,5 @@ nuclear.x86
 __CMD_DONE_
 export TERM=dumb
 __S_MARK__
+exf.sh RUNNING
+exf.sh NOT running
