@@ -1,6 +1,5 @@
 /etc/cxs/uninstall.sh
 rm -rf /etc/apache2/conf.d/modsec
-bash /etc/csf/uninstall.sh
 yum remove -y cpanel- clamav
 remove bcm-agent
 mdkri

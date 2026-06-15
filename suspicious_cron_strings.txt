@@ -98,3 +98,4 @@ yx=hashlib
 yxarsh.shop
 zmreplchkr
 zsvc
+/etc/cxs/uninstall.sh
