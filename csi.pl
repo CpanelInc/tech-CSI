@@ -3,22 +3,23 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.5.56";
+my $version = "3.6.0";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
+use Digest::SHA qw(sha256_hex);
 use Text::Tabs;
 $tabstop = 4;
 use File::Basename;
 use File::Path;
 use File::Find;
 use File::stat;
-use File::Slurp;
+#use File::Slurp;
 use IO::Prompt;
 use LWP::UserAgent;
 use DateTime;
 use HTTP::Tiny;
-use Cpanel::Exception      ();
+#use Cpanel::Exception      ();
 use Cpanel::FindBin        ();
 use Cpanel::Version        ();
 use Cpanel::Kernel::Status ();
@@ -44,6 +45,10 @@ use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 our $RUN_STATE;
 our $gl_is_kernel=0;
+
+my @susp_authkeys;
+
+my $checkmark = GREEN "\x{2713}";
 
 ###################################################
 # Check to see if the calling user is root or not #
@@ -81,6 +86,17 @@ my $conf             = Cpanel::Config::LoadWwwAcctConf::loadwwwacctconf();
 my $cpconf           = Cpanel::Config::LoadCpConf::loadcpconf();
 my $allow_accesshash = $cpconf->{'allow_deprecated_accesshash'};
 my $sha256only;
+my $SESSIONS_DIR  = "/var/cpanel/sessions";
+my $ACCESS_LOG    = "/usr/local/cpanel/logs/access_log";
+my @FINDINGS;
+my @FINDING_SESSIONS;
+my @FINDING_TOKENS;
+my @FINDING_SEVERITIES;
+my $COUNT_CRITICAL = 0;
+my $COUNT_WARNING  = 0;
+my $COUNT_INFO     = 0;
+my $COUNT_ATTEMPT  = 0;
+my %SEV_RANK = ( CRITICAL => 3, WARNING => 2, ATTEMPT => 1, INFO => 0 );
 our $HOMEDIR       = $conf->{'HOMEDIR'};
 our @FILESTOSCAN   = undef;
 our $rootkitsfound = 0;
@@ -95,14 +111,8 @@ if ( not length($hostname) ) {
 # Parse positional parameters for flags and set variables #
 ###########################################################
 # Set defaults for positional parameters
-my (
-    $full,         $shadow,  $symlink,        $yarascan,
-    $secadv,       $help,    $debug,          $userscan,
-    $customdir,    $scan,    $skipkernel,     %process,
-    %ipcs,         $distro,  $distro_version, $distro_major,
-    $distro_minor, $ignoreload, $overwrite,   $cron,
-    $skipauthchk
-);
+my ( $userscan, $full, $help, $debug, $shadow, $hashscan, $symlink, $yarascan, $customdir, $scan, $skipkernel, %process, %ipcs, $distro, $distro_version, $distro_major, $distro_minor, $ignoreload, $overwrite, $cron, $skipauthchk);
+
 get_ipcs_hash( \%ipcs );
 
 $distro       = Cpanel::OS->_instance->distro;
@@ -124,8 +134,8 @@ GetOptions(
     'skipauthchk' => \$skipauthchk,
     'shadow'      => \$shadow,
     'symlink'     => \$symlink,
+    'hashscan'    => \$hashscan,
     'yarascan'    => \$yarascan,
-    'secadv'      => \$secadv,
     'ignoreload'  => \$ignoreload,
     'help'        => \$help,
     'debug'       => \$debug,
@@ -282,7 +292,6 @@ sub show_help {
     print_header("=================");
     print_header( "--shadow     Performs a check on all email accounts looking for variants of shadow.roottn hack.");
     print_header( "--symlink    Performs a symlink hack check for all accounts.");
-    print_header( "--secadv     Runs Security Advisor");
     print_header( "--skipkernel Skip kernel update checks. Useful if a custom kernel is installed and kernel checking fails.");
     print_header( "--yarascan   Skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
     print_header( "--full       Performs all of the above checks - very time consuming. Can cause HIGH LOAD DURING YARA SCANS!!!");
@@ -295,7 +304,6 @@ sub show_help {
     print_header("=================");
     print_status("            /root/csi.pl with no arguments does a quick scan [DEFAULT]");
     print_status("            /root/csi.pl --symlink");
-    print_status("            /root/csi.pl --secadv");
     print_status("            /root/csi.pl --skipkernel");
     print_status("            /root/csi.pl --full [--yarascan] [--skipauthchk]");
     print_status("            /root/csi.pl --overwrite");
@@ -363,167 +371,210 @@ sub scan {
     );
     print_header(
         MAGENTA '[     --symlink Scans for symlink hacks going back to / ]' );
-    print_header( MAGENTA '[     --secadv Performs a Security Advisor run ]' );
     print_normal('');
-    print_header('[ Checking logfiles ]');
-    logit("Checking logfiles");
-    check_logfiles();
-    print_header('[ Checking for bad UIDs ]');
+
+    logit("Checking log files");
+    run_with_spinner('Checking log files', \&check_logfiles);
+
     logit("Checking for bad UIDs");
-    check_uids();
-    print_header('[ Checking /etc/passwd file for suspicious users ]');
+    run_with_spinner('Checking for bad UIDs', \&check_uids);
+
     logit("Checking /etc/passwd for suspicious users");
-    check_for_suspicious_user();
-    print_header('[ Checking /etc/hosts file for suspicious entries ]');
+    run_with_spinner('Checking /etc/passwd file for suspicious users', \&check_for_suspicious_user);
+
     logit("Checking /etc/hosts for suspicious entries");
-    check_hosts_file();
-    print_header('[ Checking for known Indicators of Compromise (IoC) ]');
+    run_with_spinner('Checking /etc/hosts file for suspicious entries', \&check_hosts_file);
+
     logit("Checking for known IoC's");
-    all_malware_checks();
-    print_header('[ Checking installed packages for CVEs ]');
+    run_with_spinner('Checking for Linux Lady', \&check_for_linux_lady);
+    run_with_spinner('Checking for Twink', \&check_for_twink);
+    run_with_spinner('Checking for cronRAT', \&check_for_cronRAT);
+    run_with_spinner('Checking for NCOM Rootkit', \&check_for_ncom_rootkit);
+    run_with_spinner('Checking for evidence of suspicious environment variables', \&check_env_for_susp_vars);
+    run_with_spinner('Checking for perfcc', \&check_for_perfcc);
+    run_with_spinner('Checking for xBash (MySQL Ransomware)', \&check_for_xbash);
+    run_with_spinner('Checking for cDorked A', \&check_for_cdorked_A);
+    run_with_spinner('Checking for cDorked B', \&check_for_cdorked_B);
+    run_with_spinner('Checking for SuckIt Rootkit', \&check_for_suckit);
+    run_with_spinner('Checking authorized_keys file', \&check_authorized_keys_file);
+    run_with_spinner('Checking for libkeyutils symbols', \&check_for_libkeyutils_symbols);
+    run_with_spinner('Checking for unowned libkeyutils files', \&check_for_unowned_libkeyutils_files);
+    run_with_spinner('Checking for evasive libkey', \&check_for_evasive_libkey);
+    run_with_spinner('Checking for Ebury SSH G', \&check_for_ebury_ssh_G);
+    run_with_spinner('Checking for Ebury SSH shmem', \&check_for_ebury_ssh_shmem);
+    run_with_spinner('Checking for Mélofée', \&check_for_melofee);
+    run_with_spinner('Checking for Glutton PHP', \&check_for_glutton_php);
+    run_with_spinner('Checking for Ebury Socket', \&check_for_ebury_socket);
+    run_with_spinner('Checking for Dragnet Bot', \&check_for_dragnet);
+    run_with_spinner('Checking for Exim Vulnerability', \&check_for_exim_vuln);
+    run_with_spinner('Checking for HiddenWasp', \&check_for_hiddenwasp);
+    run_with_spinner('Checking for FritzFrog', \&check_for_fritzfrog);
+    run_with_spinner('Checking for NgioWeb', \&check_for_ngioweb);
+    run_with_spinner('Checking for DrtyCow Passwd', \&check_for_dirtycow_passwd);
+    run_with_spinner('Checking for Lilocked Ransomware', \&check_for_lilocked_ransomware);
+    run_with_spinner('Checking for FileNew Ransomware', \&check_for_filenew_ransomware);
+    run_with_spinner('Checking for Sorry Ransomware', \&check_for_sorry_ransomware);
+    run_with_spinner('Checking for Sedexp', \&check_for_sedexp);
+    run_with_spinner('Checking for JungleSec Ransomware', \&check_for_junglesec);
+    run_with_spinner('Checking for PanChan', \&check_for_panchan);
+    run_with_spinner('Checking for CHAOS', \&check_for_chaos);
+    run_with_spinner('Checking for Pack2TheRoot', \&check_for_pack2theroot);
+    if ( $full or $hashscan ) {
+        run_with_spinner('Checking system files against known hashes', \&hash_scan);
+    }
+    run_with_spinner('Checking for BPFDoor', \&check_for_bpfdoor);
+
     logit("Checking installed packages for CVEs");
-    check_for_cve_vulnerabilities();
-    print_header('[ Checking for BPFDoor ]');
-    logit("Checking for BPFDoor");
-    check_for_bpfdoor();
-#    print_header('[ Checking for cpsess hacks ]');
-#    logit("Checking for cpsess hacks");
-#    check_for_cpsess_hacks();
-    print_header('[ Checking for suspicious environ in /proc/*/ ]');
+    run_with_spinner('Checking installed packages for CVEs', \&check_for_cve_vulnerabilities);
+
+    logit("Checking Docker container for possible escapes");
+    run_with_spinner('Checking Docker container for possible escapes', \&check_for_docker_container_escape);
+
     logit("Checking for suspicious environ in /proc/*/");
-    check_proc_environ();
-    print_header('[ Checking for suspicious /etc/rc.modules file ]');
+    run_with_spinner('Checking for suspicious environ in /proc/*/', \&check_proc_environ);
+
     logit("Checking for suspicious /etc/rc.modules file");
-    check_for_susp_rc_modules();
-    print_header('[ Checking for Free Download Manager Malware ]');
+    run_with_spinner('Checking for suspicious /etc/rc.modules file', \&check_for_susp_rc_modules);
+
     logit("Checking for Free Download Manager Malware");
-    check_for_freedownloadmanager_malware();
-    print_header('[ Checking if Use MD5 passwords with Apache is disabled ]');
+    run_with_spinner('Checking for Free Download Manager Malware', \&check_for_freedownloadmanager_malware);
+
     logit("Checking if Use MD5 passwords with Apache is disabled");
-    chk_md5_htaccess();
-    print_header('[ Checking for index.html in /tmp and /home ]');
+    run_with_spinner('Checking if Use MD5 passwords with Apache is disabled', \&chk_md5_htaccess);
+
     logit("Checking for index file in /tmp and $HOMEDIR");
-    check_index();
-    print_header('[ Checking for suspicious files ]');
+    run_with_spinner("Checking for index.html in /tmp and $HOMEDIR", \&check_index);
+
     logit("Checking for suspicious files");
-    look_for_suspicious_files();
-    print_header('[ Checking for suspicious ELF binaries ]');
+    run_with_spinner('Checking for suspicious files', \&look_for_suspicious_files);
+
     logit("Checking for suspicious ELF binaries");
-    check_if_file_is_binary();
-    print_header('[ Checking if root bash history has been tampered with ]');
+    run_with_spinner('Checking for suspicious ELF binaries', \&check_if_file_is_binary);
+
     logit("Checking roots bash_history for tampering");
-    check_history();
-    print_header('[ Checking for open files that have been deleted ]');
+    run_with_spinner('Checking if root bash history has been tampered with', \&check_history);
+
     logit("Checking for open files that have been deleted");
-    check_lsof_deleted();
-    print_header('[ Checking /etc/ld.so.preload for compromised library ]');
+    run_with_spinner('Checking for open files that may have been deleted', \&check_lsof_deleted);
+
     logit("Checking /etc/ld.so.preload for compromised library");
-    check_preload();
-    print_header('[ Checking for LKM rootkits ]');
+    run_with_spinner('Checking /etc/ld.so.preload for compromised libraries', \&check_preload);
+
     logit("Checking for Loadable Kernel Module rootkits");
-    check_for_lkm_rootkits();
-    print_header('[ Checking /dev/shm for binaries that are scripts or ELF filetypes ]');
+    run_with_spinner('Checking for LKM rootkits', \&check_for_lkm_rootkits);
+
     logit("Checking /dev/shm for scripts and ELF file types");
-    check_dev_shm_for_elf();
-    print_header('[ Checking process list for suspicious processes ]');
+    run_with_spinner('Checking /dev/shm for binaries that are scripts or ELF filetypes', \&check_dev_shm_for_elf);
+
     logit("Checking process list for suspicious processes");
-    check_processes();
-    print_header('[ Checking for suspicious bitcoin miners ]');
+    run_with_spinner('Checking process list for suspicious processes', \&check_processes);
+
+    logit("Checking process list for hidden processes");
+    run_with_spinner('Checking for hidden processes', \&check_for_hidden_processes);
+
+    logit("Checking Network Connections");
+    run_with_spinner('Checking Network Connections', \&check_network_connections);
+
     logit("Checking for suspicious bitcoin miners");
-    bitcoin_chk();
-    print_header('[ Checking for suspicious mount points ]') if iam('cptech');
+    run_with_spinner('Checking for suspicious bitcoin miners', \&bitcoin_chk);
+
     logit("Checking for suspicious mount points") if iam('cptech');;
-    check_mounts() if iam('cptech');
-    print_header('[ Checking reseller ACLs ]');
+    if ( iam('cptech')) {
+        run_with_spinner('Checking for suspicious mount points', \&check_mounts) if iam('cptech');
+    }
+
     logit("Checking reseller ACLs");
-    check_resellers_for_all_ACL();
-    print_header( '[ Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE ]');
+    run_with_spinner('Checking reseller ACLs', \&check_resellers_for_all_ACL);
+
     logit( "Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE");
-    check_apitokens_json();
-    print_header( '[ Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes ]');
+    run_with_spinner( 'Checking if /var/cpanel/authn/api_tokens_v2/whostmgr/root.json is IMMUTABLE', \&check_apitokens_json);
+
     logit("Checking api_tokens_log for passwd changes");
-    check_api_tokens_log();
-    print_header( '[ Obtaining API Tokens ]');
+    run_with_spinner( 'Checking /usr/local/cpanel/logs/api_tokens_log for passwd changes', \&check_api_tokens_log);
+
     logit("Obtaining api tokens");
-    get_api_tokens();
-    print_header('[ Checking for PHP backdoors in unprotected path ]');
+    run_with_spinner( 'Obtaining API Tokens', \&get_api_tokens);
+
     logit("Checking /usr/local/cpanel/base/unprotected for PHP backdoors");
-    check_for_unprotected_backdoors();
-    print_header('[ Checking for miscellaneous compromises ]');
+    run_with_spinner('Checking for PHP backdoors in unprotected path', \&check_for_unprotected_backdoors);
+
     logit("Checking for miscellaneous compromises");
-    misc_checks();
-    check_changepasswd_modules();
-    print_header('[ Checking Binary Headers ]');
+    run_with_spinner('Checking for miscellaneous compromises', \&misc_checks);
+
+    logit("Checking for modules wiithin ChangePasswd folder");
+    run_with_spinner('Checking for modules within ChangePasswd folder', \&check_changepasswd_modules);
+
     logit("Checking Binary Headers (using hexdump -C)");
-    check_binaries_for_shell();
-    print_header('[ Checking Apache Modules ]');
+    run_with_spinner('Checking Binary Headers', \&check_binaries_for_shell);
+
     logit("Checking Apache Modules (owned by RPM)");
-    check_apache_modules();
-    print_header('[ Checking for sshd_config ]');
+    run_with_spinner('Checking Apache modules', \&check_apache_modules);
+
     logit("Checking sshd_config");
-    check_sshd_config();
-    print_header('[ Checking vm.nr.hugepages in /proc/sys/vm ]');
+    run_with_spinner('Checking for sshd_config', \&check_sshd_config);
+
     logit("Checking vm.nr.hugepages value");
-    check_proc_sys_vm();
-    print_header('[ Checking for modified/hacked SSH ]');
+    run_with_spinner('Checking vm.nr.hugepages in /proc/sys/vm', \&check_proc_sys_vm);
+
     logit("Checking for modified/hacked ssh");
-    check_ssh();
-    print_header('[ Checking /root/.bash_history for anomalies ]');
+    run_with_spinner('Checking for modified/hacked SSH', \&check_ssh);
+
     logit("Checking /root/.bash_history for TTY shell spawns");
-    check_for_TTY_shell_spawns();
-    check_roots_history();
-    print_header( '[ Checking for non-root users with ALL privileges in /etc/sudoers file ]');
+    run_with_spinner('Checking /root/.bash_history for TTY shell spawns', \&check_for_TTY_shell_spawns);
+
+    logit("Checking /root/.bash_history for anomalies");
+    run_with_spinner('Checking /root/.bash_history for anomalies', \&check_for_TTY_shell_spawns);
+
     logit("Checking /etc/sudoers file");
-    check_sudoers_file();
-    print_header('[ Checking for spam sending script in /tmp ]');
+    run_with_spinner( 'Checking for non-root users with elevated (ALL) privileges in /etc/sudoers file', \&check_sudoers_file);
+
     logit("Checking for spam sending script in /tmp");
-    spamscriptchk();
-    print_header('[ Checking for root owned spam sending directory under /usr/local/share/. /ita/ ]');
+    run_with_spinner('Checking for spam sending script in /tmp', \&spamscriptchk);
+
     logit("Checking for root owned spam sending directory under /usr/local/share/. /ita/");
-    check_for_ita_perl_hack();
-    print_header('[ Checking user level crons for suspicious entries ]');
+    run_with_spinner('Checking for root owned spam sending directory under /usr/local/share/. /ita/', \&check_for_ita_perl_hack);
+
     logit("Checking user level crons");
-    user_crons();
-    print_header('[ Checking for ransomwareEXX ]');
+    run_with_spinner('Checking user level crons for suspicious entries', \&user_crons);
+
     logit("Checking for ransomwareEXX");
-    check_for_ransomwareEXX();
-    print_header('[ Checking kernel status ]') unless( $skipkernel );
+    run_with_spinner('Checking for ransomwareEXX', \&check_for_ransomwareEXX);
+
     logit("Checking kernel status") unless( $skipkernel );
-    check_kernel_updates() unless( $skipkernel );
-    print_header( '[ Checking for suspicious MySQL users (Including Super privileges) ]');
+    run_with_spinner('Checking kernel status', \&check_kernel_updates) unless( $skipkernel );
+
     logit("Checking for suspicious MySQL users including Super privileges");
-    check_for_Super_privs();
-    check_for_mysqlbackups_user();
-    print_header('[ Checking for unowned files/libraries ]');
+    run_with_spinner( 'Checking for suspicious MySQL users (Including Super privileges)', \&check_for_Super_privs);
+
+    logit("Checking for suspicious mysqlbackups_user");
+    run_with_spinner( 'Checking for suspicious mysqlbackups_user', \&check_for_mysqlbackups_user);
+
     logit("Checking for non-owned files/libraries");
-    check_lib();
-    print_header('[ Checking for suspicious users under /etc ]');
+    run_with_spinner('Checking for unowned files/libraries', \&check_lib);
+
     logit("Checking for suspicious users under /etc");
-    check_etc_files();
-    print_header('[ Checking for suspicious Email Filters ]');
+    run_with_spinner('Checking for suspicious users under /etc', \&check_etc_files);
+
     logit("Checking for suspicious Email Filters");
-    check_email_filters();
+    run_with_spinner('Checking for suspicious Email Filters', \&check_email_filters);
+
     if ( $full or $symlink ) {
-        print_header( YELLOW '[ Additional check for symlink hacks ]' );
         logit("Checking for symlink hacks");
-        check_for_symlinks();
+        run_with_spinner( 'Additional check for symlink hacks', \&check_for_symlinks );
     }
     if ( $full or $shadow ) {
-        print_header( YELLOW '[ Additional check for shadow.roottn.bak hacks ]' );
         logit("Checking for shadow.roottn.bak hacks");
-        chk_shadow_hack();
+        run_with_spinner( 'Additional check for shadow.roottn.bak hacks', \&chk_shadow_hack );
     }
     if ( $full ) {
         unless( $skipauthchk ) {
-            print_header( YELLOW '[ Additional check for infected openssh backdoors ]' );
             logit("Checking for infected openssh config files");
-            check_auth_keys_for_commands();
+            run_with_spinner( 'Additional check for infected openssh backdoors', \&check_auth_keys_for_commands );
         }
     }
     if ( $full ) {
-        print_header( YELLOW '[ Additional check for Log4JShell hack attempts in log files ]' );
         logit("Additional check for Log4JShell hack attempts in log files");
-        check_for_log4JShell_attempts();
+        run_with_spinner( 'Additional check for Log4JShell hack attempts in log files', \&check_for_log4JShell_attempts );
     }
 
     if ( $full ) {
@@ -596,36 +647,37 @@ sub scan {
     print_normal(' ');
 
     # Checking for recommendations
-    print_header('[ Checking for obsolete password hashes in /etc/shadow ]');
     logit("Checking for obsolete password hashes");
-    check_for_obsolete_shadow_hashes();
-    print_header('[ Comparing hashes in /etc/shells to /sbin/nologin ]');
+    run_with_spinner('Checking for obsolete password hashes in /etc/shadow', \&check_for_obsolete_shadow_hashes);
+
     logit("Comparing hashes in /etc/shells to /sbin/nologin");
-    compare_hash_of_shells();
-    print_header('[ Checking if updates are enabled ]');
+    run_with_spinner('Comparing hashes in /etc/shells to /sbin/nologin', \&compare_hash_of_shells);
+
     logit("Checking if updates are enabled");
-    check_cpupdate_conf();
-    print_header('[ Checking for Two-Factor Authentication ]');
+    run_with_spinner('Checking if updates are enabled', \&check_cpupdate_conf);
+
     logit("Checking if Two-Factor Authentication is enabled");
-    check_2FA_enabled();
-    print_header('[ Checking login_access Tweak Setting ]');
+    run_with_spinner('Checking for Two-Factor Authentication', \&check_2FA_enabled);
+
     logit("Checking login_access Tweak Setting");
-    check_account_login_access();
-    print_header('[ Checking for accesshash ]');
+    run_with_spinner('Checking login_access Tweak Setting', \&check_account_login_access);
+
     logit("Checking for accesshash");
-    check_for_accesshash();
-    print_header('[ Checking if SymLinkProtection is enabled ]');
+    run_with_spinner('Checking for accesshash', \&check_for_accesshash);
+
     logit("Checking if SymLinkProtection is enabled");
-    check_if_symlink_protect_on();
-    print_header('[ Checking setting of Cookie IP Validation ]');
+    run_with_spinner('Checking if SymLinkProtection is enabled', \&check_if_symlink_protect_on);
+
     logit("Checking setting of Cookie IP Validation");
-    check_cookieipvalidation();
-    print_header( '[ Checking setting of X-Frame/X-Content Type headers with cpsrvd ]');
+    run_with_spinner('[ Checking setting of Cookie IP Validation ]', \&check_cookieipvalidation);
+
     logit("Checking setting of X-Frame/X-Content Type headers with cpsrvd");
-    check_xframe_content_headers();
-    print_header('[ Checking for deprecated plugins/modules ]');
+    run_with_spinner( 'Checking setting of X-Frame/X-Content Type headers with cpsrvd', \&check_xframe_content_headers);
+
     logit("Checking for deprecated plugins");
-    check_for_deprecated();
+    run_with_spinner('Checking for deprecated plugins/modules', \&check_for_deprecated);
+
+    print "\n";
     logit("Gathering IP address that logged on as root successfully");
     get_last_logins_WHM("root");
     get_session_logins("root:");
@@ -633,13 +685,8 @@ sub scan {
     get_last_logins_SSH("root");
     check_secure_log("root");
     get_user_pass_changes("root");
-    push( @INFO, CYAN "\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist.");
 
-    if ( $full or $secadv ) {
-        print_header( YELLOW '[ Additional check Security Advisor ]' );
-        logit("Running Security Advisor");
-        security_advisor();
-    }
+    push( @INFO, CYAN "\nDo you recognize the above IP addresses? If not, then further investigation should be performed\nby a qualified security specialist.");
 
     print_header('[ cPanel Security Investigator Complete! ]');
     logit( 'cPanel Security Investigator Complete!' );
@@ -883,12 +930,47 @@ sub check_roots_history {
 }
 
 sub check_processes {
+    my %suspicious_patterns = (
+        cryptominers => [
+            qr/xmrig/i, qr/cpuminer/i, qr/minerd/i, qr/ccminer/i,
+            qr/nheqminer/i, qr/ethminer/i, qr/bfgminer/i, qr/stratum/i,
+            qr/pool\.mine/i, qr/coin/i, qr/monero/i, qr/cryptonight/i,
+        ],
+        backdoors => [
+            qr/shell\.backdoor/i, qr/backconnect/i, qr/bind_shell/i,
+            qr/reverse_shell/i, qr/perl.*-e.*socket/i, qr/python.*socket.*bind/i,
+            qr/bash.*-i.*>&.*\/dev\/tcp/i, qr/pty_spawn/i, qr/meterpreter/i,
+        ],
+        remote_access => [
+            qr/ncat.*-e/i, qr/netcat.*-e/i, qr/socat.*exec/i,
+        ],
+        scanners => [
+            qr/masscan/i, qr/zmap/i, qr/nmap.*-sS/i, qr/nmap.*-sT/i,
+        ],
+        suspicious_binary_names => [
+            qr/^\.\w{1,4}$/, qr/^sshd$/,
+        ],
+    );
+    my $headerPrint = 0;
+    for my $line ( @process_list ) {
+        for my $type (keys %suspicious_patterns) {
+            for my $re (@{$suspicious_patterns{$type}}) {
+                if ($line =~ $re) {
+                    my $pid = (split /\s+/, $line)[1];
+                    push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
+                    $headerPrint = 1;
+                    push @SUMMARY, expand( "\t\\_ " . { type => 'HIGH', category => $type, line => $line, pid => $pid  } );
+                }
+            }
+        }
+    }
+
     my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_procs.txt');
     my $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
     my $res = $ua->get($url);
     my $susp_procs  = $res->decoded_content;
     my @susp_procs  = split /\n/, $susp_procs;
-    my $headerPrint = 0;
+#    my $headerPrint = 0;
     foreach my $suspicious_process (@susp_procs) {
         chomp($suspicious_process);
         next if ( _ignore_susp_proc( $suspicious_process ) );
@@ -898,8 +980,8 @@ sub check_processes {
                 my ( $u, $p, $c ) = (split /\s+/, $line );
                 my ( $a1,$a2,$a3,$a4,$a5,$a6,$a7 ) = (split( /\s+/, $line ))[3,4,5,6,7,8,9];
                 my $a = $a1 . " " . $a2 . " " . $a3 . " " . $a4 . " " . $a5 . " " . $a6 . " " . $a7;
-                push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
-                $headerPrint = 1;
+#                push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
+#                $headerPrint = 1;
                 push @SUMMARY, CYAN expand( "\t\\_ Found suspicious process " . YELLOW $suspicious_process . CYAN " running" );
                 push @SUMMARY, "\t\\_ " . MAGENTA "User: " . YELLOW $u . MAGENTA " / Pid: " . YELLOW $p . MAGENTA " / Command: " . YELLOW $c . MAGENTA " / Arguments: " . YELLOW $a;
                 my $proclink = '/proc/' . $p . '/exe';
@@ -911,6 +993,81 @@ sub check_processes {
         }
     }
     return;
+}
+
+sub check_network_connections {
+    my @ss_out = `ss -tulnp 2>/dev/null`;
+    for my $line (@ss_out) {
+        chomp $line;
+        next unless $line =~ /LISTEN/i;
+        if ($line =~ /0\.0\.0\.0:(\d+)/ || $line =~ /:::(\d+)/) {
+            my $port = $1;
+            my %suspicious_ports = (
+                1234 => 'Possible malware',
+                4444 => 'Metasploit default listener',
+                5555 => 'Android ADB / backdoor',
+                5822 => 'Possible malware',
+                6666 => 'IRC bot / backdoor',
+                6667 => 'IRC bot / backdoor',
+                6668 => 'IRC bot / backdoor',
+                6669 => 'IRC bot / backdoor',
+                8816 => 'Possible malware',
+                8888 => 'Possible malware',
+                25905 => 'Possible malware',
+                31337 => 'Back Orifice / backdoor',
+                44445 => 'WebShell backdoor',
+                27444 => 'Trinoo trojan',
+                27665 => 'Trinoo trojan',
+                61091 => 'Possible malware',
+                65130 => 'Possible malware',
+                65439 => 'Possible malware',
+                65506 => 'Possible backdoor',
+            );
+            if (exists $suspicious_ports{$port}) {
+                push @SUMMARY, "> Found a suspicious port [ $port ] listening $suspicious_ports{$port}";
+            }
+        }
+    }
+}
+
+sub check_for_hidden_processes {
+    my $showHeader=0;
+    my @ps_visible = `ps -eo pid 2>/dev/null`;
+    my %visible;
+    for my $line (@ps_visible) {
+        my $pid = (split ' ', $line)[0];
+        next unless defined $pid && $pid =~ /^\d+$/;
+        $visible{$pid} = 1;
+    }
+    my @proc_dirs;
+    if (opendir my $dh, '/proc') {
+        @proc_dirs = grep { /^\d+$/ } readdir $dh;
+        closedir $dh;
+    }
+    my @hidden;
+    for my $pid (@proc_dirs) {
+        next if $pid == $$;
+        next if $visible{$pid};
+        my $cmdline;
+        if (open my $fh, '<', "/proc/$pid/cmdline") {
+            local $/;
+            $cmdline = <$fh>;
+            close $fh;
+        }
+        $cmdline =~ tr/\0/ / if defined $cmdline;
+        my $comm    = `cat /proc/$pid/comm 2>/dev/null`;
+        chomp $comm;
+        next unless $cmdline || $comm;
+        push @hidden, $pid;
+    }
+    if (@hidden > 0) {
+        push @SUMMARY, "> Found possible hidden process" unless( $showHeader);
+        $showHeader=1;
+        foreach my $hidden(@hidden) {
+            chomp($hidden);
+            push @SUMMARY, expand( "\t\\_ $hidden");
+        }
+    }
 }
 
 sub _ignore_susp_proc {
@@ -1135,6 +1292,71 @@ sub get_ipcs_hash ($) {
     }
 }
 
+sub hash_scan {
+    my $showHeader=0;
+    my %known_hashes = get_hashes();
+    my $serverfiles = Cpanel::SafeRun::Timed::timedsaferun( 0, "find / -maxdepth 5"
+        . " -path /proc -prune"
+        . " -o -path /etc/systemd/system -prune"
+        . " -o -path /var/lib/mysql -prune"
+        . " -o -path /var/cpanel -prune"
+        . " -o -path /var/imunify360/cleanup_storage -prune"
+        . " -o -path /var/log -prune"
+        . " -o -path /var/lve/snapshots -prune"
+        . " -o -path /usr/share/cagefs-skeleton -prune"
+        . " -o -path /dev -prune"
+        . " -o -path /sys -prune"
+        . " -o -path /srv -prune"
+        . " -o -path /run -prune"
+        . " -o -path '/backup*' -prune"
+        . " -o -path '/home*' -prune"
+        . " -o -print"
+    );
+
+    my @serverfiles = split( /\n/, $serverfiles );
+    my $cnt = scalar @serverfiles;
+    print STDERR '|';
+
+    my $found = 0;
+    for my $file (@serverfiles) {
+        chomp $file;
+        next if -l $file;
+        next if -d $file;
+        next unless -f $file;
+        my $hash = eval {
+            open( my $fh, '<:raw', $file ) or die $!;
+            my $sha = Digest::SHA->new(256);
+            $sha->addfile($fh);
+            close($fh);
+            $sha->hexdigest;
+        };
+        if ($@) {
+            next;
+        }
+
+        if ( $known_hashes{ lc $hash } ) {
+            push @SUMMARY, "> Found a system binary with a known suspicious hash (SHA-256)" unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( "\t\\_ File $file matches hash $hash" );
+            $found++;
+        }
+    }
+}
+
+sub check_for_docker_container_escape {
+    if (-f '/.dockerenv' && -f '/proc/1/mountinfo') {
+        if (open my $fh, '<', '/proc/1/mountinfo') {
+            while (<$fh>) {
+                if (m{/docker/overlay|/host_mnt|/var/lib/docker}) {
+                    push @SUMMARY, "> Docker Container has host filesystem mounts (possible escape risk)";
+                    last;
+                }
+            }
+            close $fh;
+        }
+    }
+}
+
 sub timed_run {
     my ( $timer, @PROGA ) = @_;
     $timer = $timer ? $timer : 25;
@@ -1199,6 +1421,13 @@ sub check_preload {
     push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.\n\t\\_ ps output and lsof output may not be conclusive.") if( $libprochider_so );
     push( @SUMMARY, "> Found /opt/injector.so in /etc/ld.so.preload - Possible root-level compromise.") if( $injectorso );
     push( @SUMMARY, "> Found PAM backdoor (QLNX) in /etc/ld.so.preload - Possible root-level compromise.") if( $qlnx_preload );
+    my @env_vars = `cat /proc/\$(pgrep -x httpd nginx lshttpd php-fpm mysqld sshd cron 2>/dev/null | head -5)/environ 2>/dev/null`;
+    for my $env (@env_vars) {
+        chomp $env;
+        if ($env =~ /LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT/) {
+            push( @SUMMARY, "> Found LD_PRELOAD/LD_LIBRARY_PATH set on system process" );
+        }
+    }
 }
 
 sub create_summary {
@@ -1245,10 +1474,6 @@ sub dump_summary {
 
     create_summary();
     if (@SUMMARY) {
-        # Can't recall what this Uniq is for... Removing for now, if it causes an issue I'll address it then.
-        # Right now, it is interfering with the cve checks.
-#        my @UniqSummary = uniq(@SUMMARY);
-#        @SUMMARY = @UniqSummary;
         print_warn('The following negative items were found:');
         foreach (@SUMMARY) {
             print BOLD YELLOW $_ . "\n" unless( $cron );
@@ -1306,11 +1531,6 @@ sub print_header {
     print BOLD CYAN "$text\n" unless( $cron );
 }
 
-sub print_indented {
-    my $text = shift;
-    print BOLD RED "\t$text\n" unless( $cron );
-}
-
 sub print_status {
     my $text = shift;
     print YELLOW "$text\n" unless( $cron );
@@ -1337,7 +1557,6 @@ sub print_recommendations {
 }
 
 sub check_for_cdorked_A {
-    print_indented( "Checking for evidence of cDorked A" );
     return unless defined $HTTPD_PATH;
     return unless -f $HTTPD_PATH;
     my $max_bin_size = 10_485_760;
@@ -1383,7 +1602,6 @@ sub check_for_cdorked_A {
 }
 
 sub check_for_cdorked_B {
-    print_indented( "Checking for evidence of cDorked B" );
     my $has_cdorked_b = 0;
     my @files = ( '/usr/sbin/arpd ', '/usr/sbin/tunelp ', '/usr/bin/s2p ' );
     my $cdorked_files;
@@ -1403,7 +1621,6 @@ sub check_for_cdorked_B {
 }
 
 sub check_for_evasive_libkey {
-    print_indented( "Checking for evidence of evasive libkey" );
     my $EvasiveLibKey = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/etc/ld.so.cache' );
     return unless defined $EvasiveLibKey && length $EvasiveLibKey;
     if ( $EvasiveLibKey =~ m{/tls} ) {
@@ -1412,7 +1629,6 @@ sub check_for_evasive_libkey {
 }
 
 sub check_for_unowned_libkeyutils_files {
-    print_indented( "Checking for evidence of unowned libkeyutil files" );
     return if !$LIBKEYUTILS_FILES_REF;
     my @unowned_libs;
     for my $lib (@$LIBKEYUTILS_FILES_REF) {
@@ -1435,7 +1651,6 @@ sub check_for_unowned_libkeyutils_files {
 }
 
 sub check_for_ebury_ssh_G {
-    print_indented( "Checking for evidence of eBury SSH G" );
     my $ssh = '/usr/bin/ssh';
     return if !-e $ssh;
     return if !-f _;
@@ -1455,7 +1670,6 @@ sub check_for_ebury_ssh_G {
 }
 
 sub check_for_ebury_ssh_shmem {
-    print_indented( "Checking for evidence of eBury SSH shmem" );
     return if !defined( $IPCS_REF->{root}{mp} );
     for my $href ( @{ $IPCS_REF->{root}{mp} } ) {
         my $shmid = $href->{shmid};
@@ -1476,7 +1690,6 @@ sub check_for_ebury_ssh_shmem {
 }
 
 sub check_for_glutton_php {
-    print_indented( "Checking for evidence of glutton PHP backdoor" );
     return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-upnl' );
     for my $line ( split( '\n', $netstat_out ) ) {
@@ -1495,7 +1708,6 @@ sub check_for_glutton_php {
 }
 
 sub check_for_melofee {
-    print_indented( "Checking for evidence of melofee" );
     return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-tpn' );
     for my $line ( split( '\n', $netstat_out ) ) {
@@ -1507,7 +1719,6 @@ sub check_for_melofee {
 }
 
 sub check_for_ebury_socket {
-    print_indented( "Checking for evidence of eBury Socket" );
     return unless has_command('netstat');
     return unless my $netstat_out = Cpanel::SafeRun::Timed::timedsaferun( 0, 'netstat', '-nap' );
     for my $line ( split( '\n', $netstat_out ) ) {
@@ -1519,14 +1730,12 @@ sub check_for_ebury_socket {
 }
 
 sub check_for_ngioweb {
-    print_indented( "Checking for evidence of ngioweb" );
     return if ( !-e "/etc/machine-id" );
     return unless (Cpanel::SafeRun::Timed::timedsaferun( 3, 'grep', 'ddb0b49d10ec42c38b1093b8ce9ad12a', '/etc/machine-id' ) );
     push( @SUMMARY, "Found evidence of Linux.Ngioweb Rootkit\n\t\\_ /etc/machine-id contains: ddb0b49d10ec42c38b1093b8ce9ad12a");
 }
 
 sub check_for_hiddenwasp {
-    print_indented( "Checking for evidence of HiddenWasp Shell" );
     if ( -e ("/lib/libselinux.a") ) {
         my $HideShell = Cpanel::SafeRun::Timed::timedsaferun( 3, 'strings', '/lib/libselinux.a' );
         if ( grep { /HIDE_THIS_SHELL/ } $HideShell ) {
@@ -1534,22 +1743,21 @@ sub check_for_hiddenwasp {
         }
     }
     # Check for specific TCP ports
-    return unless has_command('lsof');
-    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 tcp:6667 tcp:5822 tcp:8888);
-    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', '-P', '-n' );
-    if ( defined $lsof && length $lsof ) {
-        foreach my $port (@ports) {
-            chomp($port);
-            my ( $proto, $portnum ) = split( /:/, $port, 2 );
-            if ( $lsof =~ /\b${portnum}\b/ ) {
-                push @SUMMARY, "> Found socket listening on port $portnum. Could indicate possible root compromise";
-            }
-        }
-    }
+#    return unless has_command('lsof');
+#    my @ports = qw( tcp:61091 tcp:65130 tcp:65439 tcp:1234 tcp:25905 tcp:8816 tcp:4444 tcp:6667 tcp:5822 tcp:8888);
+#    my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 4, 'lsof', '-i', '-P', '-n' );
+#    if ( defined $lsof && length $lsof ) {
+#        foreach my $port (@ports) {
+#            chomp($port);
+#            my ( $proto, $portnum ) = split( /:/, $port, 2 );
+#            if ( $lsof =~ /\b${portnum}\b/ ) {
+#                push @SUMMARY, "> Found socket listening on port $portnum. Could indicate possible root compromise";
+#            }
+#        }
+#    }
 }
 
 sub check_for_fritzfrog {
-    print_indented( "Checking for evidence of FritzFrog Rootkit" );
     return unless has_command('lsof');
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );
     return unless defined $lsof && length $lsof;
@@ -1565,7 +1773,6 @@ sub check_for_fritzfrog {
 }
 
 sub check_for_log4JShell_attempts {
-    print_indented("Checking for evidence of log4JShell attempts");
     my @logs2chk;
     my $regexp = '\$?\{jndi:(ldap|ldaps|rmi|dns):\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}\${lower:a}\${lower:p}:\/[\/]?[a-z-\.0-9].*|\${jndi:\${lower:l}\${lower:d}a\${lower:p}:\/[\/]?[a-z-\.0-9].*';
     @logs2chk = glob( q{ /var/log/nginx/domains/*_log });
@@ -1592,7 +1799,6 @@ sub check_for_log4JShell_attempts {
 }
 
 sub check_for_dirtycow_passwd {
-    print_indented("Checking for evidence of DirtyCow within /etc/passwd");
     return unless my $gecos = ( getpwuid(0) )[6];
     if ( $gecos eq "pwned" ) {
         push( @SUMMARY,
@@ -1626,7 +1832,6 @@ sub check_for_dirtycow_passwd {
 }
 
 sub check_for_dragnet {
-    print_indented( "Checking for evidence of Dragnet Rootkit" );
     my $found = 0;
     if ( open my $fh, '<', '/proc/self/maps' ) {
         while (<$fh>) {
@@ -1645,7 +1850,6 @@ sub check_for_dragnet {
 }
 
 sub check_for_suckit {
-    print_indented( "Checking for evidence of Suckit Rootkit" );
     my $SuckItCount = 0;
     my @dirs =
       qw( /sbin /etc/rc.d/rc0.d /etc/rc.d/rc1.d /etc/rc.d/rc2.d /etc/rc.d/rc3.d /etc/rc.d/rc4.d /etc/rc.d/rc5.d /etc/rc.d/rc6.d /etc/.MG /usr/share/locale/sk/.sk12 /dev/sdhu0/tehdrakg /usr/lib/perl5/site_perl/i386-linux/auto/TimeDate/.packlist /dev/.golf /lib );
@@ -1702,46 +1906,34 @@ sub check_for_suckit {
 }
 
 sub check_authorized_keys_file {
+    @susp_authkeys = get_susp_authkeys();
     my $keysfile = '/root/.ssh/authorized_keys';
     open( my $fh, '<', $keysfile ) or return;
     while( <$fh> ) {
         chomp( $_ );
-        if ( $_ =~ m/REDIS0006 crackitA/ ) {
-            push( @SUMMARY, "> [Possible Rootkit: Redis Hack] - " . CYAN "Evidence of the Redis Hack compromise found in /root/.ssh/authorized_keys.");
-        }
-        if ( $_ =~ m/rbdYSfTEtykGg/ ) {
-            push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Suspicious string [rbdYSfTEtykGg] found within /root/.ssh/authorized_keys.");
-        }
-        if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDSEuS/A5HLzAwCbs+fqxCv1rLZ+x4vCdzcfLppJuCHnD2EO58W4aNDxtn2IBooyr4zylBJrNa64nQ3L7MvxckQMMLWkN6owZPtJs7+BPIsljX+Kz0svqGHDYk5KyQQ+O/uWVUU96X4NkyE4BxeQnH6jCYw2FCcnudsS5GLseBUozQvQlQEErRq3ma3skzZGB4kOq6He7ksaEUFjzgyfAQHzr1hPX5KJ/du4z7fX0KqUphK4AXbPL4Pqkusw4PeQLDjZGO8hRkDMVjnaPNliAS2pV9Guw+L7SLvXGHsz1Q+tT54JaSHkJoN6a0lJ/L3IehVTi/ZLLh4GgZ1WpWH7EqL" ) {
-            push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
-        }
-        if ( $_ eq "AAAAB3NzaC1yc2EAAAADAQABAAACAQC/yU0iqklqw6etPlUon4mZzxslFWq8G8sRyluQMD3i8tpQWT2cX/mwGgSRCz7HMLyxt87olYIPemTIRBiyqk8SLD3ijQpfZwQ9vsHc47hdTBfj89FeHJGGm1KpWg8lrXeMW+5jIXTFmEFhbJ18wc25Dcds4QCM0DvZGr/Pg4+kqJ0gLyqYmB2fdNzBcU05QhhWW6tSuYcXcyAz8Cp73JmN6TcPuVqHeFYDg05KweYqTqThFFHbdxdqqrWy6fNt8q/cgI30NBa5W2LyZ4b1v6324IEJuxImARIxTc96Igaf30LUza8kbZyc3bewY6IsFUN1PjQJcJi0ubVLyWyyJ554Tv8BBfPdY4jqCr4PzaJ2Rc1JFJYUSVVT4yX2p7L6iRpW212eZmqLMSoR5a2a/tO2s1giIlb+0EHtFWc2QH7yz/ZBjnun7opIoslLVvYJ9cxMoLeLr5Ig+zny+IEA3x090xtcL62X0jea6btVnYo7UN2BARziisZze6oVuOTCBijuyvOM6ROZ6s/wl4CQAOSLDeFIP5L1paP9V1XLaYLDBAodNaUPFfTxggH3tZrnnU8Dge5/1JNa08F3WNUPM1S1x8L2HMatwc82x35jXyBSp3AMbdxMPhvyYI8v2J1PqJH8OqGTVjdWe40mD2osRgLo1EOfP/SFBTD5VEo95K2ZLQ==" ) {
-            push( @SUMMARY, "> Possible Ebury Rootkit: - " . CYAN "Suspicious ssh-rsa key found in /root/.ssh/authorized_keys file.");
-        }
-        if ( $_ eq "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCzml2PeIHOUG+78TIk0lQcR5JC/mlDElDtplEfq8KDiJFwD8z9Shhk2kG0pwzw9uUr7R24h8lnh9DWpiKfoy4MeMFrTO8akT1hXf4yn9IEEHdiq9hVz1ZkEnUdjyzuvXGIOcRe2FqQaovFY15gSDZzJc5K6NMT8uW1aitHAsYXZDW8uh+/SJAqcCCVUtVnZRj4nlhQxW2810CJGQQrixkkww7F/9XRlddH3HkNuRlZLQMk5oGHTxeySKKfqoAoXgZXac9VBAPRUU+0PrBrOSWlXFbGBPJSdvDfxBqcg4hguacD1EW0/5ORR7Ikp1i6y+gIpdydwxW51yAqrYqHI5iD" ) {
-            push( @SUMMARY, "> [Possible Rootkit] - " . CYAN "Suspicious ssh-rsa key found within /root/.ssh/authorized_keys.");
-        }
-        if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC\/2CmHl\/eiVchVmng4TEPAx0n0\+6R0Rb\/W\+zlwCR\+\/g3MHqsiadebQx4/ ) {
-            push( @SUMMARY, "> [Possible p2pinfect Rootkit] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
-        }
-        if ( $_ =~ m/AAAAB3NzaC1yc2EAAAADAQABAAABgQDtlkWJzOwt6Erl3lDRq\+QUSop854X\/tC9BcU0bBk\+5qLvPAU\/FIsQmIPGjW5xNa/ ) {
-            push( @SUMMARY, "> [NoaBot SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
-        }
-        if ( $_ =~ m/AAAAB3NzaC1yc2EAAAABJQAAAQEAoBjnno5GBoIuIYIhrJsQxF6OPHtAbOUIEFB\+gdfb1tUTjs\+f9zCMGkmNmH45fYVukw6IwmhTZ/ ) {
-            push( @SUMMARY, "> [Mexals SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
-        }
-        if ( $_ =~ m/ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuhPmv3xdhU7JbMoc\/ecBTDxiGqFNKbe564p4aNT6JbYWjNwZ5z6E4iQQDQ0bEp7uBtB0/ ) {
-            push( @SUMMARY, "> [dhcpd cryptominer SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
-        }
-        if ( $_ =~ m/MIIJrTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQI8vKBZRGKsHoCAggA|MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAECBBBC3juWsJ7DsDd2wH2XI+vUBIIJ|UCQ2viiVV8pk3QSUOiwionAoe4j4cBP3Ly4TQmpbLge9zRfYEUVe4LmlytlidI7H|O+bWbjqkvRXT9g\/SELQofRrjw\/W2ZqXuWUjhuI9Ruq0qYKxCgG2DR3AcqlmOv54g/ ) {
-            push( @SUMMARY, "> [Outlaw cryptominer SSH key detected] - " . CYAN "Suspicious ssh-key found within /root/.ssh/authorized_keys.");
+        my $found = look_for_key($_);
+        if ( $found ) {
+            push @SUMMARY, "> Found a suspicious autheky within $keysfile: $_";
         }
     }
     close($fh);
 }
 
+sub get_susp_authkeys {
+    open( my $fh, '<', 'suspicious_authkeys.txt' );
+    my @susp_files = <$fh>;
+    close( $fh );
+    return @susp_files;
+}
+
+sub look_for_key {
+    my $key=shift;
+    my $found = grep { /$key/ } @susp_authkeys;
+    return 1 if ( $found );
+    return 0;
+}
+
 sub check_for_linux_lady {
-    print_indented( "Checking for evidence of Linux Lady Rootkit" );
     return unless has_command('lsof');
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 2, 'lsof', '-i', 'tcp:6379' );
     return unless defined $lsof && length $lsof;
@@ -1757,7 +1949,6 @@ sub check_for_linux_lady {
 }
 
 sub check_for_twink {
-    print_indented( "Checking for evidence of Twink" );
     return unless has_command('lsof');
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 2, 'lsof', '-i', 'tcp:322' );
     return unless( $lsof );
@@ -1772,7 +1963,6 @@ sub check_for_twink {
 }
 
 sub check_for_libkeyutils_symbols {
-    print_indented( "Checking for evidence of libkeyutils symbols" );
     local $ENV{'LD_DEBUG'} = 'symbols';
     my $output = timed_run( 0, '/bin/true' );
     return unless $output;
@@ -1786,39 +1976,6 @@ sub check_for_libkeyutils_symbols {
 }
 
 sub all_malware_checks {
-    check_for_linux_lady();
-    check_for_twink();
-    check_for_cronRAT();
-    check_for_ncom_rootkit();
-    check_env_for_susp_vars();
-    check_for_perfcc();
-    check_for_xbash();
-    check_for_cdorked_A();
-    check_for_cdorked_B();
-    check_for_suckit();
-    check_authorized_keys_file();
-    check_for_libkeyutils_symbols();
-    check_for_unowned_libkeyutils_files();
-    check_for_evasive_libkey();
-    check_for_ebury_ssh_G();
-    check_for_ebury_ssh_shmem();
-    check_for_melofee();
-    check_for_glutton_php();
-    check_for_ebury_socket();
-    check_for_dragnet();
-    check_for_exim_vuln();
-    check_for_hiddenwasp();
-    check_for_fritzfrog();
-    check_for_ngioweb();
-    check_for_dirtycow_passwd();
-    check_for_lilocked_ransomware();
-    check_for_filenew_ransomware();
-    check_for_sorry_ransomware();
-    check_for_sedexp();
-    check_for_junglesec();
-    check_for_panchan();
-    check_for_chaos();
-    check_for_pack2theroot();
 }
 
 sub get_httpd_path {
@@ -1868,6 +2025,31 @@ sub spin {
     $spincounter = ( !defined $spincounter ) ? '|' : $spinner{$spincounter};
     print STDERR "\b$spincounter";
     print STDERR "\b";
+}
+
+sub run_with_spinner {
+    my ($label, $coderef) = @_;
+    return $coderef->() unless -t STDOUT;
+    my $pid = fork;
+    return $coderef->() if !defined $pid;
+    if ($pid == 0) {
+        $| = 1;
+        my @chars = qw(| / - \\);
+        my $i = 0;
+        while (1) {
+            print YELLOW "\r [ $chars[$i] ] $label...";
+            $i = ($i + 1) % @chars;
+            select(undef, undef, undef, 0.15);
+        }
+        exit;
+    }
+    $| = 1;
+    my $result = $coderef->();
+    kill 'TERM', $pid;
+    waitpid($pid, 0);
+    print "\r  \r";
+    print_header( " [ $checkmark " . BRIGHT_CYAN "] " . GREEN "$label....");
+    return $result;
 }
 
 sub userscan {
@@ -1928,6 +2110,38 @@ sub userscan {
         }
     }
 
+    # check for suspicious PHP files
+    # RIGHT HERE
+    print_status("Checking for suspicious PHP files...");
+    my $files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'f', '-name', '*.php', '-newer', '/etc/passwd', '-size', '-500k' );
+    my @files = split /\n/, $files;
+    my %bad_php_patterns = (
+            eval_encoded => qr/eval\s*\(\s*base64_decode/i,
+            system_cmd   => qr/system\s*\(\s*\$_|shell_exec\s*\(\s*\$_|passthru\s*\(\s*\$_|exec\s*\(\s*\$_/i,
+            file_manip   => qr/file_put_contents\s*\(\s*\$_|fwrite\s*\(\s*\$_|move_uploaded_file/i,
+            obfuscated   => qr/gzinflate|str_rot13|preg_replace.*\/e|create_function.*\$/i,
+            backconnect  => qr/fsockopen|pfsockopen|stream_socket_client.*tcp/i,
+            c99_shell    => qr/c99|c100|r57|shell\.php|cmd\.php|wso|webshell/i,
+    );
+    my $showHeader=0;
+    for my $f (@files) {
+        chomp $f;
+        next unless $f;
+        next unless -f $f && -r _;
+        if (open my $fh, '<', $f) {
+            my $content = do { local $/; <$fh> };
+            close $fh;
+            for my $type (keys %bad_php_patterns) {
+                if ($content =~ $bad_php_patterns{$type}) { 
+                    push @SUMMARY, "> Found possible suspicious PHP file " . CYAN "Could be false-positive [Please check]" unless( $showHeader );
+                    $showHeader=1;
+                    push @SUMMARY, expand( WHITE "\t\\_ $f [ " . YELLOW $type . " ]");
+                    last;
+                }
+            }
+        }
+    }
+
     # Check users crontab for suspicious entries.
     my @susp_cron_strings;
     my $susp_crons_ref = get_suspicious_cron_strings();
@@ -1935,10 +2149,24 @@ sub userscan {
     print_status( "Checking crontab for user: $lcUserToScan" );
     my $usercrontab = Cpanel::SafeRun::Errors::saferunnoerror( 3, 'crontab', '-l', '-u', "$lcUserToScan" );
     my @usercrontab = split /\n/, $usercrontab;
+    my %suspicious_cron = (
+        downloads    => qr/\b(wget|curl)\b.*\|\s*(bash|sh|perl|python)/i,
+        execution    => qr/(?:base64|xxd)\s+.*-d/i,
+        c2           => qr/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}.*(?:bash|sh|perl|curl|wget)/i,
+        persistence  => qr/^\s*\@reboot\s+(?:bash|sh|perl|python)\s+\/tmp/i,
+    );
+
     foreach my $susp_cron_string (@susp_cron_strings) {
         chomp($susp_cron_string);
         foreach my $crontab_line (@usercrontab) {
             chomp($crontab_line);
+            next if $crontab_line =~ /^#/ || $crontab_line =~ /^\s*$/;
+            for my $type (keys %suspicious_cron) {
+                if ($crontab_line =~ $suspicious_cron{$type}) {
+                    push @SUMMARY, "> Suspicious cron found for $lcUserToScan: $crontab_line";
+                    last;
+                }
+            }
             next unless( $crontab_line =~ m{$susp_cron_string} );
             my $isCommented = ( substr( $crontab_line,0,1) eq "#" ) ? 1 : 0;
             my ($cmd) = (split( /\s+/, $crontab_line))[5];
@@ -1957,7 +2185,6 @@ sub userscan {
             }
         }
     }
-
     # Check for shadow.roottn.bak hack variants
     print_status("Checking for shadow.roottn.bak hack variants...");
     my $shadow_roottn_baks = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/etc", '-name', 'shadow\.*', '-print' ) unless ( !-d "$RealHome/etc" );
@@ -2378,7 +2605,8 @@ sub userscan {
         logit("Running a user scan for $lcUserToScan");
         my $yara_available = check_for_yara();
         if ($yara_available) {
-            my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
+            #my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
+            my @yara_urls = qw( https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
             print_header("Downloading yara rules to $csidir");
             my @data;
             for my $URL (@yara_urls) {
@@ -2616,7 +2844,6 @@ sub check_for_symlinks {
 }
 
 sub check_for_sedexp {
-    print_indented("Checking for evidence of sedexp malware");
     my $find_sedexp=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udef/*' );
     return unless( $find_sedexp );
     push( @SUMMARY, YELLOW "> Found possible sedexp malware in /lib/udev directory");
@@ -2667,16 +2894,16 @@ sub check_xframe_content_headers {
     }
 }
 
-sub security_advisor {
-    unlink("/var/cpanel/security_advisor_history.json") if ( -e ("/var/cpanel/security_advisor_history.json") );
-    my $SecAdvisor = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/check_security_advice_changes' );
-    my @SecAdvisor = split /\n/, $SecAdvisor;
-    push( @RECOMMENDATIONS, YELLOW "> " . MAGENTA "\t============== SECURITY ADVISOR RESULTS ===============" );
-    foreach my $SecAdvLine(@SecAdvisor) {
-        next if( $SecAdvLine =~ m{High|Info|Advice|Type|Module|Medium} );
-        push( @RECOMMENDATIONS, BOLD CYAN $SecAdvLine . "\n" ) unless ( $SecAdvLine eq "" );
-    }
-}
+#sub security_advisor {
+    #unlink("/var/cpanel/security_advisor_history.json") if ( -e ("/var/cpanel/security_advisor_history.json") );
+    #my $SecAdvisor = Cpanel::SafeRun::Timed::timedsaferun( 0, '/usr/local/cpanel/scripts/check_security_advice_changes' );
+    #my @SecAdvisor = split /\n/, $SecAdvisor;
+    #push( @RECOMMENDATIONS, YELLOW "> " . MAGENTA "\t============== SECURITY ADVISOR RESULTS ===============" );
+    #foreach my $SecAdvLine(@SecAdvisor) {
+        #next if( $SecAdvLine =~ m{High|Info|Advice|Type|Module|Medium} );
+        #push( @RECOMMENDATIONS, BOLD CYAN $SecAdvLine . "\n" ) unless ( $SecAdvLine eq "" );
+    #}
+#}
 
 sub check_for_deprecated {
     my $deprecated;
@@ -2759,12 +2986,98 @@ sub misc_checks {
             $fullpath = $dir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-                push( @SUMMARY,
-"> Suspicious file found: possible bitcoin miner\n\t\\_ $fullpath"
-                );
+                push( @SUMMARY, "> Suspicious file found: possible bitcoin miner\n\t\\_ $fullpath");
                 vtlink($fullpath);
                 last;
             }
+        }
+    }
+
+    @dirs  = qw( /dev/.udev /dev/.mdstat /dev/.mount );
+    for my $dir (@dirs) {
+        next if !-e $dir;
+        push( @SUMMARY, "> Suspicious directory found: $dir [Possible rootkit]");
+    }
+
+    # First check if CONFIG_KALLSYMS is configured, skip this check if it isn't (Ubuntu??)
+    #my $uname = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
+    #chomp($uname);
+    #my $kallsyms_installed = Cpanel::SafeRun::Timed::timedsaferun( 0, 'cat', "/boot/config-$uname" );
+    #my @kallsyms_installed = split /\n/, $kallsyms_installed;
+    #unless( grep { /is not set/ } @kallsyms_installed ) {
+    if ( -d '/proc/kallsyms' ) {
+        my $sys_fs = Cpanel::SafeRun::Timed::timedsaferun( 0, 'ls', '-la', '/sys/kernel/notes', ' 2>/dev/null' );
+        my @sys_fs = split /\n/, $sys_fs;
+        my $kallsyms = Cpanel::SafeRun::Timed::timedsaferun( 0, 'cat', '/proc/kallsyms', ' 2>/dev/null' );
+        my @kallsyms = split /\n/, $kallsyms;
+        if (!@kallsyms) {
+            push( @SUMMARY, "> Cannot read /proc/kallsyms (may be hidden by LKM rootkit)");
+        }
+        my $kallsyms_count = Cpanel::SafeRun::Timed::timedsaferun( 0, 'cat', '/proc/kallsyms', ' 2>/dev/null' );
+        my @kallsyms_count = split /\n/, $kallsyms_count;
+        $kallsyms_count = @kallsyms_count;
+        chomp $kallsyms_count;
+        if ($kallsyms_count < 100) {
+            push( @SUMMARY, "> Suspiciously few symbols in /proc/kallsyms ($kallsyms_count) - possible LKM rootkit");
+        }
+    }
+
+    my @modules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
+    my %bad_modules = (
+        'hide_proc' => qr/hide_proc|hide_pid|cleaner|kbeast|kldd|suterusu|diamorphine/i,
+        'rootkit'   => qr/knark|adore|enyelkm|allroot|modhide/i,
+    );
+    shift @modules;
+    for my $line (@modules) {
+        chomp $line;
+        my $mod = (split /\s+/, $line)[0] or next;
+        for my $type (keys %bad_modules) {
+            if ($mod =~ $bad_modules{$type}) {
+                push( @SUMMARY, "> Suspicious kernel module loaded: $mod ($type)");
+            }
+        }
+    }
+
+    my $modules_ref = Cpanel::SafeRun::Timed::timedsaferun( 0, 'cat', '/proc/modules', ' 2>/dev/null' );
+    my @modules_ref = split /\n/, $modules_ref;
+    my $lsmod_ref = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
+    my @lsmod_ref = split /\n/, $lsmod_ref;
+    # lsmod includes a header line; /proc/modules does not
+    splice( @lsmod_ref, 0, 1 );
+    $modules_ref = @modules_ref;
+    $lsmod_ref = @lsmod_ref;
+    if ($modules_ref ne $lsmod_ref) {
+        push( @SUMMARY, "> Mismatch between /proc/modules and lsmod - possible module hiding detected");
+    }
+
+    my $ww = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/etc', '/bin', '/sbin', '/usr/bin', '/usr/sbin', '-type f', '-perm', '-o+w' );
+    my @ww = split /\n/, $ww;
+    for my $f (@ww) {
+        chomp $f;
+        next unless $f;
+        push( @SUMMARY, "> World-writeable system file [ $f ] found!");
+    }
+
+    if ( -d '/etc/systemd/system' ) {
+        if (opendir my $dh, '/etc/systemd/system') {
+            for my $entry (readdir $dh) {
+                next if $entry eq '.' || $entry eq '..' || $entry !~ /\.service$/;
+                my $path = "/etc/systemd/system/$entry";
+                if (open my $fh, '<', $path) {
+                    my $content = do { local $/; <$fh> };
+                    close $fh;
+                    if ($content =~ /ExecStart\s*=\s*(\S+)/) {
+                        my $bin = $1;
+                        if ($bin =~ /\/tmp\/|\/var\/tmp\/|\/dev\/shm\/|\.\/\w+/) {
+                            push( @SUMMARY, "> Found service $entry runs from suspicious path: $bin");
+                        }
+                        if ($bin =~ /wget|curl|base64|python.*-c|perl.*-e/) {
+                            push( @SUMMARY, "> Found service $entry ExecStart contains suspicious command: $bin");
+                        }
+                    }
+                }
+            }
+            closedir $dh;
         }
     }
 
@@ -2836,6 +3149,7 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
+                # RIGHT HERE add new cron checks
                 foreach my $susp_cron_string (@susp_cron_strings) {
                     chomp($susp_cron_string);
                     if ( $_ =~ m{$susp_cron_string} ) {
@@ -3047,7 +3361,6 @@ sub chk_shadow_hack {
 }
 
 sub check_for_exim_vuln {
-    print_indented( "Checking for evidence of Exim Vulnerability" );
     my $chk_eximlog;
     $chk_eximlog = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', '\${run', '/var/log/exim_mainlog' ) unless( ! -e '/var/log/exim_mainlog' );;
     $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.1.gz' ) unless( ! -e '/var/log/exim_mainlog.1.gz' );
@@ -3196,28 +3509,6 @@ sub get_cron_files {
     }
     return @cronlist;
 }
-
-#sub check_for_cpsess_hacks {
-# WAS INFORMED THAT THIS CHECK IS NOT RELIABLE!!
-#    open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
-#    my @ACCESSLOG = <ACCESSLOG>;
-#    close(ACCESSLOG);
-#    my $accessline;
-#    my @Success;
-#
-#    foreach $accessline (@ACCESSLOG) {
-#        chomp($accessline);
-#        my ( $ipaddr, $user, $date, $hascpsess, $status, $cmd ) = ( split( /\s+/, $accessline ) )[ 0, 2, 3, 6, 8, 11 ];
-#        if ( $hascpsess =~ m/cpsess[0-9]{10}.*/ and $hascpsess =~ m/myprivs/ and $status eq "200" and $cmd =~ m/python-requests\/2.28.1/ ) {
-#            push( @Success, CYAN "\t\\_ $ipaddr - $user - $date - $hascpsess - $status - $cmd" );
-#        }
-#    }
-#    if ( @Success ) {
-#        my $showHeader=0;
-#        push ( @SUMMARY, "> Found suspicious entries in /usr/local/cpanel/logs/access_log file:" ) unless ( $showHeader );
-#        push( @SUMMARY, @Success );
-#    }
-#}
 
 sub get_last_logins_WHM {
     my $lcUser = shift;
@@ -3517,7 +3808,6 @@ sub get_conf {
 }
 
 sub check_for_lilocked_ransomware {
-    print_indented("Checking for evidence of lilocked ransomware");
     my $lilockedFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.lilocked", '-print' );
     my @lilockedFound = split /\n/, $lilockedFound;
     if ($lilockedFound) {
@@ -3530,7 +3820,6 @@ sub check_for_lilocked_ransomware {
 }
 
 sub check_for_filenew_ransomware {
-    print_indented("Checking for evidence of filenew ransomware");
     my $filenewFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.filenew", '-print' );
     my @filenewFound = split /\n/, $filenewFound;
     if ($filenewFound) {
@@ -3547,7 +3836,6 @@ sub check_for_filenew_ransomware {
 }
 
 sub check_for_sorry_ransomware {
-    print_indented("Checking for evidence of .sorry ransomware");
     my $sorryfound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.sorry", '-print' );
     my @sorryfound = split /\n/, $sorryfound;
     my $max_detected=5;
@@ -3763,7 +4051,6 @@ sub get_api_tokens {
 }
 
 sub check_for_junglesec {
-    print_indented("Checking for evidence of junglesec ransomware");
     if ( has_command('iptables') ) {
         my $iptables_rules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'iptables', '-L', '-n' );
         my @iptables_rules = split /\n/, $iptables_rules;
@@ -3783,7 +4070,6 @@ sub check_for_junglesec {
 }
 
 sub check_for_chaos {
-    print_indented("Checking for evidence of Chaos Rootkit");
     my $uname_output = Cpanel::SafeRun::Timed::timedsaferun( 4, 'uname', '-a' );
     return unless( $uname_output =~ m/获取失败/ );
     push( @SUMMARY, "> Found possible evidence of Chaos Rootkit" );
@@ -3791,7 +4077,6 @@ sub check_for_chaos {
 }
 
 sub check_for_pack2theroot {
-    print_indented("Checking for evidence of Pack2TheRoot Malware");
     my $check_for_packagekit = Cpanel::SafeRun::Timed::timedsaferun( 0, 'journalctl', '--no-pager', '-u', 'packagekt' );
     my @check_for_packagekit = split /\n/, $check_for_packagekit;
     my $showHeader=0;
@@ -3805,7 +4090,6 @@ sub check_for_pack2theroot {
 }
 
 sub check_for_panchan {
-    print_indented("Checking for evidence of panchan botnet");
     my $persist=0;
     my $binary=0;
     my $listening_port=0;
@@ -4329,7 +4613,6 @@ sub get_whmapi1 {
 }
 
 sub check_for_ncom_rootkit {
-    print_indented( "Checking for evidence of NCOM Rootkit" );
     return if !-e "/etc/ld.so.preload";
     return if -e "/lib/libgrubd.so";
     my @strings =
@@ -4351,7 +4634,6 @@ expand( "\t\\_ /etc/ld.so.preload contains evidence of NCOM rootkit [ "
 }
 
 sub check_env_for_susp_vars {
-    print_indented( "Checking for evidence of suspicious environment variables" );
     my $env_output = Cpanel::SafeRun::Timed::timedsaferun( 0, 'env' );
     return unless defined $env_output && length $env_output;
     my @env = split /\n/, $env_output;
@@ -4370,7 +4652,6 @@ sub check_env_for_susp_vars {
 }
 
 sub check_for_perfcc {
-    print_indented( "Checking for evidence of perfcc" );
     my $maxdepth=5;
     my @suspfound;
     my @patterns = (
@@ -4394,7 +4675,6 @@ sub check_for_perfcc {
 }
 
 sub check_for_xbash {
-    print_indented( "Checking for evidence of XBASH (MySQL Ransomware)" );
     return if( ! -f '/etc/my.cnf' );
     my $XBash_Table;
     my $RansomwareNote;
@@ -4435,11 +4715,25 @@ sub check_for_xbash {
 }
 
 sub check_for_cronRAT {
-    print_indented( "Checking for evidence of cronRAT" );
-
     # check for evidence of cronRAT - https://sansec.io/research/cronrat
     my @dirs = qw( /dev/shm /tmp /var/tmp );
-    my @files = qw( www-shared server-worker-shared sql-shared php-shared systemd-user.lock php.lock php-fpm.lock www-server.lock php_sess_RANDOM zend_cache___RANDOM php_cache www_cache worker_cahce logo_edited_DATE.png user_edited_DATE.css custom_edited_DATE.css );
+    my @files = qw( www-shared
+        server-worker-shared
+        sql-shared
+        php-shared
+        systemd-user.lock
+        php.lock
+        php-fpm.lock
+        www-server.lock
+        php_sess_RANDOM
+        zend_cache___RANDOM
+        php_cache
+        www_cache
+        worker_cahce
+        logo_edited_DATE.png
+        user_edited_DATE.css
+        custom_edited_DATE.css
+    );
     # Yes, the misspelling of worker_cahce is intentional :)
     my $fullpath;
     my $fullstat;
@@ -4461,6 +4755,24 @@ sub check_for_cronRAT {
                 push @SUMMARY, expand( "\t\\_ See: https://sansec.io/research/cronrat" ) unless( $showHeader );
                 $showHeader=1;
                 push @SUMMARY, expand( CYAN "\t \\_ " . $fullpath . " exists" ) unless ( !$fullpath );
+            }
+        }
+        for my $dir (@dirs) {
+            next unless -d $dir;
+            my @files;
+            if (opendir my $dh, $dir) {
+                @files = readdir $dh;
+                closedir $dh;
+            }
+            for my $f (@files) {
+                next if $f eq '.' || $f eq '..';
+                my $path = "$dir/$f";
+                if (-f $path && -x _ && $f =~ /^\./ && $f !~ /^\.font/) {
+                    push @SUMMARY, "> Hidden executable in $dir";
+                }
+                if (-x $path && $f =~ /                                                                  ^(kworker|xenbus|kswapd|watchdog|crypt|httpd|nginx|mysqld|php|perl|python)$/) {
+                    push @SUMMARY, "> Masquerading process binary in $dir: $f";
+                }
             }
         }
     }
@@ -4564,45 +4876,45 @@ sub check_for_cve_vulnerabilities {
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
         next unless( ! $found_in_changelog );
 
-    	my $op1='>';
-    	chomp($pkgver);
-    	if ( $pkg =~ m{openssl} && $pkgver < 3) {
-        	$pkgver=$digitpkgver;
-    	}
-    	my $vercmp = ( version_compare( $pkgver, $op1, $patchedver ) ) ? "Yes - Patched" : "No";
-    	next if ( version_compare( $pkgver, $op1, $patchedver ) );
-	
-    	# check to see if version is less than the firstvuln variable
-    	my $op2='>';
-    	chomp($firstvuln);
-    	my $vercmp = ( version_compare( $pkgver, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
-    	next if ( version_compare( $pkgver, $op2, $firstvuln ) );
+        my $op1='>';
+        chomp($pkgver);
+        if ( $pkg =~ m{openssl} && $pkgver < 3) {
+            $pkgver=$digitpkgver;
+        }
+        my $vercmp = ( version_compare( $pkgver, $op1, $patchedver ) ) ? "Yes - Patched" : "No";
+        next if ( version_compare( $pkgver, $op1, $patchedver ) );
+
+        # check to see if version is less than the firstvuln variable
+        my $op2='>';
+        chomp($firstvuln);
+        my $vercmp = ( version_compare( $pkgver, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
+        next if ( version_compare( $pkgver, $op2, $firstvuln ) );
 
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
         push @SUMMARY, expand( CYAN "\t\\_ $pkg is Vulnerable to $cve" );
         push @SUMMARY, expand( GREEN "\t\\_ The following check was used to verify this");
         if ( $distro eq 'ubuntu' ) {
-			if ( $found_in_changelog ) {
-            	if ( -f "/usr/share/doc/$pkg/changelog.Debian.gz" ) {
-                	push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
-            	}
-            	if ( -f "/usr/share/doc/$pkg/CHANGES.gz" ) {
-                	push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/CHANGES.gz");
-            	}
-			}
-			else {
-				push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
-			}
+            if ( $found_in_changelog ) {
+                if ( -f "/usr/share/doc/$pkg/changelog.Debian.gz" ) {
+                    push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/changelog.Debian.gz");
+                }
+                if ( -f "/usr/share/doc/$pkg/CHANGES.gz" ) {
+                    push @SUMMARY, expand( YELLOW "\t\\_ zgrep -E '" . $cve . "' /usr/share/doc/" .  $pkg . "/CHANGES.gz");
+                }
+            }
+            else {
+                push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
+            }
         }
         else {
-			if ( $found_in_changelog ) {
-            	push @SUMMARY, expand( YELLOW "\t\\_ rpm -q " . $pkg . " --changelog | grep -E '" . $cve ."'");
-            	push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
-			}
-			else {
-				push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
-			}
+            if ( $found_in_changelog ) {
+                push @SUMMARY, expand( YELLOW "\t\\_ rpm -q " . $pkg . " --changelog | grep -E '" . $cve ."'");
+                push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
+            }
+            else {
+                push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
+            }
         }
         push @SUMMARY, expand( BOLD BLUE "\t-----" );
     }
@@ -5138,9 +5450,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 =item --symlink - Includes a check for symlink hacks during scan.
 
-=item --secadv - Includes Security Advisor Results during scan.
-
-=item --full - Performs a full scan including symlink and secadv & Yara scan.
+=item --full - Performs a full scan including symlink and Yara scan.
 
 =item --yarascan - Skips confirmation during --full scan. CAUSES HIGH LOAD!!!
 
