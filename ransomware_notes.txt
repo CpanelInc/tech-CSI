@@ -19,8 +19,6 @@ ReadDecryptFilesHere.txt
 Coin.Locker.txt
 _secret_code.txt
 About_Files.txt
-Read.txt
-ReadMe.txt
 DECRYPT_ReadMe.TXT
 DecryptAllFiles.txt
 FILESAREGONE.TXT
@@ -54,4 +52,3 @@ README_MAORI.txt
 read-me3.txt
 HOW_RETURN_YOUR_DATA.TXT
 ReadMeForDecrypt.txt
-README.md

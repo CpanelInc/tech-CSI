@@ -310,3 +310,5 @@ nuclear.x86
 .u[0-9]{6}
 upowered
 exf
+storm
+/tmp/.sshd

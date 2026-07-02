@@ -4597,4 +4597,792 @@ rule RANSOM_ESXiArgs_Ransomware_Encryptor_Feb23 {
         and $help
 }
 
+// For feedback or questions contact us at: github@eset.com
+// https://github.com/eset/malware-ioc/
+//
+// These yara rules are provided to the community under the two-clause BSD
+// license as follows:
+//
+// Copyright (c) 2018, ESET
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice, this
+// list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+
+private rule ssh_client : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH client (ssh)"
+        author = "Marc-Etienne M.Leveille"
+        email  = "leveille@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $usage = "usage: ssh ["
+        $old_version = "-L listen-port:host:port"
+
+    condition:
+        $usage or $old_version
+}
+
+private rule ssh_daemon : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH daemon (sshd)"
+        author = "Marc-Etienne M.Leveille"
+        email  = "leveille@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $usage = "usage: sshd ["
+        $old_version = "Listen on the specified port (default: 22)"
+
+    condition:
+        $usage or $old_version
+}
+
+private rule ssh_add : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH add (ssh-add)"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $usage = "usage: %s [options] [file ...]\n"
+        $log = "Could not open a connection to your authentication agent.\n"
+
+    condition:
+        $usage and $log
+}
+
+private rule ssh_agent : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH agent (ssh-agent)"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $usage = "usage: %s [options] [command [arg ...]]"
+
+    condition:
+        $usage
+}
+
+private rule ssh_askpass : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH daemon (sshd)"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $pass = "Enter your OpenSSH passphrase:"
+        $log = "Could not grab %s. A malicious client may be eavesdropping on you"
+
+    condition:
+        $pass and $log
+}
+
+private rule ssh_keygen : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH keygen (ssh-keygen)"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $pass = "Enter new passphrase (empty for no passphrase):"
+        $log = "revoking certificates by key ID requires specification of a CA key"
+
+    condition:
+        $pass and $log
+}
+
+private rule ssh_keyscan : sshdoor {
+    meta:
+        description = "Signature to match the clean (or not) OpenSSH keyscan (ssh-keyscan)"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $usage = "usage: %s [-46Hv] [-f file] [-p port] [-T timeout] [-t type]"
+
+    condition:
+        $usage
+}
+
+private rule ssh_binary : sshdoor {
+    meta:
+        description = "Signature to match any clean (or not) SSH binary"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+
+    condition:
+        ssh_client or ssh_daemon or ssh_add or ssh_askpass or ssh_keygen or ssh_keyscan
+}
+
+private rule stack_string {
+    meta:
+        description = "Rule to detect use of string-stacking"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        // single byte offset from base pointer
+        $bp = /(\xC6\x45.{2}){25}/
+        // dword ss with single byte offset from base pointer
+        $bp_dw = /(\xC7\x45.{5}){20}/
+        // 4-bytes offset from base pointer
+        $bp_off = /(\xC6\x85.{5}){25}/
+        // single byte offset from stack pointer
+        $sp = /(\xC6\x44\x24.{2}){25}/
+        // 4-bytes offset from stack pointer
+        $sp_off = /(\xC6\x84\x24.{5}){25}/
+
+    condition:
+        any of them
+}
+
+rule abafar {
+    meta:
+        description = "Rule to detect Abafar family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log_c =  "%s:%s@%s"
+        $log_d =  "%s:%s from %s"
+
+    condition:
+        ssh_binary and any of them
+}
+
+rule akiva {
+    meta:
+        description = "Rule to detect Akiva family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = /(To|From):\s(%s\s\-\s)?%s:%s\n/
+
+    condition:
+        ssh_binary and $log
+}
+
+rule alderaan {
+    meta:
+        description = "Rule to detect Alderaan family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = /login\s(in|at):\s(%s\s)?%s:%s\n/
+
+    condition:
+        ssh_binary and $log
+}
+
+rule ando {
+    meta:
+        description = "Rule to detect Ando family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $s1 = "%s:%s\n"
+        $s2 = "HISTFILE"
+        $i = "fopen64"
+        $m1 = "cat "
+        $m2 = "mail -s"
+
+    condition:
+        ssh_binary and all of ($s*) and ($i or all of ($m*))
+}
+
+rule anoat {
+    meta:
+        description = "Rule to detect Anoat family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = "%s at: %s | user: %s, pass: %s\n"
+
+    condition:
+        ssh_binary and $log
+}
+
+rule atollon {
+    meta:
+        description = "Rule to detect Atollon family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $f1 = "PEM_read_RSA_PUBKEY"
+        $f2 = "RAND_add"
+        $log = "%s:%s"
+        $rand = "/dev/urandom"
+
+    condition:
+        ssh_binary and stack_string and all of them
+}
+
+rule batuu {
+    meta:
+        description = "Rule to detect Batuu family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $args = "ssh: ~(av[%d]: %s\n)"
+        $log = "readpass: %s\n"
+
+    condition:
+        ssh_binary and any of them
+}
+
+rule bespin {
+    meta:
+        description = "Rule to detect Bespin family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log1 = "%Y-%m-%d %H:%M:%S"
+        $log2 = "%s %s%s"
+        $log3 = "[%s]"
+
+    condition:
+        ssh_binary and all of them
+}
+
+rule bonadan {
+    meta:
+        description = "Rule to detect Bonadan family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $s1 = "g_server"
+        $s2 = "mine.sock"
+        $s3 = "tspeed"
+        $e1 = "6106#x=%d#%s#%s#speed=%s"
+        $e2 = "usmars.mynetgear.com"
+        $e3 = "user=%s#os=%s#eip=%s#cpu=%s#mem=%s"
+
+    condition:
+        ssh_binary and any of them
+}
+
+rule borleias {
+    meta:
+        description = "Rule to detect Borleias family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = "%Y-%m-%d %H:%M:%S [%s]"
+
+    condition:
+        ssh_binary and all of them
+}
+
+rule chandrila {
+    meta:
+        description = "Rule to detect Chandrila family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = "S%s %s:%s"
+        $magic = { 05 71 92 7D }
+
+    condition:
+        ssh_binary and all of them
+}
+
+rule coruscant {
+    meta:
+        description = "Rule to detect Coruscant family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $s1 = "%s:%s@%s\n"
+        $s2 = "POST"
+        $s3 = "HTTP/1.1"
+
+    condition:
+        ssh_binary and all of them
+}
+
+rule crait {
+    meta:
+        description = "Signature to detect Crait family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $i1 = "flock"
+        $i2 = "fchmod"
+        $i3 = "sendto"
+
+    condition:
+        ssh_binary and 2 of them
+}
+
+rule endor {
+    meta:
+        description = "Rule to detect Endor family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $u = "user: %s"
+        $p = "password: %s"
+
+    condition:
+        ssh_binary and $u and $p in (@u..@u+20)
+}
+
+rule jakuu {
+    meta:
+        description = "Rule to detect Jakuu family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        notes = "Strings can be encrypted"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $dec = /GET\s\/\?(s|c)id=/
+        $enc1 = "getifaddrs"
+        $enc2 = "usleep"
+        $ns = "gethostbyname"
+        $log = "%s:%s"
+        $rc4 = { A1 71 31 17 11 1A 22 27 55 00 66 A3 10 FE C2 10 22 32 6E 95 90 84 F9 11 73 62 95 5F 4D 3B DB DC }
+
+    condition:
+        ssh_binary and $log and $ns and ($dec or all of ($enc*) or $rc4)
+}
+
+rule kamino {
+    meta:
+        description = "Rule to detect Kamino family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $s1 = "/var/log/wtmp"
+        $s2 = "/var/log/secure"
+        $s3 = "/var/log/auth.log"
+        $s4 = "/var/log/messages"
+        $s5 = "/var/log/audit/audit.log"
+        $s6 = "/var/log/httpd-access.log"
+        $s7 = "/var/log/httpd-error.log"
+        $s8 = "/var/log/xferlog"
+        $i1 = "BIO_f_base64"
+        $i2 = "PEM_read_bio_RSA_PUBKEY"
+        $i3 = "srand"
+        $i4 = "gethostbyname"
+
+    condition:
+        ssh_binary and 5 of ($s*) and 3 of ($i*)
+}
+
+rule kessel {
+    meta:
+        description = "Rule to detect Kessel family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $rc4 = "Xee5chu1Ohshasheed1u"
+        $s1 = "ssh:%s:%s:%s:%s"
+        $s2 = "sshkey:%s:%s:%s:%s:%s"
+        $s3 = "sshd:%s:%s"
+        $i1 = "spy_report"
+        $i2 = "protoShellCMD"
+        $i3 = "protoUploadFile"
+        $i4 = "protoSendReport"
+        $i5 = "tunRecvDNS"
+        $i6 = "tunPackMSG"
+
+    condition:
+        ssh_binary and (2 of ($s*) or 2 of ($i*) or $rc4)
+}
+
+rule mimban {
+    meta:
+        description = "Rule to detect Mimban family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $s1 = "<|||%s|||%s|||%d|||>"
+        $s2 = />\|\|\|%s\|\|\|%s\|\|\|\d\|\|\|%s\|\|\|%s\|\|\|%s\|\|\|%s\|\|\|</
+        $s3 = "-----BEGIN PUBLIC KEY-----"
+        $i1 = "BIO_f_base64"
+        $i2 = "PEM_read_bio_RSA_PUBKEY"
+        $i3 = "gethostbyname"
+
+    condition:
+        ssh_binary and 2 of ($s*) and 2 of ($i*)
+}
+
+rule ondaron {
+    meta:
+        description = "Rule to detect Ondaron family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $daemon = "user:password --> %s:%s\n"
+        $client = /user(,|:)(a,)?password@host \-\-> %s(,|:)(b,)?%s@%s\n/
+
+    condition:
+        ssh_binary and ($daemon or $client)
+}
+
+rule polis_massa {
+    meta:
+        description = "Rule to detect Polis Massa family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = /\b\w+(:|\s-+>)\s%s(:%d)?\s\t(\w+)?:\s%s\s\t(\w+)?:\s%s/
+
+    condition:
+        ssh_binary and $log
+}
+
+rule quarren {
+    meta:
+        description = "Rule to detect Quarren family"
+        author = "Hugo Porcher"
+        email  = "hugo.porcher@eset.com"
+        reference = "https://www.welivesecurity.com/wp-content/uploads/2018/12/ESET-The_Dark_Side_of_the_ForSSHe.pdf"
+        date = "2018-12-05"
+        license = "BSD 2-Clause"
+
+    strings:
+        $log = "h: %s, u: %s, p: %s\n"
+
+    condition:
+        ssh_binary and $log
+}
+
+rule M_Hunting_Exploit_Archive_2 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for TAR archives with /tmp/ base64 encoded being part of filename of enclosed files"
+        md5 = "0d67f50a0bf7a3a017784146ac41ada0"
+    strings:
+        $ustar = { 75 73 74 61 72 }
+        $b64_tmp = "/tmp/" base64
+    condition:
+        filesize < 1MB and
+        $ustar at 257 and
+        for any i in (0 .. #ustar) : (
+            $b64_tmp in (i * 512 .. i * 512 + 250)
+        )
+}
+
+rule M_Hunting_Exploit_Archive_3 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for TAR archive with openssl base64 encoded being part of filename of enclosed files"
+        md5 = "0d67f50a0bf7a3a017784146ac41ada0"
+    strings:
+        $ustar = { 75 73 74 61 72 }
+        $b64_openssl = "openssl" base64
+    condition:
+        filesize < 1MB and
+        $ustar at 257 and
+        for any i in (0 .. #ustar) : (
+            $b64_openssl in (i * 512 .. i * 512 + 250)
+        )
+}
+
+rule M_Hunting_Exploit_Archive_CVE_2023_2868 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for TAR archive with single quote/backtick as start of filename of enclosed files. CVE-2023-2868"
+        md5 = "0d67f50a0bf7a3a017784146ac41ada0"
+    strings:
+        $ustar = { 75 73 74 61 72 }
+        $qb = "'`"
+    condition:
+        filesize < 1MB and
+        $ustar at 257 and
+        for any i in (0 .. #ustar) : (
+            $qb at (@ustar[i] + 255)
+        )
+}
+
+rule M_Hunting_Linux_SALTWATER_1 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SALTWATER samples."
+        md5 = "827d507aa3bde0ef903ca5dec60cdec8"
+    strings:
+        $s1 = { 71 75 69 74 0D 0A 00 00 00 33 8C 25 3D 9C 17 70 08 F9 0C 1A 41 71 55 36 1A 5C 4B 8D 29 7E 0D 78 }
+        $s2 = { 00 8B D5 AD 93 B7 54 D5 00 33 8C 25 3D 9C 17 70 08 F9 0C 1A 41 71 55 36 1A 5C 4B 8D 29 7E 0D 78 }
+        $s3 = { 71 75 69 74 0D 0A 00 00 00 12 8D 03 07 9C 17 92 08 F0 0C 9A 01 06 08 00 1A 0C 0B 8D 18 0A 0D 0A }
+    condition:
+        uint32(0) == 0x464c457f and any of them
+}
+
+rule M_Hunting_Linux_SALTWATER_2 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SALTWATER samples."
+        md5 = "827d507aa3bde0ef903ca5dec60cdec8"
+    strings:
+        $c1 = "TunnelArgs"
+        $c2 = "DownloadChannel"
+        $c3 = "UploadChannel"
+        $c4 = "ProxyChannel"
+        $c5 = "ShellChannel"
+        $c6 = "MyWriteAll"
+        $c7 = "MyReadAll"
+        $c8 = "Connected2Vps"
+        $c9 = "CheckRemoteIp"
+        $c10 = "GetFileSize"
+        $s1 = "[-] error: popen failed"
+        $s2 = "/home/product/code/config/ssl_engine_cert.pem"
+        $s3 = "libbindshell.so"
+    condition:
+        uint32(0) == 0x464c457f and (any of ($s*) or 4 of ($c*))
+}
+
+rule FE_Hunting_Linux_Funchook_FEBeta {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in Funchook library - https://github.com/kubo/funchook"
+        md5 = "827d507aa3bde0ef903ca5dec60cdec8"
+    strings:
+        $f = "funchook_"
+        $s1 = "Enter funchook_create()"
+        $s2 = "Leave funchook_create() => %p"
+        $s3 = "Enter funchook_prepare(%p, %p, %p)"
+        $s4 = "Leave funchook_prepare(..., [%p->%p],...) => %d"
+        $s5 = "Enter funchook_install(%p, 0x%x)"
+        $s6 = "Leave funchook_install() => %d"
+        $s7 = "Enter funchook_uninstall(%p, 0x%x)"
+        $s8 = "Leave funchook_uninstall() => %d"
+        $s9 = "Enter funchook_destroy(%p)"
+        $s10 = "Leave funchook_destroy() => %d"
+        $s11 = "Could not modify already-installed funchook handle."
+        $s12 = "  change %s address from %p to %p"
+        $s13 = "  link_map addr=%p, name=%s"
+        $s14 = "  ELF type is neither ET_EXEC nor ET_DYN."
+        $s15 = "  not a valid ELF module %s."
+        $s16 = "Failed to protect memory %p (size=%"
+        $s17 = "  protect memory %p (size=%"
+        $s18 = "Failed to unprotect memory %p (size=%"
+        $s19 = "  unprotect memory %p (size=%"
+        $s20 = "Failed to unprotect page %p (size=%"
+        $s21 = "  unprotect page %p (size=%"
+        $s22 = "Failed to protect page %p (size=%"
+        $s23 = "  protect page %p (size=%"
+        $s24 = "Failed to deallocate page %p (size=%"
+        $s25 = " deallocate page %p (size=%"
+        $s26 = "  allocate page %p (size=%"
+        $s27 = "  try to allocate %p but %p (size=%"
+        $s28 = "  allocate page %p (size=%"
+        $s29 = "Could not find a free region near %p"
+        $s30 = "  -- Use address %p or %p for function %p"
+    condition:
+        uint32(0) == 0x464c457f and (#f > 5 or 4 of ($s*))
+}
+
+rule M_Hunting_Linux_SEASPY_1 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SEASPY samples."
+        md5 = "4ca4f582418b2cc0626700511a6315c0"
+    strings:
+        $s1 = "usage: ./BarracudaMailService <Network-Interface>. e.g.: ./BarracudaMailService eth0"
+        $s2 = "NO port code" 
+        $s3 = "pcap_lookupnet: %s"
+        $s4 = "Child process id:%d"
+        $s5 = "[*]Success!"
+        $s6 = "enter open tty shell..."
+    condition:
+        uint32(0) == 0x464c457f and all of ($s*)
+}
+
+rule M_Hunting_Lua_SEASIDE_1 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SEASIDE samples."
+        md5 = "cd2813f0260d63ad5adf0446253c2172"
+    strings:
+        $s1 = "function on_helo()"
+        $s2 = "local bindex,eindex = string.find(helo,'.onion')" 
+        $s3 = "helosend = 'pd'..' '..helosend" 
+        $s4 = "os.execute(helosend)" 
+    condition:
+        (filesize < 1MB) and all of ($s*)
+}
+
+rule M_Hunting_SKIPJACK_1 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SKIPJACK installation script."
+        md5 = "e4e86c273a2b67a605f5d4686783e0cc"
+    strings:
+        $str1 = "hdr:name() == 'Content-ID'" base64
+        $str2 = "hdr:body() ~= nil" base64
+        $str3 = "string.match(hdr:body(),\"^[%w%+/=\\r\\n]+$\")" base64
+        $str4 = "openssl aes-256-cbc" base64
+        $str5 = "mod_content.lua" 
+        $str6 = "#!/bin/sh" 
+    condition:
+        all of them
+}
+
+rule M_Hunting_Lua_SKIPJACK_2 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SKIPJACK samples."
+        md5 = "87847445f9524671022d70f2a812728f"
+    strings:
+        $str1 = "hdr:name() == 'Content-ID'" 
+        $str2 = "hdr:body() ~= nil" 
+        $str3 = "string.match(hdr:body(),\"^[%w%+/=\\r\\n]+$\")" 
+        $str4 = "openssl aes-256-cbc" 
+        $str5 = "| base64 -d| sh 2>" 
+    condition:
+        all of them
+}
+
+rule M_Hunting_Lua_SEASPRAY_1 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in SEASPRAY samples."
+        md5 = "35cf6faf442d325961935f660e2ab5a0"
+    strings:
+        $str1 = "string.find(attachment:filename(),'obt075') ~= nil" 
+        $str2 = "os.execute('cp '..tostring(tmpfile)..' /tmp/'..attachment:filename())" 
+        $str3 = "os.execute('rverify'..' /tmp/'..attachment:filename())" 
+    condition:
+        all of them
+}
+
+rule M_Hunting_Linux_WHIRLPOOL_1 {
+    meta:
+        author = "Mandiant"
+        description = "Hunting rule looking for strings observed in WHIRLPOOL samples."
+        md5 = "177add288b289d43236d2dba33e65956"
+    strings:
+        $s1 = "error -1 exit" fullword
+        $s2 = "create socket error: %s(error: %d)\n" fullword
+        $s3 = "connect error: %s(error: %d)\n" fullword
+        $s4 = {C7 00 20 32 3E 26 66 C7 40 04 31 00}
+        $c1 = "plain_connect" fullword
+        $c2 = "ssl_connect" fullword
+        $c3 = "SSLShell.c" fullword
+    condition:
+        filesize < 15MB and uint32(0) == 0x464c457f and (all of ($s*) or all of ($c*))
+}
 
