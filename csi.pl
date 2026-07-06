@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.0";
+my $version = "3.6.1";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -14,12 +14,10 @@ use File::Basename;
 use File::Path;
 use File::Find;
 use File::stat;
-#use File::Slurp;
 use IO::Prompt;
 use LWP::UserAgent;
 use DateTime;
 use HTTP::Tiny;
-#use Cpanel::Exception      ();
 use Cpanel::FindBin        ();
 use Cpanel::Version        ();
 use Cpanel::Kernel::Status ();
@@ -385,6 +383,9 @@ sub scan {
     logit("Checking /etc/hosts for suspicious entries");
     run_with_spinner('Checking /etc/hosts file for suspicious entries', \&check_hosts_file);
 
+    logit("Checking /usr/local/cpanel/logs/access_log for cpanel_bulk_injector_hard");
+    run_with_spinner('Checking cPanel Access Log', \&check_for_cpanel_bulk_injector_hard);
+
     logit("Checking for known IoC's");
     run_with_spinner('Checking for Linux Lady', \&check_for_linux_lady);
     run_with_spinner('Checking for Twink', \&check_for_twink);
@@ -414,6 +415,7 @@ sub scan {
     run_with_spinner('Checking for Lilocked Ransomware', \&check_for_lilocked_ransomware);
     run_with_spinner('Checking for FileNew Ransomware', \&check_for_filenew_ransomware);
     run_with_spinner('Checking for Sorry Ransomware', \&check_for_sorry_ransomware);
+    run_with_spinner('Checking for Monti Ransomware', \&check_for_monti_ransomware);
     run_with_spinner('Checking for Sedexp', \&check_for_sedexp);
     run_with_spinner('Checking for JungleSec Ransomware', \&check_for_junglesec);
     run_with_spinner('Checking for PanChan', \&check_for_panchan);
@@ -1004,15 +1006,16 @@ sub check_network_connections {
             my $port = $1;
             my %suspicious_ports = (
                 1234 => 'Possible malware',
-                4444 => 'Metasploit default listener',
+                4444 => 'Metasploit default listener / Malicous NPM Package',
                 5555 => 'Android ADB / backdoor',
                 5822 => 'Possible malware',
                 6666 => 'IRC bot / backdoor',
                 6667 => 'IRC bot / backdoor',
                 6668 => 'IRC bot / backdoor',
                 6669 => 'IRC bot / backdoor',
+                7853 => 'Stealthy Linux Rootkit',
                 8816 => 'Possible malware',
-                8888 => 'Possible malware',
+                8888 => 'Possible malware / Malicous NPM Package',
                 25905 => 'Possible malware',
                 31337 => 'Back Orifice / backdoor',
                 44445 => 'WebShell backdoor',
@@ -2111,7 +2114,6 @@ sub userscan {
     }
 
     # check for suspicious PHP files
-    # RIGHT HERE
     print_status("Checking for suspicious PHP files...");
     my $files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'f', '-name', '*.php', '-newer', '/etc/passwd', '-size', '-500k' );
     my @files = split /\n/, $files;
@@ -2122,6 +2124,7 @@ sub userscan {
             obfuscated   => qr/gzinflate|str_rot13|preg_replace.*\/e|create_function.*\$/i,
             backconnect  => qr/fsockopen|pfsockopen|stream_socket_client.*tcp/i,
             c99_shell    => qr/c99|c100|r57|shell\.php|cmd\.php|wso|webshell/i,
+            gluttonphp   => qr/l0ader_shell/,
     );
     my $showHeader=0;
     for my $f (@files) {
@@ -2844,7 +2847,7 @@ sub check_for_symlinks {
 }
 
 sub check_for_sedexp {
-    my $find_sedexp=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udef/*' );
+    my $find_sedexp=Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-srl', 'sedexp', '/dev/udev/*' );
     return unless( $find_sedexp );
     push( @SUMMARY, YELLOW "> Found possible sedexp malware in /lib/udev directory");
     push( @SUMMARY, expand( "\t\\_ $find_sedexp" ));
@@ -3025,7 +3028,7 @@ sub misc_checks {
     my @modules = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
     my %bad_modules = (
         'hide_proc' => qr/hide_proc|hide_pid|cleaner|kbeast|kldd|suterusu|diamorphine/i,
-        'rootkit'   => qr/knark|adore|enyelkm|allroot|modhide/i,
+        'rootkit'   => qr/knark|adore|enyelkm|allroot|modhide|tracker-fs/i,
     );
     shift @modules;
     for my $line (@modules) {
@@ -3195,18 +3198,18 @@ sub misc_checks {
         }
     }
 
-    my $dhcpd_bin = Cpanel::SafeRun::Timed::timedsaferun( 5, 'ls', '-al', '/bin/' );
-    my @dhcpd_bin = split /\n/, $dhcpd_bin;
-    foreach my $line(@dhcpd_bin) {
+    my $dhpcd_bin = Cpanel::SafeRun::Timed::timedsaferun( 5, 'ls', '-al', '/bin/' );
+    my @dhpcd_bin = split /\n/, $dhpcd_bin;
+    foreach my $line(@dhpcd_bin) {
         chomp($line);
-        push @SUMMARY, "> Found evidence of the dhcpd cryptominer in /bin directory" if ( $line =~ m/\A[a-z0-9]{26}\z/ );
+        push @SUMMARY, "> Found evidence of the dhpcd cryptominer in /bin directory" if ( $line =~ m/\A[a-z0-9]{26}\z/ );
         push @SUMMARY, expand( CYAN "\t\\_ $line" ) if ( $line =~ m/\A[a-z0-9]{26}\z/ );
     }
 
     open( my $fh, '<', '/etc/rc.local' ) || return;
     while ( <$fh> ) {
         chomp;
-        push @SUMMARY, "> Found evidence of the dhcpd cryptominer in the /etc/rc.local file." if ( $_ =~ 'dhcpd' );
+        push @SUMMARY, "> Found evidence of the dhpcd cryptominer in the /etc/rc.local file." if ( $_ =~ 'dhpcd' );
     }
     close( $fh );
 }
@@ -3510,11 +3513,24 @@ sub get_cron_files {
     return @cronlist;
 }
 
+sub check_for_cpanel_bulk_injector_hard {
+    my $showHeader=0;
+    open( my $fh, '<', $ACCESS_LOG );
+    while (<$fh>) {
+        chomp;
+        if ( $_ =~ m{cpanel-bulk-injector-hard} ) {
+            push @SUMMARY, YELLOW "> Found cpanel_bulk_njector_hard Useragent in $ACCESS_LOG" unless( $showHeader );;
+            $showHeader=1;
+            push @SUMMARY, CYAN "\t\\_ $_";
+        }
+    }
+}
+
 sub get_last_logins_WHM {
     my $lcUser = shift;
     my $dt     = DateTime->now;
     my $year   = $dt->year;
-    open( ACCESSLOG, "/usr/local/cpanel/logs/access_log" );
+    open( ACCESSLOG, $ACCESS_LOG );
     my @ACCESSLOG = <ACCESSLOG>;
     close(ACCESSLOG);
     my $accessline;
@@ -3845,6 +3861,21 @@ sub check_for_sorry_ransomware {
         foreach $sorryfound (@sorryfound) {
             chomp($sorryfound);
             push( @SUMMARY, expand( CYAN "\t\\_ $sorryfound" ) ) unless( $cnt >= $max_detected );
+            $cnt++;
+        }
+    }
+}
+
+sub check_for_monti_ransomware {
+    my $montifound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.monti", '-print' );
+    my @montifound = split /\n/, $montifound;
+    my $max_detected=5;
+    my $cnt=0;
+    if ( $montifound ) {
+        push( @SUMMARY, "> Evidence of MONTI ransomware detected. Listing the first " . CYAN $max_detected );
+        foreach $montifound (@montifound) {
+            chomp($montifound);
+            push( @SUMMARY, expand( CYAN "\t\\_ $montifound" ) ) unless( $cnt >= $max_detected );
             $cnt++;
         }
     }
@@ -5196,7 +5227,7 @@ sub check_for_susp_rc_modules {
 }
 
 sub check_for_lkm_rootkits {
-    my @lookfor=qw( reptile_module diamorphine sysinitd );
+    my @lookfor=qw( reptile_module diamorphine sysinitd syslogk );
     my $lsmod=Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsmod' );
     return unless defined $lsmod && length $lsmod;
     my @lsmod=split /\n/,$lsmod;
