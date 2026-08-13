@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.1";
+my $version = "3.6.3";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -36,7 +36,6 @@ use POSIX;
 use Getopt::Long;
 use Path::Iterator::Rule;
 use IO::Socket::INET;
-use IO::Prompt;
 use Term::ANSIColor qw(:constants);
 use Time::Piece;
 use Time::Seconds;
@@ -401,6 +400,7 @@ sub scan {
     run_with_spinner('Checking for libkeyutils symbols', \&check_for_libkeyutils_symbols);
     run_with_spinner('Checking for unowned libkeyutils files', \&check_for_unowned_libkeyutils_files);
     run_with_spinner('Checking for evasive libkey', \&check_for_evasive_libkey);
+    run_with_spinner('Checking for RefluXFS Kernel Privilege Escalation', \&check_for_refluxfs);
     run_with_spinner('Checking for Ebury SSH G', \&check_for_ebury_ssh_G);
     run_with_spinner('Checking for Ebury SSH shmem', \&check_for_ebury_ssh_shmem);
     run_with_spinner('Checking for Mélofée', \&check_for_melofee);
@@ -412,10 +412,7 @@ sub scan {
     run_with_spinner('Checking for FritzFrog', \&check_for_fritzfrog);
     run_with_spinner('Checking for NgioWeb', \&check_for_ngioweb);
     run_with_spinner('Checking for DrtyCow Passwd', \&check_for_dirtycow_passwd);
-    run_with_spinner('Checking for Lilocked Ransomware', \&check_for_lilocked_ransomware);
-    run_with_spinner('Checking for FileNew Ransomware', \&check_for_filenew_ransomware);
-    run_with_spinner('Checking for Sorry Ransomware', \&check_for_sorry_ransomware);
-    run_with_spinner('Checking for Monti Ransomware', \&check_for_monti_ransomware);
+    run_with_spinner('Checking for Lilocked/FileNew/Sorry/Monti Ransomware', \&check_for_ransomware_all);
     run_with_spinner('Checking for Sedexp', \&check_for_sedexp);
     run_with_spinner('Checking for JungleSec Ransomware', \&check_for_junglesec);
     run_with_spinner('Checking for PanChan', \&check_for_panchan);
@@ -525,7 +522,7 @@ sub scan {
     run_with_spinner('Checking /root/.bash_history for TTY shell spawns', \&check_for_TTY_shell_spawns);
 
     logit("Checking /root/.bash_history for anomalies");
-    run_with_spinner('Checking /root/.bash_history for anomalies', \&check_for_TTY_shell_spawns);
+    run_with_spinner('Checking /root/.bash_history for anomalies', \&check_roots_history);
 
     logit("Checking /etc/sudoers file");
     run_with_spinner( 'Checking for non-root users with elevated (ALL) privileges in /etc/sudoers file', \&check_sudoers_file);
@@ -628,17 +625,6 @@ sub scan {
                             push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK|csi.pl/ );
                         }
                     }
-                }
-                sub _ignore {
-                    my $rule2ignore = shift;
-                    my $file2ignore = shift;
-                    if ( $rule2ignore =~ m{} ) {
-                        return 0;
-                    }
-                    if ( $file2ignore =~ m{/usr/local/cpanel/logs/access_log|/root/.bash_history} ) {
-                        return 0;
-                    }
-                    return 1;
                 }
             }
         }
@@ -913,7 +899,6 @@ m/pty.spawn("\/bin\/sh")|pty.spawn\("\/bin\/bash"\)|os.system\('\/bin\/bash'\)|o
 }
 
 sub check_roots_history {
-    print_header('[ Checking /root/.bash_history for anomalies ]');
     my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_history.txt');
     my $ua  = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
     my $res = $ua->get($url);
@@ -1297,7 +1282,7 @@ sub get_ipcs_hash ($) {
 
 sub hash_scan {
     my $showHeader=0;
-    my %known_hashes = get_hashes();
+    my $known_hashes_ref = { map { lc($_) => 1 } @knownhashes };
     my $serverfiles = Cpanel::SafeRun::Timed::timedsaferun( 0, "find / -maxdepth 5"
         . " -path /proc -prune"
         . " -o -path /etc/systemd/system -prune"
@@ -1337,7 +1322,7 @@ sub hash_scan {
             next;
         }
 
-        if ( $known_hashes{ lc $hash } ) {
+        if ( $known_hashes_ref->{ lc $hash } ) {
             push @SUMMARY, "> Found a system binary with a known suspicious hash (SHA-256)" unless( $showHeader );
             $showHeader=1;
             push @SUMMARY, expand( "\t\\_ File $file matches hash $hash" );
@@ -1408,27 +1393,35 @@ sub timed_run {
 }
 
 sub check_preload {
-    my $preload_env = Cpanel::SafeRun::Timed::timedsaferun( 5, 'strings', "/proc/$$/environ | grep _PRELOAD" );
-    push( @SUMMARY, "> Found _PRELOAD within the environment - Possible root-level compromise.") if( $preload_env );
+    my $environ_str = Cpanel::SafeRun::Timed::timedsaferun( 5, 'strings', "/proc/$$/environ" );
+    if ( $environ_str =~ m/_PRELOAD/ ) {
+        push( @SUMMARY, "> Found _PRELOAD within the environment - Possible root-level compromise.") unless( $environ_str =~ m/MODULES_RUN_QUARANTINE=LD_LIBRARY_PATH LD_PRELOAD/ );
+    }
     return unless ( -e ("/etc/ld.so.preload") );
-    my $libcrypt_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/usr/lib64/libcrypt.so.1.1.0', '/etc/ld.so.preload' );
-    my $libconv_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libconv.so', '/etc/ld.so.preload' );
-    my $libs_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib64/libs.so', '/etc/ld.so.preload' );
-    my $libprochider_so = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'libprocesshider', '/etc/ld.so.preload' );
-    my $injectorso = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/opt/injector.so', '/etc/ld.so.preload' );
-    my $libcext_so_2 = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', '/lib*/libcext.so.2', '/etc/ld.so.preload' );
-    my $qlnx_preload = Cpanel::SafeRun::Timed::timedsaferun( 5, 'grep', 'pam_security', '/etc/ld.so.preload' );
-    push( @SUMMARY, "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.") if( $libcrypt_so );
-    push( @SUMMARY, "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libconv_so );
-    push( @SUMMARY, "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.") if( $libs_so );
-    push( @SUMMARY, "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.\n\t\\_ ps output and lsof output may not be conclusive.") if( $libprochider_so );
-    push( @SUMMARY, "> Found /opt/injector.so in /etc/ld.so.preload - Possible root-level compromise.") if( $injectorso );
-    push( @SUMMARY, "> Found PAM backdoor (QLNX) in /etc/ld.so.preload - Possible root-level compromise.") if( $qlnx_preload );
-    my @env_vars = `cat /proc/\$(pgrep -x httpd nginx lshttpd php-fpm mysqld sshd cron 2>/dev/null | head -5)/environ 2>/dev/null`;
-    for my $env (@env_vars) {
-        chomp $env;
-        if ($env =~ /LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT/) {
+    open( my $fh, '<', '/etc/ld.so.preload' ) or return;
+    my $preload_content = do { local $/; <$fh> };
+    close( $fh );
+    my %preload_signatures = (
+        '/usr/lib64/libcrypt.so.1.1.0' => "> Found /usr/lib64/libcrypt.so.1.1.0 in /etc/ld.so.preload - Possible root-level compromise.",
+        'libconv.so'                    => "> Found libconv.so in /etc/ld.so.preload - Possible root-level compromise.",
+        '/lib64/libs.so'                => "> Found /lib64/libs.so in /etc/ld.so.preload - Possible root-level compromise.",
+        'libprocesshider'               => "> Found a libprocesshider.so in /etc/ld.so.preload - Possible root-level compromise.\n\t\\_ ps output and lsof output may not be conclusive.",
+        '/opt/injector.so'              => "> Found /opt/injector.so in /etc/ld.so.preload - Possible root-level compromise.",
+        'pam_security'                  => "> Found PAM backdoor (QLNX) in /etc/ld.so.preload - Possible root-level compromise.",
+    );
+    for my $sig ( keys %preload_signatures ) {
+        push( @SUMMARY, $preload_signatures{$sig} ) if $preload_content =~ /$sig/;
+    }
+    my @procs = qw( httpd nginx lshttpd php-fpm mysqld sshd cron );
+    my $pgrep_out = Cpanel::SafeRun::Timed::timedsaferun( 5, 'pgrep', '-x', @procs );
+    return unless $pgrep_out;
+    my @pids = split /\n/, $pgrep_out;
+    for my $pid ( @pids[0..4] ) {
+        next unless $pid;
+        my $env_out = Cpanel::SafeRun::Timed::timedsaferun( 3, 'cat', "/proc/$pid/environ" );
+        if ( $env_out =~ /LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT/ ) {
             push( @SUMMARY, "> Found LD_PRELOAD/LD_LIBRARY_PATH set on system process" );
+            last;
         }
     }
 }
@@ -1923,10 +1916,12 @@ sub check_authorized_keys_file {
 }
 
 sub get_susp_authkeys {
-    open( my $fh, '<', 'suspicious_authkeys.txt' );
-    my @susp_files = <$fh>;
-    close( $fh );
-    return @susp_files;
+    my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_authkeys.txt');
+    my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 0 } );
+    my $res       = $ua->get($url);
+    my $susp_authkeys = $res->decoded_content;
+    my @susp_authkeys = split /\n/, $susp_authkeys;
+    return @susp_authkeys;
 }
 
 sub look_for_key {
@@ -1934,6 +1929,24 @@ sub look_for_key {
     my $found = grep { /$key/ } @susp_authkeys;
     return 1 if ( $found );
     return 0;
+}
+
+sub check_for_refluxfs {
+    my $hasXFSmount = Cpanel::SafeRun::Timed::timedsaferun( 0, 'mount' );
+    my @hasXFSmount - split /\n/, $hasXFSmount;
+    foreach my $mount(@hasXFSmount) {
+        chomp($mount);
+        next if( $mount =~ m/virtfs/ );
+        next unless( $mount =~ m/xfs/ );
+        last
+    }
+    return unless( -x '/usr/sbin/xfs_info' );
+    # If we get here, at least one xfs mount was found, and xfs_info is executable.
+    my $run_xfs_info = Cpanel::SafeRun::Timed::timedsaferun( 0, 'xfs_info', '/' );
+    my @xfs_info = split /\n/, $run_xfs_info;
+    my $has_reflink = grep { /reflink=1/ } @xfs_info;
+    push @SUMMARY, "> XFS Mount (on / ) has reflink=1 configured, might be susceptible to RefluXFS [CVE-2026-64600] Privelege Escalation" if ( $has_reflink );
+    push @SUMMARY, expand( CYAN "\\_ Check kernel version for CVE-2026-64600 to see if protected or not" ) if ( $has_reflink );
 }
 
 sub check_for_linux_lady {
@@ -1978,9 +1991,6 @@ sub check_for_libkeyutils_symbols {
     }
 }
 
-sub all_malware_checks {
-}
-
 sub get_httpd_path {
     if ( -x '/usr/sbin/httpd' ) {
         return '/usr/sbin/httpd';
@@ -2010,6 +2020,7 @@ sub check_for_touchfile {
     }
 }
 
+my $_log_fh;
 sub logit {
     my $Message2Log = $_[0];
     my $date        = `date`;
@@ -2018,9 +2029,10 @@ sub logit {
     if ( ! -d "$csidir" ) {
         mkdir( "$csidir", 0755 );
     }
-    open( CSILOG, ">>$csidir/csi.log" ) or die($!);
-    print CSILOG "$date - $Message2Log\n";
-    close(CSILOG);
+    if (!$_log_fh || !fileno($_log_fh)) {
+        open( $_log_fh, '>>', "$csidir/csi.log" ) or die($!);
+    }
+    print $_log_fh "$date - $Message2Log\n";
 }
 
 sub spin {
@@ -2115,7 +2127,7 @@ sub userscan {
 
     # check for suspicious PHP files
     print_status("Checking for suspicious PHP files...");
-    my $files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-type', 'f', '-name', '*.php', '-newer', '/etc/passwd', '-size', '-500k' );
+    my $files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", 'maxdepth', '3', '-type', 'f', '-name', '*.php', '-newer', '/etc/passwd', '-size', '-500k' );
     my @files = split /\n/, $files;
     my %bad_php_patterns = (
             eval_encoded => qr/eval\s*\(\s*base64_decode/i,
@@ -2131,6 +2143,7 @@ sub userscan {
         chomp $f;
         next unless $f;
         next unless -f $f && -r _;
+        next if $f =~ m{/(wp-content/(?:plugins|themes)/|vendor/|vendor_prefixed/|jetpack_vendor/)};
         if (open my $fh, '<', $f) {
             my $content = do { local $/; <$fh> };
             close $fh;
@@ -2263,14 +2276,6 @@ sub userscan {
         close($fh);
     }
     find( { wanted => \&smtpfoxhacks, }, "$RealHome/etc/");
-
-    sub smtpfoxhacks {
-        return if( -d $File::Find::name );
-        my $hassmtpF0x = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', 'anonymousfox-|smtpf0x-|anonymousfox|smtpf', "$File::Find::name" );
-        if ( $hassmtpF0x ) {
-            push @SUMMARY, "> Found suspicious smtpF0x/AnonymousF0x vulnerability in " . CYAN $File::Find::name;
-        }
-    }
 
     my @smtpF0x_files = qw( F.py f.php llsjxdcr.php mblircic.php vfmuqyvp.php bkV7.txt );
     foreach my $smtpF0xFile(@smtpF0x_files) {
@@ -2449,11 +2454,55 @@ sub userscan {
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
-    if ( -e "$RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php" ) {
-        push( @SUMMARY,
-"> Found possible malicious WordPress stealthy backdoor at $RealHome/$pubhtml/wp-content/mu-plugins/wp-index.php"
-        );
+    # Check plugins folder RIGHT HERE
+    # if a file under plugins folder contains: {adjective}-{noun}-{noun}-{4hex}, flag it as suspicious.
+    my $regex = '^[a-z]+-[a-z]+-[a-z]+-[0-9a-f]{4}$';
+    my $allplugins = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml/wp-content/plugins", '-maxdepth', '1', '-type', 'd' );
+    my @allplugins = split /\n/, $allplugins;
+    my $showHeader=0;
+    foreach my $file(@allplugins) {
+        chomp($file);
+        my $basefile=basename($file);
+        my $dir=dirname($file);
+        if ( $basefile =~ m/$regex/ ) {
+            push( @SUMMARY, "> Found possible malicious WordPress malware in plugin folder [" . WHITE $dir . YELLOW "]") unless( $showHeader );
+            $showHeader=1;
+            push( @SUMMARY, expand( CYAN "\t\\_ $basefile" ));
+        }
     }
+
+    # Check for malware in MU-Plugins
+    my @files=qw( redirect.php index.php custom-js-loader.php hyper-publisher-tap.php flex-engine-dex.php media-component-ink.php prime-options-cue.php site-compat-layer.php 82048166.php wp-index.php widget-cache.php);
+    my $allmuplugs = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-maxdepth', '5', '-type', 'd', '-name', 'mu-plugins' );
+    my @allmuplugs = split /\n/, $allmuplugs;
+    foreach my $muplugins_path(@allmuplugs) {
+        foreach my $file( @files ) {
+            chomp( $file );
+            if ( -e "$muplugins_path/$file" ) {
+                push( @SUMMARY, "> Found possible malicious WordPress malware at $RealHome/$pubhtml/wp-content/mu-plugins folder [ $file ]");
+            }
+        }
+    }
+
+    # Check for wp2shell lines in domlogs
+    if ( -l "$RealHome/access-logs") {
+    opendir my $dh, "$RealHome/access-logs";
+    my @files = readdir( $dh );
+    closedir( $dh );
+    my $showHead=0;
+    foreach my $file(@files) {
+        next if ( $file eq "." or $file eq ".." );
+        open( my $fh, '<', "$RealHome/access-logs/$file" );
+        while( <$fh> ) {
+            chomp;
+            if ( $_ =~ m/wp-json\/batch\/v1|rest_route=\/batch\/v1/ && $_ =~ m/wp2shell/ && $_ =~m/ 200 / ) {
+                push @SUMMARY, YELLOW "> Possible wp2shell compromise found within the " . WHITE "$RealHome/access-logs/$file file" unless( $showHead );
+                $showHead=1;
+                push @SUMMARY, expand( CYAN "\t\\_ $_" );
+            }
+        }
+    }
+}
 
     # Malicious WP Plugins - https://blog.sucuri.net/2020/01/malicious-javascript-used-in-wp-site-home-url-redirects.html
     print_status("Checking for malicious WordPress plugins");
@@ -3120,6 +3169,12 @@ sub misc_checks {
     my @susp_cron_strings;
     my $susp_crons_ref = get_suspicious_cron_strings();
     push @susp_cron_strings, @$susp_crons_ref;
+    my %suspicious_cron = (
+        downloads    => qr/\b(wget|curl)\b.*\|\s*(bash|sh|perl|python)/i,
+        execution    => qr/(?:base64|xxd)\s+.*-d/i,
+        c2           => qr/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}.*(?:bash|sh|perl|curl|wget)/i,
+        persistence  => qr/^\s*\@reboot\s+(?:bash|sh|perl|python)\s+\/tmp/i,
+    );
     my @cronContains = undef;
     my $isImmutable  = "";
     my ( $roots_crontab_file ) = ( $distro ne "ubuntu" ) ? '/var/spool/cron/root' : '/var/spool/cron/crontabs/root';
@@ -3153,6 +3208,14 @@ sub misc_checks {
             while (<$cron_fh>) {
                 chomp($_);
                 # RIGHT HERE add new cron checks
+                next if $_ =~ /^#/ || $_ =~ /^\s*$/;
+                for my $type (keys %suspicious_cron) {
+                    if ($_ =~ $suspicious_cron{$type}) {
+                        print "DEBUG: $suspicious_cron{$type}\n";
+                        push @cronContains, expand( CYAN "\t \\_ " . $_ . "\n\t\t \\_ Contains: [ " . RED $type . CYAN " ] $isImmutable" ) unless( $_ =~ m{BitdefenderRedline} );
+                    }
+                }
+                # END OF new cron checks
                 foreach my $susp_cron_string (@susp_cron_strings) {
                     chomp($susp_cron_string);
                     if ( $_ =~ m{$susp_cron_string} ) {
@@ -3235,6 +3298,7 @@ sub vtlink {
 
         # First let's check Virustotal.com
         my $ticketnum = $ENV{'TICKET'};
+        chomp($ticketnum);
         $ticketnum = "DEBUG" if ($debug);
         my $ipaddr = Cpanel::SafeRun::Timed::timedsaferun( 0, 'curl', '-s', '-4', "https://myip.cpanel.net/v1.0/" );
         chomp($ipaddr);
@@ -3364,17 +3428,25 @@ sub chk_shadow_hack {
 }
 
 sub check_for_exim_vuln {
-    my $chk_eximlog;
-    $chk_eximlog = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', '\${run', '/var/log/exim_mainlog' ) unless( ! -e '/var/log/exim_mainlog' );;
-    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.1.gz' ) unless( ! -e '/var/log/exim_mainlog.1.gz' );
-    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.2.gz' ) unless( ! -e '/var/log/exim_mainlog.2.gz' );
-    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.3.gz' ) unless( ! -e '/var/log/exim_mainlog.3.gz' );
-    $chk_eximlog .= Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.4.gz' ) unless( ! -e '/var/log/exim_mainlog.4.gz' );
-    my @chk_eximlog = split /\n/, $chk_eximlog;
-    if ($chk_eximlog) {
+    my @exim_logs = (
+        [ 'grep', '-E', '\${run', '/var/log/exim_mainlog' ],
+        [ 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.1.gz' ],
+        [ 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.2.gz' ],
+        [ 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.3.gz' ],
+        [ 'zgrep', '-E', '\${run', '/var/log/exim_mainlog.4.gz' ],
+    );
+    my @chk_eximlog;
+    for my $log (@exim_logs) {
+        my ($cmd, @args) = @$log;
+        my $logfile = $args[-1];
+        next unless -e $logfile;
+        my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, $cmd, @args );
+        push @chk_eximlog, split /\n/, $result if $result;
+    }
+    if (@chk_eximlog) {
         push @SUMMARY, "> Found the following string in /var/log/exim_mainlog file. Possible root-level compromise was attempted:";
-        foreach $chk_eximlog (@chk_eximlog) {
-            push @SUMMARY, expand( CYAN "\t\\_$chk_eximlog" );
+        for my $line (@chk_eximlog) {
+            push @SUMMARY, expand( CYAN "\t\\_$line" );
         }
     }
 }
@@ -3609,7 +3681,6 @@ sub get_last_logins_SSH {
 sub check_secure_log {
     my $lcUser = shift;
     print_status( "Checking for IP addresses that logged on successfully as $lcUser" ) if ( $userscan );
-    print_header( "[ Gathering the IP addresses that logged on successfully as $lcUser ]" ) unless ( $userscan );
     my $max_output = 3;
     my $hasJctl = ( -x '/usr/bin/journalctl' ) ? 1 : 0;
     my $secure_log_file = ( $distro eq 'ubuntu' ) ? '/var/log/auth.log' : '/var/log/secure';
@@ -3823,6 +3894,36 @@ sub get_conf {
     return;
 }
 
+sub check_for_ransomware_all {
+    my $found_ransom = 0;
+    my $max_detected = 5;
+    my @patterns = (
+        [ '*.lilocked', 'Evidence of lilocked ransomware' ],
+        [ '*.filenew',  'Evidence of filenew ransomware' ],
+        [ '*.sorry',    'Evidence of sorry ransomware' ],
+        [ '*.monti',    'Evidence of MONTI ransomware' ],
+    );
+    for my $pat_info (@patterns) {
+        my ($ext, $msg) = @$pat_info;
+        my $result = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', $ext, '-print' );
+        next unless $result;
+        my @files = split /\n/, $result;
+        next unless @files;
+        my $cnt = 0;
+        push @SUMMARY, "> $msg detected. Listing the first " . CYAN $max_detected;
+        for my $file (@files) {
+            chomp($file);
+            push @SUMMARY, expand( CYAN "\t\\_ $file" ) unless $cnt >= $max_detected;
+            $cnt++;
+        }
+        $found_ransom = 1;
+    }
+    if ( -e '/root/How-To-Restore-Your-Files.txt' ) {
+        push @SUMMARY, "> Evidence of filenew ransomware detected.";
+        push @SUMMARY, expand( CYAN "\t\\_ How-To-Restore-Your-Files.txt ransom note found in /root." );
+    }
+}
+
 sub check_for_lilocked_ransomware {
     my $lilockedFound = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', '/', '-xdev', '-maxdepth', '3', '-name', "*.lilocked", '-print' );
     my @lilockedFound = split /\n/, $lilockedFound;
@@ -3904,7 +4005,7 @@ sub check_sudoers_file {
                 m/cloudlinux|centos|ubuntu|wp-toolkit|cloud-user|rocky/ );
             next unless ( $sudoerline =~ m/ALL$/ );
             push @SUMMARY,
-              "Found non-root users with insecure privileges in a sudoer file."
+              "> Found non-root users with insecure privileges in a sudoer file."
               unless ( $showHeader == 1 );
             $showHeader = 1;
             if ( $sudoerline =~ m/ALL, !root/ ) {
@@ -3965,7 +4066,6 @@ sub look_for_suspicious_files {
         my @arr = glob( $file );
         my $result = FileExists(\@arr);
         next unless( $result );
-        use File::Basename;
         my $dirname=dirname($file);
         if ( $dirname ) {
             push @SUMMARY, "> A suspicious file was found within " . WHITE $dirname;
@@ -4041,9 +4141,28 @@ sub check_proc_sys_vm {
     }
 }
 
+sub _ignore {
+    my $rule2ignore = shift;
+    my $file2ignore = shift;
+    if ( $rule2ignore =~ m{} ) {
+        return 0;
+    }
+    if ( $file2ignore =~ m{/usr/local/cpanel/logs/access_log|/root/.bash_history} ) {
+        return 0;
+    }
+    return 1;
+}
+
+sub smtpfoxhacks {
+    return if( -d $File::Find::name );
+    my $hassmtpF0x = Cpanel::SafeRun::Timed::timedsaferun( 0, 'grep', '-E', 'anonymousfox-|smtpf0x-|anonymousfox|smtpf', "$File::Find::name" );
+    if ( $hassmtpF0x ) {
+        push @SUMMARY, "> Found suspicious smtpF0x/AnonymousF0x vulnerability in " . CYAN $File::Find::name;
+    }
+}
+
 sub known_sha256_hashes {
     my $checksum = shift;
-    my $x=grep { /$checksum/ } @knownhashes;
     return 1 if ( grep { /$checksum/ } @knownhashes );
     return 0;
 }
@@ -4821,7 +4940,7 @@ sub check_for_cronRAT {
 }
 
 sub check_proc_environ {
-    my @patterns = qw( LD_L1BRARY_PATH nuclear.x86);
+    my @patterns = qw( LD_L1BRARY_PATH nuclear.x86 wtim);
     my @procs = glob( '/proc/*/environ' );
     my $found=0;
     my @found=undef;
@@ -5156,7 +5275,7 @@ sub get_suspicious_cron_strings {
 sub check_lsof_deleted {
     return unless has_command('lsof');
     my %options = (
-        suspicious_binaries => [qw( memfd perfctl )],
+        suspicious_binaries => [qw( memfd perfctl /tmp/kthread )],
         excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock monarx-ag )],
     );
     my $lsof = Cpanel::SafeRun::Timed::timedsaferun( 0, 'lsof' );

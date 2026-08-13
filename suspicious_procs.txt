@@ -312,3 +312,7 @@ upowered
 exf
 storm
 /tmp/.sshd
+\[kworker/12:12\]
+pgrep -f sshd.*@
+/bin/bash /usr/share/.sysutil/.watch.sh
+/bin/bash /usr/share/.sysutil/.lmon.sh

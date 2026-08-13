@@ -135,6 +135,7 @@
 /dev/shm/.bash/i686
 /dev/shm/.bash/x86_64
 /dev/shm/.bin
+/dev/shm/.journal
 /dev/shm/.kauditd
 /dev/shm/.kauditd/\[kauditd\]
 /dev/shm/.lck
@@ -200,6 +201,7 @@
 /dev/tux
 /dev/tux/.file
 /dev/tux/.proc
+/dev/watchdog0
 /dev/wd4
 /dev/xdf1
 /dev/xdf2
@@ -303,6 +305,7 @@
 /etc/init.d/rondo
 /etc/init.d/selinux
 /etc/init.d/syslogd
+/etc/init.d/tengu
 /etc/init.d/tracker-fs
 /etc/init.d/upgrade
 /etc/init/systemd-agent.conf
@@ -811,6 +814,7 @@
 /tmp/.138171241
 /tmp/.FILE/stak
 /tmp/.ICE-unix/error.log
+/tmp/.ICECache
 /tmp/.IptabLes
 /tmp/.IptabLex
 /tmp/.X11-unix/01
@@ -893,6 +897,7 @@
 /tmp/.pg_stat.0
 /tmp/.pg_stat.1
 /tmp/.profile
+/tmp/.proxy.pid
 /tmp/.psy
 /tmp/.rewt
 /tmp/.salted
@@ -901,6 +906,7 @@
 /tmp/.ssh/redis.sh
 /tmp/.sshd
 /tmp/.stabip
+/tmp/.svc
 /tmp/.systemd-salt
 /tmp/.systemd.1
 /tmp/.systemd.2
@@ -913,6 +919,7 @@
 /tmp/.tmpcfi
 /tmp/.tmpdropoff
 /tmp/.unlock
+/tmp/.up
 /tmp/.user
 /tmp/.uua
 /tmp/.vl_cmd.sh
@@ -1093,6 +1100,7 @@
 /tmp/kidd0.c
 /tmp/kinsing
 /tmp/korkut2
+/tmp/kthread
 /tmp/kworkerds
 /tmp/kworkerds3
 /tmp/kworkerdssx
@@ -1162,6 +1170,7 @@
 /tmp/seobot.zip
 /tmp/sess.rotat
 /tmp/sfewfesfs
+/tmp/shell.php
 /tmp/shz.sh
 /tmp/smarvtd
 /tmp/srv
@@ -1656,6 +1665,13 @@
 /usr/share/.aPa
 /usr/share/.apache
 /usr/share/.home
+/usr/share/.sysutil/.auth
+/usr/share/.sysutil/.lmon.sh
+/usr/share/.sysutil/.marks
+/usr/share/.sysutil/.pam_cap.c
+/usr/share/.sysutil/.pids
+/usr/share/.sysutil/.watch.sh
+/usr/share/.sysutil/pam_cap.so
 /usr/share/.uc/
 /usr/share/.zk
 /usr/share/.zk/zk
@@ -1893,5 +1909,6 @@
 /var/tmp/worker_cache
 /var/tmp/wunder*
 /var/www/html/Index.php
+/var/www/html/shell.php
 /watchd0g.sh
 /xpnjdfx.txt

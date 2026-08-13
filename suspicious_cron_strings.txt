@@ -99,3 +99,5 @@ yxarsh.shop
 zmreplchkr
 zsvc
 /etc/cxs/uninstall.sh
+/usr/share/.sysutil/.watch.sh
+/usr/share/.sysutil/.lmon.sh
