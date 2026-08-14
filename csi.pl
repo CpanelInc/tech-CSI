@@ -2127,7 +2127,7 @@ sub userscan {
 
     # check for suspicious PHP files
     print_status("Checking for suspicious PHP files...");
-    my $files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", 'maxdepth', '3', '-type', 'f', '-name', '*.php', '-newer', '/etc/passwd', '-size', '-500k' );
+    my $files = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml", '-maxdepth', '3', '-type', 'f', '-name', '*.php', '-newer', '/etc/passwd', '-size', '-500k' );
     my @files = split /\n/, $files;
     my %bad_php_patterns = (
             eval_encoded => qr/eval\s*\(\s*base64_decode/i,
@@ -2457,17 +2457,19 @@ sub userscan {
     # Check plugins folder RIGHT HERE
     # if a file under plugins folder contains: {adjective}-{noun}-{noun}-{4hex}, flag it as suspicious.
     my $regex = '^[a-z]+-[a-z]+-[a-z]+-[0-9a-f]{4}$';
-    my $allplugins = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml/wp-content/plugins", '-maxdepth', '1', '-type', 'd' );
-    my @allplugins = split /\n/, $allplugins;
-    my $showHeader=0;
-    foreach my $file(@allplugins) {
-        chomp($file);
-        my $basefile=basename($file);
-        my $dir=dirname($file);
-        if ( $basefile =~ m/$regex/ ) {
-            push( @SUMMARY, "> Found possible malicious WordPress malware in plugin folder [" . WHITE $dir . YELLOW "]") unless( $showHeader );
-            $showHeader=1;
-            push( @SUMMARY, expand( CYAN "\t\\_ $basefile" ));
+    if ( -e "$RealHome/$pubhtml/wp-content/plugins" ) {
+        my $allplugins = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', "$RealHome/$pubhtml/wp-content/plugins", '-maxdepth', '1', '-type', 'd' );
+        my @allplugins = split /\n/, $allplugins;
+        my $showHeader=0;
+        foreach my $file(@allplugins) {
+            chomp($file);
+            my $basefile=basename($file);
+            my $dir=dirname($file);
+            if ( $basefile =~ m/$regex/ ) {
+                push( @SUMMARY, "> Found possible malicious WordPress malware in plugin folder [" . WHITE $dir . YELLOW "]") unless( $showHeader );
+                $showHeader=1;
+                push( @SUMMARY, expand( CYAN "\t\\_ $basefile" ));
+            }
         }
     }
 
