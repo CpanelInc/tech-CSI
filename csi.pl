@@ -688,16 +688,16 @@ sub check_previous_scans {
     print_status('Running in debug mode - Extrenuous output will be present') if ( $debug );
     logit('Running in debug mode') if ( $debug );
     if ( $overwrite ) {
-       	unlink( "$csidir/csi.log" );
-      	return;
+        unlink( "$csidir/csi.log" );
+        return;
     }
     print_status('Checking for a previous run of CSI');
     if ( -d $csidir ) {
-        logit( 'Previous CSI directory found, backing up and creating a new one' );
         chomp( my $date = Cpanel::SafeRun::Timed::timedsaferun( 0, 'date', "+%Y-%m-%d-%H:%M:%S" ) );
         print_info("Existing $csidir is present, moving to $csidir-$date");
         rename "$csidir", "$csidir-$date";
         mkdir( "$csidir", 0755 );
+        logit( "Previous CSI directory found, backed up to $csidir-$date and created a new one" );
     }
     return;
 }
@@ -2020,19 +2020,21 @@ sub check_for_touchfile {
     }
 }
 
-my $_log_fh;
 sub logit {
-    my $Message2Log = $_[0];
+    my $Message2Log = shift;
     my $date        = `date`;
     chomp($Message2Log);
     chomp($date);
     if ( ! -d "$csidir" ) {
         mkdir( "$csidir", 0755 );
     }
-    if (!$_log_fh || !fileno($_log_fh)) {
-        open( $_log_fh, '>>', "$csidir/csi.log" ) or die($!);
+    my $log_fh;
+    unless ( open( $log_fh, '>>', "$csidir/csi.log" ) ) {
+        warn "Could not open $csidir/csi.log for logging: $!\n";
+        return;
     }
-    print $_log_fh "$date - $Message2Log\n";
+    print $log_fh "$date - $Message2Log\n";
+    close($log_fh);
 }
 
 sub spin {
@@ -2052,7 +2054,7 @@ sub run_with_spinner {
         my @chars = qw(| / - \\);
         my $i = 0;
         while (1) {
-            print YELLOW "\r [ $chars[$i] ] $label...";
+            print YELLOW "\r [ $chars[$i] ] $label..." unless( $cron );
             $i = ($i + 1) % @chars;
             select(undef, undef, undef, 0.15);
         }
@@ -2062,8 +2064,8 @@ sub run_with_spinner {
     my $result = $coderef->();
     kill 'TERM', $pid;
     waitpid($pid, 0);
-    print "\r  \r";
-    print_header( " [ $checkmark " . BRIGHT_CYAN "] " . GREEN "$label....");
+    print "\r  \r" unless( $cron );
+    print_header( " [ $checkmark " . BRIGHT_CYAN "] " . GREEN "$label....") unless( $cron );
     return $result;
 }
 
@@ -5574,7 +5576,7 @@ sub send_email {
 
 =head1 COPYRIGHT
 
-Copyright 2023, cPanel, L.L.C.
+Copyright 2026, Webpros, Inc. (cPanel, L.L.C.)
 All rights reserved.
 http://cpanel.net
 
