@@ -135,6 +135,7 @@
 /dev/shm/.bash/i686
 /dev/shm/.bash/x86_64
 /dev/shm/.bin
+/dev/shm/.e9e431f3
 /dev/shm/.journal
 /dev/shm/.kauditd
 /dev/shm/.kauditd/\[kauditd\]
@@ -246,6 +247,7 @@
 /etc/cron.d/apachecat
 /etc/cron.d/ebpfbackdoor
 /etc/cron.d/pwnrig
+/etc/cron.d/r*-syslog.log
 /etc/cron.d/root
 /etc/cron.d/rootcat
 /etc/cron.d/system
@@ -253,6 +255,7 @@
 /etc/cron.d/systemcat
 /etc/cron.d/systemdd
 /etc/cron.d/tmp00
+/etc/cron.d/zz-poc59310
 /etc/cron.d/zzh
 /etc/cron.daily/0
 /etc/cron.daily/core.sh
@@ -395,6 +398,7 @@
 /etc/ssh/notepad++
 /etc/sshd
 /etc/sudoers.d/ebpfbackdoor
+/etc/sudoers.d/vmware-perf
 /etc/sysconfig/console/load.zk
 /etc/sysconfig/modules/.modules
 /etc/systemb
@@ -419,6 +423,7 @@
 /etc/systemd/system/spm-worker.service
 /etc/systemd/system/sshb.service
 /etc/systemd/system/sshm.service
+/etc/systemd/system/sys-9436d8.service
 /etc/systemd/system/syslogd.service
 /etc/systemd/system/system-monitor.service
 /etc/systemd/system/systemd-resolveld.service
@@ -638,9 +643,11 @@
 /root/.cd
 /root/.config/.accounts-daemon/accounts-daemon.login.conf
 /root/.config/.pcp
+/root/.config/.rsvc
 /root/.config/cron/Perfctl
 /root/.config/cron/perfcc
 /root/.config/polkitd/polkitd
+/root/.config/systemd/user/svc-update.service
 /root/.configrc/a
 /root/.configrc/a/kswapd0
 /root/.configrc/a/upd
@@ -686,6 +693,7 @@
 /root/.local/share/.CB3942076F2DE33B29B6
 /root/.local/share/.CC1C7D3B6737F0
 /root/.local/share/.pkg
+/root/.local/share/cg4nQW9TOxeq/
 /root/.local/toxssin
 /root/.lvagq
 /root/.lwk
@@ -749,6 +757,7 @@
 /root/.zpni
 /root/.zzgtr
 /root//dev/shm/./sshd
+/root/1337.txt
 /root/Linuxs
 /root/README.md
 /root/README_DECRYPT
@@ -812,6 +821,7 @@
 /tmp/./xL.1
 /tmp/./xL.2
 /tmp/.138171241
+/tmp/.20b662a0d8c5
 /tmp/.FILE/stak
 /tmp/.ICE-unix/error.log
 /tmp/.ICECache
@@ -840,6 +850,7 @@
 /tmp/.X2ss-unix/dota3.tar.gz
 /tmp/.X[0-9A-Ca-z]{8}-lock
 /tmp/.a
+/tmp/.a.ldif
 /tmp/.abc
 /tmp/.abchello
 /tmp/.apid
@@ -855,21 +866,27 @@
 /tmp/.ccw
 /tmp/.cheese
 /tmp/.cinik
+/tmp/.config/.rsvc
 /tmp/.cp_info.log
+/tmp/.cr_[0-9a-zA-Z]{6}
 /tmp/.cron
 /tmp/.curl
 /tmp/.datass
 /tmp/.del
+/tmp/.dl_[0-9a-zA-Z]{6}.tar.gz
 /tmp/.domain_group_map.conf
 /tmp/.donot
 /tmp/.dump
+/tmp/.elf_[0-9a-zA-Z]{6}
 /tmp/.font-unix/.cinik
 /tmp/.font-unix/.cmd.sh
 /tmp/.font-unix/.tmp.ko
+/tmp/.ft_[0-9a-zA-Z]{6}.tar.gz
 /tmp/.h
 /tmp/.helpdd
 /tmp/.hide_src_*.c
 /tmp/.init
+/tmp/.ldap.out
 /tmp/.llock
 /tmp/.local/[a-zA-Z0-9]+
 /tmp/.lost+found
@@ -899,12 +916,18 @@
 /tmp/.profile
 /tmp/.proxy.pid
 /tmp/.psy
+/tmp/.ra_dedi.redspot-branding.ro.log
+/tmp/.ra_dedi.redspot-branding.ro.sh
 /tmp/.rewt
 /tmp/.salted
+/tmp/.sc_[0-9a-zA-Z]{6}
 /tmp/.session-unix
+/tmp/.sk_[0-9a-zA-Z]{6}
 /tmp/.ssh
 /tmp/.ssh/redis.sh
 /tmp/.sshd
+/tmp/.sso_domain
+/tmp/.st_[0-9a-zA-Z]{6}
 /tmp/.stabip
 /tmp/.svc
 /tmp/.systemd-salt
@@ -926,8 +949,12 @@
 /tmp/.vl_config
 /tmp/.vl_k[3-6].ko
 /tmp/.vl_ss_loader
+/tmp/.vmware-perf-upd.sh
 /tmp/.x
+/tmp/.x.py
 /tmp/.x/kworker
+/tmp/.x/linux_x86
+/tmp/.x/systemlog
 /tmp/.xdiag
 /tmp/.xdiag/cp
 /tmp/.xdiag/cp/hscheck
@@ -1164,6 +1191,7 @@
 /tmp/root.sh
 /tmp/rsagen
 /tmp/salt-minions
+/tmp/script_output_2.txt
 /tmp/sdf3fslsdf13
 /tmp/sdxsdf
 /tmp/seeintlog
@@ -1187,6 +1215,7 @@
 /tmp/t
 /tmp/thisxxs
 /tmp/tmp.l
+/tmp/tmpkpc1tzhv
 /tmp/tmpnam_[a-zA-Z]{5}
 /tmp/tpkvWQ4fkh
 /tmp/twink
@@ -1198,6 +1227,7 @@
 /tmp/whitptabil
 /tmp/wnTKYg
 /tmp/wsnbb
+/tmp/x
 /tmp/xp
 /tmp/xweb_log.md
 /tmp/zijtkldse.tmp
@@ -1533,6 +1563,7 @@
 /usr/lib/updated/upd
 /usr/lib/updated/x
 /usr/lib/updated/z
+/usr/lib/vmware-perfcharts/tc-instance/webapps/statsreport/vmware-perf-update.jsp
 /usr/lib/volc
 /usr/lib32/.X11/X0-lock
 /usr/lib64/libkeyutils.so.1.6.1
@@ -1769,6 +1800,7 @@
 /var/run/.ssh.pid
 /var/run/.t
 /var/run/.tmp
+/var/run/backup
 /var/run/bioset
 /var/run/cron.data
 /var/run/daemon.pid

@@ -101,3 +101,7 @@ zsvc
 /etc/cxs/uninstall.sh
 /usr/share/.sysutil/.watch.sh
 /usr/share/.sysutil/.lmon.sh
+vmware-vpxd-stats-*
+vmware-perf-collect-*
+vmware-perf-sync-*
+3232/esxi.sh

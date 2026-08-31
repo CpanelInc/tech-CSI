@@ -5415,3 +5415,38 @@ rule IOT_DDoS_tengu_sample {
        uint32(0) == 0x464c457f and 4 of them
 }
 
+rule LinuxFile_Backdoor {
+    meta:
+        description = "Detects the incident-specific linuxFile backdoor build"
+        author = "QUIRSO Threat Research"
+        date = "2026-08-14"
+        sha256 = "2086954b8c286919f75bf0db762d4f16a5b6c48f7063c971cc751fe28f54bcdc"
+        c2 = "intel.se9ly9upbhay.shop:8080 (XOR-obfuscated in binary)"
+        confidence = "high"
+
+    strings:
+        $identity = "bd5275c6199dec0afb88972168d4ff6e895e832c579594798b94f7bdd7184c1180836c98f18fe2040ea382e556c0c9f88fcff0e5fb0eaa26330b028c1667722f" ascii
+
+        $protocol_1 = "X3DH-SESSION" ascii
+        $protocol_2 = "REGISTERED:OK:" ascii
+        $protocol_3 = "expected REGISTERED, got: " ascii
+        $crypto     = "src/signal_crypto.rs" ascii
+
+        $reconnect  = "reconnect in " ascii
+        $shell      = "/bin/sh" ascii
+        $cron_1     = "crontab fallback: " ascii
+        $cron_2     = "spawn crontab failed: " ascii
+        $systemd_1  = "Environment=NO_DAEMON=1" ascii
+        $systemd_2  = "Description=System Service" ascii
+        $systemd_3  = "/etc/systemd/system/" ascii
+
+    condition:
+        uint32(0) == 0x464c457f and
+        uint16(18) == 0x003e and
+        filesize > 500KB and filesize < 2MB and
+        $identity and
+        3 of ($protocol_*) and
+        $crypto and $reconnect and $shell and
+        2 of ($cron_*, $systemd_*)
+}
+
