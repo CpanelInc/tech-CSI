@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.3";
+my $version = "3.6.5";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -68,7 +68,7 @@ else {
     foreach ( @ENV{ 'SSH_CLIENT', 'SSH_CONNECTION' } ) {
         next unless defined $_;
 
-        next unless m{\A (184\.94\.197\.[2-6]|208\.74\.123\.98)}xms;
+        next unless m{\A (184\.94\.197\.[2-6]|208\.74\.123\.98|104\.30\.179\.199|104\.30\.174\.141|2a09:bac0:1001:68e:|2a09:bac0:1000:16c2:)}xms;
         _set_run_type('cptech');
         last;
     }
@@ -290,7 +290,7 @@ sub show_help {
     print_header( "--shadow     Performs a check on all email accounts looking for variants of shadow.roottn hack.");
     print_header( "--symlink    Performs a symlink hack check for all accounts.");
     print_header( "--skipkernel Skip kernel update checks. Useful if a custom kernel is installed and kernel checking fails.");
-    print_header( "--yarascan   Skips confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
+    print_header( "--yarascan   Skips installaton and confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
     print_header( "--full       Performs all of the above checks - very time consuming. Can cause HIGH LOAD DURING YARA SCANS!!!");
     print_header( "--skipauthchk - Skip check for infected openssh backdoors");
     print_header( "--overwrite  Overwrite last summary and skip creation of new CSI directory under root.");
@@ -494,6 +494,9 @@ sub scan {
     logit("Obtaining api tokens");
     run_with_spinner( 'Obtaining API Tokens', \&get_api_tokens);
 
+    logit("Checking accounting.log file for forged API tokens");
+    run_with_spinner( 'Checking for forged API tokens', \&check_for_forged_tokens);
+
     logit("Checking /usr/local/cpanel/base/unprotected for PHP backdoors");
     run_with_spinner('Checking for PHP backdoors in unprotected path', \&check_for_unprotected_backdoors);
 
@@ -520,6 +523,7 @@ sub scan {
 
     logit("Checking /root/.bash_history for TTY shell spawns");
     run_with_spinner('Checking /root/.bash_history for TTY shell spawns', \&check_for_TTY_shell_spawns);
+
 
     logit("Checking /root/.bash_history for anomalies");
     run_with_spinner('Checking /root/.bash_history for anomalies', \&check_roots_history);
@@ -718,6 +722,46 @@ sub check_webtemplates_for_hack_page {
             $showHeader=1;
             push @SUMMARY, MAGENTA "\t\\_ $file";
         }
+    }
+}
+
+sub check_for_forged_tokens {
+    my $strict_uuid = qr/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/;
+    my $uuid_like = qr/[a-zA-Z0-9]{4,10}-[a-zA-Z0-9]{2,6}-[a-zA-Z0-9]{2,6}-[a-zA-Z0-9]{2,6}-[a-zA-Z0-9]{6,14}/;
+    my $showHeader = 0;
+    if ( open( my $accounting_fh, '<', '/var/cpanel/accounting.log' ) ) {
+        while (<$accounting_fh>) {
+            chomp;
+            next unless ( $_ =~ m/CREATEAPITOKEN|REVOKEAPITOKEN/ );
+            my @fields = split(/:/, $_);
+            my $token_name = $fields[-1] // '';
+            next unless ( $token_name =~ $uuid_like );
+            next if ( $token_name =~ $strict_uuid );
+            push @SUMMARY, "> Found possibly forged API tokens in /var/cpanel/accounting.log file:" unless ( $showHeader );
+            if ( iam( 'cptech' ) ) {
+                push @SUMMARY, MAGENTA "All Analysts, please update SEC-75951 if applicable." unless( $showHeader );
+            }
+            $showHeader = 1;
+            push @SUMMARY, expand( CYAN "\t\\_ $_" );
+            my $list_tokensJSON = get_whmapi1( 'api_token_list' );
+            for my $token_hr ( values %{ $list_tokensJSON->{data}->{tokens} // {} } ) {
+                push @SUMMARY, expand( RED "\t\\_ is still ACTIVE! [ whmapi1 api_token_list | grep 'name: $token_hr->{name}' ]" ) if ( $_ =~ m/$token_hr->{'name'}/ );
+            }
+        }
+    }
+    # Check /var/spool/user_notifications/root/history for Full-access API token
+    my $notify_full_access_tokens = run_quiet( 0, 'find', "/var/cpanel/user_notifications/root", '-iname', '*Full-access API token*' );
+    my @notify_full_access_tokens = split /\n/, $notify_full_access_tokens;
+    return unless( @notify_full_access_tokens );
+    push @SUMMARY, "> Found the following Full-access API token notifications for " . MAGENTA "root" . YELLOW ":";
+    foreach my $line(@notify_full_access_tokens) {
+        my ($dataline)=(split /\//, $line)[6];
+        my ($timestamp)=(split /_/, $dataline)[0];
+        $dataline =~ s/\Q$timestamp\E\_//;
+        $dataline =~ s/\.eml//;
+        my $date = scalar localtime $timestamp;
+        chomp($date);
+        push @SUMMARY, expand( CYAN "\t\\_ [ " . GREEN $date . CYAN " ] - $dataline" );
     }
 }
 
@@ -1006,6 +1050,7 @@ sub check_network_connections {
                 25905 => 'Possible malware',
                 31337 => 'Back Orifice / backdoor',
                 44445 => 'WebShell backdoor',
+
                 27444 => 'Trinoo trojan',
                 27665 => 'Trinoo trojan',
                 61091 => 'Possible malware',
@@ -1706,6 +1751,7 @@ sub check_for_glutton_php {
         }
     }
 }
+
 
 sub check_for_melofee {
     return unless has_command('netstat');
@@ -2508,12 +2554,26 @@ sub userscan {
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/supercociall/"
         );
     }
+    if ( -e "$RealHome/$pubhtml/wp-content/plugins/quark-router-cue" ) {
+        push( @SUMMARY,
+"> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/quark-router-cue/"
+        );
+    }
+    if ( -e "$RealHome/$pubhtml/wp-content/cache/ec9cb6a5.php" ) {
+        push( @SUMMARY,
+"> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/cache/ec9cb6a5.php/"
+        );
+    }
+    if ( -e "$RealHome/$pubhtml/wp-content/da375e27.zip" ) {
+        push( @SUMMARY,
+"> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/da375e27.zip"
+        );
+    }
     if ( -e "$RealHome/$pubhtml/wp-content/plugins/blockspluginn" ) {
         push( @SUMMARY,
 "> Found possible malicious WordPress plugin in $RealHome/$pubhtml/wp-content/plugins/blockpluginn/"
         );
     }
-    # Check plugins folder RIGHT HERE
     # if a file under plugins folder contains: {adjective}-{noun}-{noun}-{4hex}, flag it as suspicious.
     my $regex = '^[a-z]+-[a-z]+-[a-z]+-[0-9a-f]{4}$';
     if ( -e "$RealHome/$pubhtml/wp-content/plugins" ) {
@@ -2533,7 +2593,7 @@ sub userscan {
     }
 
     # Check for malware in MU-Plugins
-    my @files=qw( redirect.php index.php custom-js-loader.php hyper-publisher-tap.php flex-engine-dex.php media-component-ink.php prime-options-cue.php site-compat-layer.php 82048166.php wp-index.php widget-cache.php);
+    my @files=qw( redirect.php index.php custom-js-loader.php hyper-publisher-tap.php flex-engine-dex.php media-component-ink.php prime-options-cue.php site-compat-layer.php 82048166.php wp-index.php widget-cache.php quark-router-cue.php wp-sec.php);
     my $allmuplugs = run_quiet( 0, 'find', "$RealHome/$pubhtml", '-maxdepth', '5', '-type', 'd', '-name', 'mu-plugins' );
     my @allmuplugs = split /\n/, $allmuplugs;
     foreach my $muplugins_path(@allmuplugs) {
@@ -2550,23 +2610,23 @@ sub userscan {
 
     # Check for wp2shell lines in domlogs
     if ( -l "$RealHome/access-logs") {
-    opendir my $dh, "$RealHome/access-logs";
-    my @files = readdir( $dh );
-    closedir( $dh );
-    my $showHead=0;
-    foreach my $file(@files) {
-        next if ( $file eq "." or $file eq ".." );
-        open( my $fh, '<', "$RealHome/access-logs/$file" );
-        while( <$fh> ) {
-            chomp;
-            if ( $_ =~ m/wp-json\/batch\/v1|rest_route=\/batch\/v1/ && $_ =~ m/wp2shell/ && $_ =~m/ 200 / ) {
-                push @SUMMARY, YELLOW "> Possible wp2shell compromise found within the " . WHITE "$RealHome/access-logs/$file file" unless( $showHead );
-                $showHead=1;
-                push @SUMMARY, expand( CYAN "\t\\_ $_" );
+        opendir my $dh, "$RealHome/access-logs";
+        my @files = readdir( $dh );
+        closedir( $dh );
+        my $showHead=0;
+        foreach my $file(@files) {
+            next if ( $file eq "." or $file eq ".." );
+            open( my $fh, '<', "$RealHome/access-logs/$file" );
+            while( <$fh> ) {
+                chomp;
+                if ( $_ =~ m/wp-json\/batch\/v1|rest_route=\/batch\/v1/ && $_ =~ m/wp2shell/ && $_ =~m/ 200 / ) {
+                    push @SUMMARY, YELLOW "> Possible wp2shell compromise found within the " . WHITE "$RealHome/access-logs/$file file" unless( $showHead );
+                    $showHead=1;
+                    push @SUMMARY, expand( CYAN "\t\\_ $_" );
+                }
             }
         }
     }
-}
     });
 
     run_with_spinner('Checking for malicious WordPress redirects and includes', sub {
@@ -2621,7 +2681,7 @@ sub userscan {
     foreach my $file(@files) {
         chomp($file);
         next unless( -e "$RealHome/$pubhtml/$file" );
-        push @SUMMARY, "> Found possible existence of Legion Malware found in $RealHome/$pubhtml" unless( $showHeader );
+        push @SUMMARY, "> Found possible existence of Legion Malware in $RealHome/$pubhtml" unless( $showHeader );
         $showHeader=1;
         push @SUMMARY, expand( CYAN "\t\\_ $file" );
     }
@@ -2725,6 +2785,28 @@ sub userscan {
         push @SUMMARY, "> Possible malware/shellcode injection found within the following files:";
         push @SUMMARY, CYAN "\t\\_ $_" for @hits;
     }
+    });
+
+    run_with_spinner('Checking for upload attempts for test123Cp.php malware file', sub {
+        open( my $fh, '<:raw', $ACCESS_LOG ) or die "Cannot open log file '$ACCESS_LOG': $!\n";
+        my $file_re = 'test123Cp.php';
+        my $user_re = $lcUserToScan;
+        my $showHeader = 0;
+        while (my $line = <$fh>) {
+            next unless $line =~ /\Q$file_re\E/;
+            my @fields = split ' ', $line;
+            my $f1  = defined $fields[0]  ? $fields[0]  : '';  # $1  - remote IP
+            my $f3  = defined $fields[2]  ? $fields[2]  : '';  # $3  - username
+            my $f4  = defined $fields[3]  ? $fields[3]  : '';  # $4  - timestamp "[dd/Mon...."
+            my $f24 = defined $fields[23] ? $fields[23] : '';  # $24 - auth type
+            my $f26 = defined $fields[25] ? $fields[25] : '';  # $26 - port
+            my $out_line = "$f1 $f3 $f4 $f24 $f26";
+            next unless $f3 =~ /$user_re/;
+            push @SUMMARY, "> Found upload attempts of malware [ $file_re ] to $user_re account" unless( $showHeader );
+            $showHeader = 1;
+            push @SUMMARY, expand( WHITE "\t\\_ $out_line" );
+        }
+        close($fh);
     });
 
     run_with_spinner('Running Yara/grep scan on account files', sub {
@@ -3295,14 +3377,12 @@ sub misc_checks {
         if ( open my $cron_fh, '<', $cron ) {
             while (<$cron_fh>) {
                 chomp($_);
-                # RIGHT HERE add new cron checks
                 next if $_ =~ /^#/ || $_ =~ /^\s*$/;
                 for my $type (keys %suspicious_cron) {
                     if ($_ =~ $suspicious_cron{$type}) {
                         push @cronContains, expand( CYAN "\t \\_ " . $_ . "\n\t\t \\_ Contains: [ " . RED $type . CYAN " ] $isImmutable" ) unless( $_ =~ m{BitdefenderRedline} );
                     }
                 }
-                # END OF new cron checks
                 foreach my $susp_cron_string (@susp_cron_strings) {
                     chomp($susp_cron_string);
                     if ( $_ =~ m{\Q$susp_cron_string\E} ) {
@@ -4306,7 +4386,7 @@ sub check_for_panchan {
         push @SUMMARY, "> Found evidence of possible panchan botnet";
         push @SUMMARY, expand( YELLOW "\t\\_ Tests performed:" );
         push @SUMMARY, expand( CYAN "\t\t\\_ systemctl list-units --full -all | grep 'systemd-worker.service'" );
-        push @SUMMARY, expand( CYAN "\t\t\\_ find /.* -maxdepth 1 -name xinetd -type f | grep 'xinetd'" );
+        push @SUMMARY, expand( CYAN "\t\t\\_ find / -maxdepth 1 -name xinetd -type f | grep 'xinetd'" );
         push @SUMMARY, expand( CYAN "\t\t\\_ netstat -lno | grep -wq 1919" );
     }
 }
@@ -4564,17 +4644,12 @@ sub check_for_yara {
         return 0;       ## Don't ask to install Yara engine if running via cron
     }
     my $continue_yara_install = "Yara engine not installed, OK to install?";
-    if (
-        !IO::Prompt::prompt(
-            $continue_yara_install . " [y/N]: ",
-            -default => 'n',
-            -yes_no
-        )
-      )
-    {
-        print_status("User opted to NOT install Yara!");
-        logit("User aborted Yara install");
-        return 0;
+    unless ( $yarascan ) {
+        if ( !IO::Prompt::prompt( $continue_yara_install . " [y/N]: ", -default => 'n', -yes_no)) {
+            print_status("User opted to NOT install Yara!");
+            logit("User aborted Yara install");
+            return 0;
+        }
     }
     my $yara_headers =
       run_quiet( 30, 'curl', '-sL', '-4', '--head',
@@ -4693,7 +4768,7 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my @users_to_lookfor=qw( ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper sudev jewbags systembackadmin );
+    my @users_to_lookfor=qw( svc0 r00t ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper sudev jewbags systembackadmin );
     foreach my $user(@users_to_lookfor) {
         chomp($user);
         my $id_found = run_quiet( 5, 'id', $user );
@@ -5050,6 +5125,19 @@ sub check_for_cve_vulnerabilities {
         # If we get here, it is installed, now get the version number
         print CYAN "Getting version number of " . YELLOW $pkg . ": " if ( $debug );
         chomp( my $pkgver = get_pkg_version( $pkg ) );
+        print GREEN "[$pkgver]\n" if ( $debug );
+
+        # Safety net: version_compare() returns false (not "unknown") for
+        # a string that doesn't look like a valid version, which means a
+        # blank/unparseable $pkgver would otherwise fail OPEN below (every
+        # "next if version_compare(...)" is skipped, so the package gets
+        # reported as vulnerable regardless of what's actually installed).
+        # If we can't reliably determine the installed version, log it and
+        # skip this package rather than risk a false "vulnerable" report.
+        if ( !defined($pkgver) || $pkgver eq '' || $pkgver !~ /^\d/ ) {
+            logit("Could not determine a valid version for package '$pkg' (parsed value: '" . ( defined($pkgver) ? $pkgver : 'undef' ) . "') - skipping CVE check for this package");
+            next;
+        }
         my $digitpkgver;
         $digitpkgver = digit_to_alpha( $pkgver ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
         chomp( $pkgver );
@@ -5227,6 +5315,12 @@ sub get_pkg_version {
     else {
         $pkgversion=run_quiet( 0, 'rpm', '-q', '--queryformat', '%{Version}-%{Release}', "$tcPkg" );
     }
+    # Keep the raw, unparsed command output around in case the parsed
+    # version below ends up looking invalid - but only pay the cost of
+    # logit() (which forks an external `date` process and writes to
+    # disk on every call) when something actually looks wrong, not on
+    # every single package checked during a CVE scan.
+    my $raw_pkgversion = $pkgversion;
     if ( $gl_is_kernel == 0 ) {
         $pkgversion =~ s/\Q$tcPkg\E//g;
     }
@@ -5237,6 +5331,9 @@ sub get_pkg_version {
     $pkgversion =~ s/[0-9]\://;
     $pkgversion =~ s/[a-z][0-9]//;
     $pkgversion =~ s/(\.x86_64|\.cpanel|\.cloudlinux|p2.*|\.deb.*|\.noarch|.1ubuntu.*|ubuntu.*|\.cp\d+.*|\.el.*|\+.*)//g;
+    if ( !defined($pkgversion) || $pkgversion eq '' || $pkgversion !~ /^\d/ ) {
+        logit( "get_pkg_version($tcPkg) raw output: [" . ( defined($raw_pkgversion) ? $raw_pkgversion : 'undef' ) . "] parsed to: [" . ( defined($pkgversion) ? $pkgversion : 'undef' ) . "]" );
+    }
     return $pkgversion;
 }
 
@@ -5294,7 +5391,7 @@ sub check_lsof_deleted {
     return unless has_command('lsof');
     my %options = (
         suspicious_binaries => [qw( memfd perfctl /tmp/kthread )],
-        excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock monarx-ag )],
+        excluded_patterns   => [qw( dbus-brok sw-engine opcache_lock monarx-ag systemd )],
     );
     my $lsof = run_quiet( 0, 'lsof' );
     return unless $lsof;
