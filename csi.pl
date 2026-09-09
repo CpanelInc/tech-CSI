@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.5";
+my $version = "3.6.6";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -546,6 +546,9 @@ sub scan {
     logit("Checking kernel status") unless( $skipkernel );
     run_with_spinner('Checking kernel status', \&check_kernel_updates) unless( $skipkernel );
 
+    logit("Checking for Copy/Fail, DirtyFrag, Fragnesia variants");
+    run_with_spinner('Checking for Copy/Fail, DirtyFrag, Fragnesa variants', \&check_for_kernelhacks);
+
     logit("Checking for suspicious MySQL users including Super privileges");
     run_with_spinner( 'Checking for suspicious MySQL users (Including Super privileges)', \&check_for_Super_privs);
 
@@ -1047,6 +1050,7 @@ sub check_network_connections {
                 7853 => 'Stealthy Linux Rootkit',
                 8816 => 'Possible malware',
                 8888 => 'Possible malware / Malicous NPM Package',
+                19837 => 'Possible GoMir/BirdTroy/DriveTroy malware',
                 25905 => 'Possible malware',
                 31337 => 'Back Orifice / backdoor',
                 44445 => 'WebShell backdoor',
@@ -5640,6 +5644,34 @@ sub get_apt_href {
         };
     }
     return \%rpms;
+}
+
+sub check_for_kernelhacks {
+    # Copy/Fail, DirtyFrag, Fragnesia, etc...
+    my @CVES = qw( CVE-2026-43284 CVE-2026-46300 CVE-2026-46333 CVE-2026-31431 );
+    push @CVES, 'CVE-2026-43500' if ( $distro eq 'ubuntu');      ## This CVE is only on Ubuntu. RHEL servers are not affected by it.
+    my $showHeader=0;
+    foreach my $cve (@CVES) {
+        chomp($cve);
+        if ( $distro eq 'almalinux' || $distro eq 'cloudlinux' ) {
+            my $patched = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dnf', 'updateinfo', '--quiet', '--list', '--all',  '--cve', $cve );
+            next if ( $patched );
+            push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia variants..." unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve" );
+            next;
+        }
+        else {          ## Ubuntu Check chagenlogs only
+            my $running_kernel = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
+            chomp($running_kernel);
+            my $patched = Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', $cve, "/usr/share/doc/linux-headers-$running_kernel/changelog.Debian.gz" );
+            next if ( $patched );
+            push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia variants..." unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve" );
+            next;
+        }
+    }
 }
 
 sub find_mysql_bin {
