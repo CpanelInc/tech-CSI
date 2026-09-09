@@ -420,6 +420,7 @@
 /etc/systemd/system/polkitd.service
 /etc/systemd/system/quasar_linux.service
 /etc/systemd/system/redis.service
+/etc/systemd/system/rsyslogd.service
 /etc/systemd/system/spm-worker.service
 /etc/systemd/system/sshb.service
 /etc/systemd/system/sshm.service
@@ -886,6 +887,12 @@
 /tmp/.helpdd
 /tmp/.hide_src_*.c
 /tmp/.init
+/tmp/.kw_.*
+/tmp/.cache_.*
+/tmp/.gvfsd-.*
+/tmp/.fc-.*/fc-cache
+/tmp/fc-cache
+/tmp/.chrony-.*/chronyd
 /tmp/.ldap.out
 /tmp/.llock
 /tmp/.local/[a-zA-Z0-9]+
@@ -1116,6 +1123,7 @@
 /tmp/irq
 /tmp/irq.sh
 /tmp/irqbalanc1
+/tmp/jasper-log
 /tmp/javax/config.sh
 /tmp/javax/sshd2
 /tmp/jmxx
@@ -1770,6 +1778,9 @@
 /var/lib/pamdicks
 /var/lib/pc
 /var/lib/postgresql/data/pg_mem
+/var/lib/snapd/g105
+/var/lib/snapd/g580
+/var/lib/sshd/c8c68e629bba773a10ac80012d10bf19
 /var/lib/t
 /var/lib/up
 /var/local/.lpd
@@ -1786,6 +1797,7 @@
 /var/log/installlog.log.*
 /var/log/secureecho
 /var/log/syslogd
+/var/log/rsyslogd
 /var/log/utmp
 /var/log/utx.log
 /var/log/utx.log0

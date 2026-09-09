@@ -5450,3 +5450,79 @@ rule LinuxFile_Backdoor {
         2 of ($cron_*, $systemd_*)
 }
 
+rule BirdTroy_Linux {
+    meta:
+        description = "BirdTroy - Go-based Linux backdoor (Bird/module namespace)"
+        date = "2026-05-28"
+        hash1 = "ca98a51cebdc802d255030b4baa44ca0"
+        hash2 = "c2e37232556357944a04edf1dec3934b"
+    strings:
+        $ns1 = "Bird/module/packet."
+        $ns2 = "Bird/module/autorun."
+        $ns3 = "Bird/module/shell."
+        $ns4 = "Bird/module/protocol."
+        $resp1 = "success upload file"
+        $resp2 = "usege: sleep [hour]"
+        $resp3 = "delete success"
+        $code_bswap = { 8B 00 0F C8 48 81 C4 B8 00 00 00 5D C3 }
+    condition:
+        uint32(0) == 0x464C457F and (
+            3 of ($ns*) or
+            (2 of ($resp*) and 1 of ($ns*)) or
+            ($code_bswap and 1 of ($ns*))
+        )
+}
+
+rule DriveTroy_Linux {
+    meta:
+        description = "DriveTroy - Go-based Linux backdoor abusing Google Drive"
+        date = "2026-05-28"
+        hash = "a452a860f973c7a43ea804c17e9427d2"
+    strings:
+        $ns1 = "jira/payload/gdrive."
+        $ns2 = "jira/payload/common."
+        $ns3 = "jira/payload/common/transfer."
+        $svc1 = "cachelogd"
+        $svc2 = "cachemond"
+        $svc3 = "monlogd"
+        $build = "C:/Users/jira/go/src/jira/payload/"
+        $code_tail = { 48 C7 C3 FC FF FF FF B9 02 00 00 00 0F 1F 00 E8 }
+        $code_shadow = { 48 8D 05 ?? ?? ?? ?? BB 0B 00 00 00 E8 ?? ?? ?? ?? 48 85 FF 74 07 }
+    condition:
+        uint32(0) == 0x464C457F and (
+            2 of ($ns*) or
+            $build or
+            2 of ($svc*) or
+            ($code_tail and $code_shadow)
+        )
+}
+
+rule Gomir_Linux {
+    meta:
+        description = "Gomir - Go-based Linux backdoor (Github-Lin/Main/Kernel)"
+        date = "2026-06-02"
+        hash1 = "b1c72139f2cdd9419562369fc6ced4fc"
+        hash2 = "84e9b066bebd49036b7fc71b5f5f8d83"
+        hash3 = "e911f8f7c49476806ada37f3ebb7a28a"
+        hash4 = "aa61e76255a6e13313439655bc02bdf5"
+    strings:
+        $ns1 = "local.github.com/Github-Lin/Main/Kernel."
+        $ns2 = "local.github.com/Github-Lin/Main/exe"
+        $cmd1 = "Not implemented on Linux!"
+        $cmd2 = "Unknown Command!\r\n"
+        $cmd3 = "Invalid Param!\r\n"
+        $persist1 = "/etc/systemd/system/rsyslogd.service"
+        $persist2 = "systemctl reenable rsyslogd"
+        $code_mod255 = { 48 B8 81 80 80 80 80 80 80 80 49 89 D3 49 F7 E8 }
+        $code_sleep = { 48 B8 00 10 A5 D4 E8 00 00 00 E8 ?? ?? ?? ?? EB EF }
+        $code_uid = { 48 83 F9 05 7D 3B 0F B6 74 0C 46 89 F7 40 C0 EE 04 }
+    condition:
+        uint32(0) == 0x464C457F and (
+            1 of ($ns*) or
+            (2 of ($cmd*) and 1 of ($persist*)) or
+            $code_mod255 or
+            ($code_sleep and 1 of ($ns*, $persist*)) or
+            ($code_uid and 1 of ($ns*, $persist*))
+        )
+}
+
