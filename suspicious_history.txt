@@ -7,7 +7,7 @@ cd /ev/network/
 unset HISTFILE
 grep -c ^processor /proc/cpuinfo
 /usr/bin/tactu_cpanel
-wget    http://www.curl.by
+wget http://www.curl.by
 cbrute.tgz
 cbrute
 --noprofile
@@ -19,3 +19,4 @@ export TERM=dumb
 __S_MARK__
 exf.sh RUNNING
 exf.sh NOT running
+grep -i "gsocket"

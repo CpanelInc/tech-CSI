@@ -317,3 +317,4 @@ pgrep -f sshd.*@
 /bin/bash /usr/share/.sysutil/.watch.sh
 /bin/bash /usr/share/.sysutil/.lmon.sh
 \[kworker\/u:8:0\]
+gsocket

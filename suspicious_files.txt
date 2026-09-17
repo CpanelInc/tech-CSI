@@ -1,9 +1,9 @@
 "/home/ ./root"
 "/usr/local/share/. "
-#/usr/local/share/. /Mailer"
-#/usr/local/share/. /fs"
-#/usr/local/share/. /ita"
-#/usr/local/share/. /ita/ita.gz"
+"/usr/local/share/. /Mailer"
+"/usr/local/share/. /fs"
+"/usr/local/share/. /ita"
+"/usr/local/share/. /ita/ita.gz"
 /.Library/SystemNetwork
 /.Library/SystemServices/updateSystem
 /.Library/log.txt
@@ -241,6 +241,7 @@
 /etc/cron.d/.ntp
 /etc/cron.d/.rm
 /etc/cron.d/.sysud
+/etc/cron.d/.thermald
 /etc/cron.d/0systemd-service
 /etc/cron.d/apache
 /etc/cron.d/apache.bak
@@ -453,6 +454,8 @@
 /home/.local
 /home//.ssh/authorized_keys
 /home/product/code/firmware/current/sbin/smtpctl
+/home/remnux/.ssh/putty/id_rsa
+/home/remnux/.ssh/putty/remnux.ppk
 /home/www/.x11
 /home/ygljglkjgfg1
 /lib/*/ScBr_*
@@ -770,6 +773,8 @@
 /root/libcow.so
 /root/m.pl
 /root/machine
+/root/meshagent.msh
+/root/meshinstall.sh
 /root/moneroocean
 /root/moneroocean/config.json
 /root/moneroocean/xmrig
@@ -860,12 +865,14 @@
 /tmp/.bkp
 /tmp/.bugtraq
 /tmp/.bugtraq.c
+/tmp/.cache_.*
 /tmp/.cache_v2/cloud
 /tmp/.cache_v2/configs
 /tmp/.cache_v2/creds
 /tmp/.cache_v2/system
 /tmp/.ccw
 /tmp/.cheese
+/tmp/.chrony-.*/chronyd
 /tmp/.cinik
 /tmp/.config/.rsvc
 /tmp/.cp_info.log
@@ -879,20 +886,17 @@
 /tmp/.donot
 /tmp/.dump
 /tmp/.elf_[0-9a-zA-Z]{6}
+/tmp/.fc-.*/fc-cache
 /tmp/.font-unix/.cinik
 /tmp/.font-unix/.cmd.sh
 /tmp/.font-unix/.tmp.ko
 /tmp/.ft_[0-9a-zA-Z]{6}.tar.gz
+/tmp/.gvfsd-.*
 /tmp/.h
 /tmp/.helpdd
 /tmp/.hide_src_*.c
 /tmp/.init
 /tmp/.kw_.*
-/tmp/.cache_.*
-/tmp/.gvfsd-.*
-/tmp/.fc-.*/fc-cache
-/tmp/fc-cache
-/tmp/.chrony-.*/chronyd
 /tmp/.ldap.out
 /tmp/.llock
 /tmp/.local/[a-zA-Z0-9]+
@@ -989,6 +993,8 @@
 /tmp/CCCCCCCC
 /tmp/EB93A6/996E.elf
 /tmp/ESw2njXkaL
+/tmp/GCONV_PATH=.
+/tmp/GCONV_PATH=./lol
 /tmp/IptabLes
 /tmp/KCtbBo
 /tmp/Linux64-shell
@@ -1042,6 +1048,7 @@
 /tmp/bioset
 /tmp/bnrffa4
 /tmp/bond0
+/tmp/brute2_results.txt
 /tmp/cache_init
 /tmp/cback
 /tmp/chernobyl.sh
@@ -1089,8 +1096,10 @@
 /tmp/env/.qnapd
 /tmp/env/.qnapd/apached
 /tmp/env/.qnapd/sshd.sh
+/tmp/evil.so
 /tmp/exp.so
 /tmp/ext4-rsv-conver
+/tmp/fc-cache
 /tmp/fdsfsfvff
 /tmp/filer
 /tmp/flush-199:13000
@@ -1108,6 +1117,7 @@
 /tmp/gdmorpen
 /tmp/gfhjrtfyhuf
 /tmp/gitaly
+/tmp/gsocket
 /tmp/hadooken
 /tmp/headcrab
 /tmp/hi
@@ -1117,6 +1127,8 @@
 /tmp/ib_cm
 /tmp/ib_mcast
 /tmp/init10
+/tmp/install_suid.c
+/tmp/install_suid.so
 /tmp/iproute.ko
 /tmp/iptablesupdate
 /tmp/iptableupdate.sh
@@ -1151,6 +1163,8 @@
 /tmp/l4sd4ssl
 /tmp/l4sd4sspc
 /tmp/l4sd4sx64
+/tmp/launcher
+/tmp/launcher2
 /tmp/ld.so
 /tmp/lib/rondo
 /tmp/libapache
@@ -1161,6 +1175,8 @@
 /tmp/log.1
 /tmp/log_de.log
 /tmp/log_rot
+/tmp/lol
+/tmp/mc_key.pub
 /tmp/mcliZokhb
 /tmp/mclzaKmfa
 /tmp/medusa_stealer.armv6
@@ -1173,6 +1189,9 @@
 /tmp/medusa_stealer.sh4
 /tmp/medusa_stealer.sparc
 /tmp/medusa_stealer.x86
+/tmp/mesh_deploy.sh
+/tmp/mesh_fix.sh
+/tmp/mesh_manual.sh
 /tmp/miner
 /tmp/miner.b64
 /tmp/miner2
@@ -1187,17 +1206,27 @@
 /tmp/p
 /tmp/p7
 /tmp/pamdicks
+/tmp/passlist.txt
 /tmp/passwd.bak
 /tmp/pause
 /tmp/payload.py
 /tmp/pc
+/tmp/persist_out.txt
 /tmp/pools.txt
+/tmp/pwn
+/tmp/pwn/lol/pwnkit.so
+/tmp/pwn2
+/tmp/pwn_out.txt
+/tmp/pwnkit.so
+/tmp/pwnkit_run
 /tmp/qW3xT.2
 /tmp/ramen.tgz
 /tmp/redis_exec.sh
 /tmp/rewgtf3er4t
 /tmp/root.sh
+/tmp/rootcmd
 /tmp/rsagen
+/tmp/run_pwn.sh
 /tmp/salt-minions
 /tmp/script_output_2.txt
 /tmp/sdf3fslsdf13
@@ -1212,6 +1241,7 @@
 /tmp/srv
 /tmp/ssdpid
 /tmp/sshins
+/tmp/suid_out.txt
 /tmp/sustse
 /tmp/syslogdb
 /tmp/syslogspid
@@ -1305,6 +1335,7 @@
 /usr/bin/ghostspider
 /usr/bin/gib
 /usr/bin/good
+/usr/bin/gsocket
 /usr/bin/hhrqwk
 /usr/bin/iproute.ko
 /usr/bin/ishit
@@ -1596,11 +1627,13 @@
 /usr/local/bin/.../bktd
 /usr/local/bin/.netmon
 /usr/local/bin/.netmon/systemd-helper
+/usr/local/bin/.rc
 /usr/local/bin/4004.db
 /usr/local/bin/bin
 /usr/local/bin/bnrffa4
 /usr/local/bin/curl
 /usr/local/bin/dns
+/usr/local/bin/gsocket
 /usr/local/bin/xmrig
 /usr/local/binahwdze
 /usr/local/bincjtzgw
@@ -1634,6 +1667,7 @@
 /usr/local/lib/libprocesshider.so
 /usr/local/lib/libprocesshider2.so
 /usr/local/lib/libprocesshider3.so
+/usr/local/mesh_services/meshagent/
 /usr/local/sbin/bin/.n
 /usr/local/sbin/bin/bash.pid
 /usr/local/sbin/bin/config.json
@@ -1795,9 +1829,9 @@
 /var/log/cross/auto-color
 /var/log/cross/config-err-*
 /var/log/installlog.log.*
+/var/log/rsyslogd
 /var/log/secureecho
 /var/log/syslogd
-/var/log/rsyslogd
 /var/log/utmp
 /var/log/utx.log
 /var/log/utx.log0
@@ -1952,7 +1986,9 @@
 /var/tmp/v3
 /var/tmp/worker_cache
 /var/tmp/wunder*
+/var/www/dashboard/.r.php
 /var/www/html/Index.php
+/var/www/html/info.php
 /var/www/html/shell.php
 /watchd0g.sh
 /xpnjdfx.txt
