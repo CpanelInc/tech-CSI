@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.6";
+my $version = "3.6.7";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -400,6 +400,7 @@ sub scan {
     run_with_spinner('Checking for libkeyutils symbols', \&check_for_libkeyutils_symbols);
     run_with_spinner('Checking for unowned libkeyutils files', \&check_for_unowned_libkeyutils_files);
     run_with_spinner('Checking for evasive libkey', \&check_for_evasive_libkey);
+    run_with_spinner('Checking for keyutils/SSH backdoor (AuthorizedKeysFile /proc/self/environ trick)', \&check_for_keyutils_ssh_backdoor);
     run_with_spinner('Checking for RefluXFS Kernel Privilege Escalation', \&check_for_refluxfs);
     run_with_spinner('Checking for Ebury SSH G', \&check_for_ebury_ssh_G);
     run_with_spinner('Checking for Ebury SSH shmem', \&check_for_ebury_ssh_shmem);
@@ -446,6 +447,7 @@ sub scan {
 
     logit("Checking for suspicious files");
     run_with_spinner('Checking for suspicious files', \&look_for_suspicious_files);
+
 
     logit("Checking for suspicious ELF binaries");
     run_with_spinner('Checking for suspicious ELF binaries', \&check_if_file_is_binary);
@@ -664,7 +666,7 @@ sub scan {
     run_with_spinner('Checking if SymLinkProtection is enabled', \&check_if_symlink_protect_on);
 
     logit("Checking setting of Cookie IP Validation");
-    run_with_spinner('[ Checking setting of Cookie IP Validation ]', \&check_cookieipvalidation);
+    run_with_spinner('Checking setting of Cookie IP Validation', \&check_cookieipvalidation);
 
     logit("Checking setting of X-Frame/X-Content Type headers with cpsrvd");
     run_with_spinner( 'Checking setting of X-Frame/X-Content Type headers with cpsrvd', \&check_xframe_content_headers);
@@ -1699,6 +1701,92 @@ sub check_for_unowned_libkeyutils_files {
     }
 }
 
+sub check_for_keyutils_ssh_backdoor {
+    my $showHeader = 0;
+    my $sshd_effective = run_quiet( 4, 'sshd', '-T' );
+    if ( defined $sshd_effective && length $sshd_effective ) {
+        if ( $sshd_effective =~ m{authorizedkeysfile\s+/proc/self/environ}i ) {
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "sshd's effective configuration (sshd -T) points AuthorizedKeysFile at /proc/self/environ - a known SSH backdoor technique, never a legitimate setting.";
+            $showHeader = 1;
+        }
+        if ( $sshd_effective =~ m{forcecommand\s+/bin/sh}i && $sshd_effective =~ m{authenticationmethods\s+publickey}i ) {
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "sshd's effective configuration combines ForceCommand /bin/sh with AuthenticationMethods publickey - matches a reported live SSH backdoor.";
+            $showHeader = 1;
+        }
+    }
+    my @known_backdoor_strings = (
+        'AAAAB3NzaC1yc2EAAAADAQABAAABAQDnqbL/iQkXPn4iZaELLTRQ+mDtMWz/MQWgwtv3U0r8WdI+ky3TC39PaeoJrnKZtG4LS0qOg2sUziDeR9QFfBCV1/2OOb+5JwH4t0PWCUY7aY0piCG9xpuMHREpDgXqmUKQZvjKWa1fIp13HVJp4ru39WIElfh1O71cf66XeYN53fFoZijZVYYzjFhIz48yrIoriyu13hqiLjlm4UT5govli7fSGzPB93za9VC5F+OSjEN60Hg0mW+hSCS7MiqjeNth1G+ferlC7amH04Rlk/zlwX8/pAjs5Ew8CXaBQhU1fZNLgUju4wzqEZHgYH04ThBsAtNT1+U8FsR3jmEgOq9T',
+        'AAAAC3NzaC1lZDI1NTE5AAAAIP1kgGfhg9U2bhTq0GEEPrkNl4ToMji8i8igbqLpXdTu',
+        'MIGJAoGBAOadSGBGG9x/f1/U6KdwxfGzqSj5Bcy4aZpKv77uN4xYdS5HWmEub5Rj',
+    );
+    my @files_to_grep = ('/root/.ssh/authorized_keys');
+    push @files_to_grep, @{ $LIBKEYUTILS_FILES_REF } if ( $LIBKEYUTILS_FILES_REF && ref($LIBKEYUTILS_FILES_REF) eq 'ARRAY' );
+    for my $file (@files_to_grep) {
+        chomp($file);
+        next unless -f $file && -r _;
+        for my $needle (@known_backdoor_strings) {
+            if ( run_quiet( 0, 'grep', '-F', $needle, $file ) ) {
+                push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Found a known malicious backdoor key/fragment inside " . WHITE $file;
+                $showHeader = 1;
+            }
+        }
+    }
+    for my $envfile ( glob('/proc/*/environ') ) {
+        next unless -r $envfile;
+        for my $needle (@known_backdoor_strings) {
+            if ( run_quiet( 0, 'grep', '-a', '-F', $needle, $envfile ) ) {
+                my ($pid) = ( $envfile =~ m{/proc/(\d+)/environ} );
+                push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Found a known malicious backdoor key/fragment in the environment of process " . ( $pid // '?' );
+                $showHeader = 1;
+            }
+        }
+    }
+    for my $mapsfile ( glob('/proc/*/maps') ) {
+        next unless -r $mapsfile;
+        my $hit = run_quiet( 0, 'grep', 'libkeyutils', $mapsfile );
+        next unless $hit;
+        if ( $hit =~ m{libkeyutils\.so\S*\s*\(deleted\)} ) {
+            my ($pid) = ( $mapsfile =~ m{/proc/(\d+)/maps} );
+            my $comm = run_quiet( 0, 'cat', "/proc/$pid/comm" );
+            chomp($comm) if defined $comm;
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Process " . ( $pid // '?' ) . " (" . ( $comm || '?' ) . ") has a deleted libkeyutils.so mapped into memory.";
+            $showHeader = 1;
+        }
+    }
+    if ( $LIBKEYUTILS_FILES_REF && ref($LIBKEYUTILS_FILES_REF) eq 'ARRAY' ) {
+        for my $file ( @{ $LIBKEYUTILS_FILES_REF } ) {
+            chomp($file);
+            next unless -f $file && -r _;
+            my $hits = 0;
+            for my $pattern ( 'AuthorizedKeysFile /proc/self/environ', 'ForceCommand /bin/sh', 'PubkeyAcceptedKeyTypes +ssh-ed25519,ssh-rsa', 'Version 1.8.3' ) {
+                $hits++ if run_quiet( 0, 'grep', '-F', $pattern, $file );
+            }
+            $hits++ if run_quiet( 0, 'grep', '-E', 'event-[0-9A-Za-z]{16}', $file );
+            if ( $hits >= 2 ) {
+                push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "$file contains multiple string signatures associated with a reported keyutils/SSH backdoor.";
+                $showHeader = 1;
+            }
+        }
+    }
+    if ( $LIBKEYUTILS_FILES_REF && ref($LIBKEYUTILS_FILES_REF) eq 'ARRAY' && has_command('nm') ) {
+        for my $file ( @{ $LIBKEYUTILS_FILES_REF } ) {
+            chomp($file);
+            next unless -f $file && -r _;
+            my $symbols = run_quiet( 0, 'nm', '-D', '--defined-only', $file );
+            next unless $symbols;
+            my @susp_symbols = grep { $symbols =~ /\b\Q$_\E\b/ } qw( connect execve system readdir readdir64 readlink readlinkat );
+            if (@susp_symbols) {
+                push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "$file exports unexpected symbol(s) [ " . join( ', ', @susp_symbols ) . " ] - the real keyutils library never does this.";
+                $showHeader = 1;
+            }
+        }
+    }
+
+    if ($showHeader) {
+        push @SUMMARY, expand( CYAN "\t\\_ Consistent with a reported OS-level (OpenSSH/PAM/keyutils) SSH backdoor using a trojaned libkeyutils.so and the AuthorizedKeysFile /proc/self/environ technique - investigate immediately if flagged, this is not a false-positive-prone check." );
+    }
+}
+
 sub check_for_ebury_ssh_G {
     my $ssh = '/usr/bin/ssh';
     return if !-e $ssh;
@@ -1878,7 +1966,10 @@ sub check_for_dragnet {
                       . CYAN
 "Evidence of Dragnet Rootkit found.\n\t libc.so.0 was found in process maps."
                 );
-                $found = 1;
+
+
+
+   $found = 1;
                 last;
             }
         }
@@ -4772,12 +4863,17 @@ sub check_for_yara {
 }
 
 sub check_for_suspicious_user {
-    my @users_to_lookfor=qw( svc0 r00t ferrum darmok cokkokotre1 akay phishl00t o monerodaemon suhelper sudev jewbags systembackadmin );
-    foreach my $user(@users_to_lookfor) {
+    my $url      = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/suspicious_users.txt');
+    my $ua      = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
+    my $res     = $ua->get($url);
+    my $suspusers = $res->decoded_content;
+    my @suspusers   = split /\n/, $suspusers;
+    foreach my $user(@suspusers) {
         chomp($user);
         my $id_found = run_quiet( 5, 'id', $user );
+        chomp($id_found);
         if ( $id_found ) {
-            push @SUMMARY, "> Found suspicious user " . CYAN $user . YELLOW " in /etc/passwd file.";
+            push @SUMMARY, "> Found suspicious user " . CYAN $user . YELLOW " in /etc/passwd file.\n\t\\_ $id_found";
         }
     }
 }
@@ -5372,6 +5468,7 @@ sub version_compare {
     return $modes{$mode}->( $ver1, $ver2 );
 }
 
+
 sub _version_cmp {
     my ( $first, $second ) = @_;
     my ( $a1,    $b1, $c1, $d1, $e1, $f1 ) = split /[\._]/, $first;
@@ -5646,30 +5743,118 @@ sub get_apt_href {
     return \%rpms;
 }
 
-sub check_for_kernelhacks {
-    # Copy/Fail, DirtyFrag, Fragnesia, etc...
-    my @CVES = qw( CVE-2026-43284 CVE-2026-46300 CVE-2026-46333 CVE-2026-31431 );
-    push @CVES, 'CVE-2026-43500' if ( $distro eq 'ubuntu');      ## This CVE is only on Ubuntu. RHEL servers are not affected by it.
-    my $showHeader=0;
-    foreach my $cve (@CVES) {
-        chomp($cve);
-        if ( $distro eq 'almalinux' || $distro eq 'cloudlinux' ) {
-            my $patched = Cpanel::SafeRun::Timed::timedsaferun( 0, 'dnf', 'updateinfo', '--quiet', '--list', '--all',  '--cve', $cve );
-            next if ( $patched );
-            push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia variants..." unless( $showHeader );
-            $showHeader=1;
-            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve" );
-            next;
+sub load_cve_names {
+    my ($url, $cache_path) = @_;
+    my %cve_names;
+
+    my $content = fetch_cve_data($url, $cache_path);
+    return %cve_names unless $content;
+
+    foreach my $line ( split /\n/, $content ) {
+        chomp $line;
+        next if $line =~ /^\s*#/ || $line !~ /\S/;   # skip comments/blank lines
+
+        # Strict validation: only accept well-formed CVE|label|scope lines
+        if ( $line =~ /^(CVE-\d{4}-\d{4,7})\|([^|]{1,80})\|(all|ubuntu)$/ ) {
+            $cve_names{$1} = { label => $2, scope => $3 };
         }
-        else {          ## Ubuntu Check chagenlogs only
+        else {
+            # Log/warn, but don't die -- one bad line shouldn't break the check
+            warn "Skipping malformed CVE data line: $line\n";
+        }
+    }
+
+    return %cve_names;
+}
+
+sub fetch_cve_data {
+    my ($url, $cache_path) = @_;
+
+    require LWP::UserAgent;
+    my $ua = LWP::UserAgent->new( timeout => 10, ssl_opts => { verify_hostname => 1 } );
+    my $resp = $ua->get($url);
+
+    if ( $resp->is_success ) {
+        my $content = $resp->decoded_content;
+
+        # Sanity check: raw.githubusercontent.com should never return HTML.
+        # If it does, GitHub is likely serving an error/redirect page instead
+        # of the actual file -- don't treat that as valid CVE data.
+        if ( $content =~ /^\s*<(!DOCTYPE|html)/i ) {
+            warn "Fetched content looks like HTML, not raw text -- ignoring\n";
+            $resp->code(999);   # force fallback to cache below
+        }
+        else {
+            if ( open( my $fh, '>', $cache_path ) ) {
+                print {$fh} $content;
+                close $fh;
+            }
+            return $content;
+        }
+    }
+
+    if ( -f $cache_path && open( my $fh, '<', $cache_path ) ) {
+        local $/;
+        my $content = <$fh>;
+        close $fh;
+        warn "Could not fetch $url, using cached copy\n";
+        return $content;
+    }
+
+    warn "Could not fetch $url and no cached copy exists at $cache_path\n";
+    return undef;
+}
+
+sub check_for_kernelhacks {
+    my %CVE_NAMES = load_cve_names(
+        'https://raw.githubusercontent.com/CpanelInc/tech-CSI/refs/heads/master/kernel_vulnerability_cves.txt',
+    );
+
+    unless (%CVE_NAMES) {
+        push @SUMMARY, expand( YELLOW "> Unable to load kernel CVE definitions; skipping check" );
+        return;
+    }
+
+    my @CVES = grep {
+        $CVE_NAMES{$_}{scope} eq 'all'
+        || ( $CVE_NAMES{$_}{scope} eq 'ubuntu' && $distro eq 'ubuntu' )
+    } keys %CVE_NAMES;
+
+    my $showHeader = 0;
+    foreach my $cve (@CVES) {
+        my $label = $CVE_NAMES{$cve}{label};
+        if ( $distro eq 'almalinux' || $distro eq 'cloudlinux' ) {
+            my $info = Cpanel::SafeRun::Timed::timedsaferun(
+                0, 'dnf', 'updateinfo', '--quiet', '--info', '--all', '--cve', $cve
+            );
+
+            if ( !defined $info || $info !~ /\S/ ) {
+                push @SUMMARY, "> Checking running kernel for various CVE's [ Copy/Fail/DirtyFrag/Fragnesia/ZcopyReaper ]"
+                    unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet on running kernel)" );
+                next;
+            }
+
+            next if ( $info =~ /^\s*Installed\s*:\s*true/mi );
+
+            push @SUMMARY, "> Checking running kernel for various CVE's [ Copy/Fail/DirtyFrag/Fragnesia/ZcopyReaper ]"
+                unless ($showHeader);
+            $showHeader = 1;
+            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
+        }
+        else {      ## Ubuntu
             my $running_kernel = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
             chomp($running_kernel);
-            my $patched = Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', $cve, "/usr/share/doc/linux-headers-$running_kernel/changelog.Debian.gz" );
-            next if ( $patched );
-            push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia variants..." unless( $showHeader );
-            $showHeader=1;
-            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve" );
-            next;
+
+            my $changelog = "/usr/share/doc/linux-headers-$running_kernel/changelog.Debian.gz";
+            my $patched   = Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', $cve, $changelog );
+            next if ($patched);
+
+            push @SUMMARY, "> Checking running kernel for various CVE's [ Copy/Fail/DirtyFrag/Fragnesia/ZcopyReaper ]"
+                unless ($showHeader);
+            $showHeader = 1;
+            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to " . YELLOW $cve . " [ " . WHITE $label . YELLOW " ]" );
         }
     }
 }
