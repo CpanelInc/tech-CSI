@@ -202,7 +202,6 @@
 /dev/tux
 /dev/tux/.file
 /dev/tux/.proc
-/dev/watchdog0
 /dev/wd4
 /dev/xdf1
 /dev/xdf2
