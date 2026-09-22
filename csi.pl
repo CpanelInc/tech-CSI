@@ -773,44 +773,19 @@ sub check_for_forged_tokens {
 sub check_kernel_updates {
     my $envtype = Cpanel::OSSys::Env::get_envtype();
     return if ( $envtype =~ m/lxc|viruozzo|vzcontainer/ );
-    if ( Cpanel::Version::compare( Cpanel::Version::getversionnumber(), '<', '11.102.0.0')) {
-        use Cpanel::Kernel::GetDefault;
-        my $boot_kernelversion = Cpanel::Kernel::GetDefault::get();
-        my $running_kernelversion = Cpanel::Kernel::get_running_version();
-        my $has_kernelcare=0;
-        my $reboot_required=0;
-        $has_kernelcare if ( Cpanel::KernelCare::kernelcare_responsible_for_running_kernel_updates() );
-        if ( $running_kernelversion ne $boot_kernelversion ) {
-            $reboot_required=1;
-            if ($has_kernelcare) {
-                if ($reboot_required) {
-                    push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
-                    push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]" );
-                    push @SUMMARY, expand( CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]" );
-                }
-            }
-            else {
-                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot should be scheduled)";
-                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_kernelversion . " ]" );
-                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $boot_kernelversion . " ]" );
-            }
+    my $KernelStatus = Cpanel::Kernel::Status::kernel_status();
+    if ( $KernelStatus->{has_kernelcare} ) {
+        if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
+            push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
+            push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
+            push @SUMMARY, expand( CYAN "\t \\_ Boot Version:    [ " . $KernelStatus->{boot_version} . " ]" );
         }
     }
-    else {      ## 102+
-        my $KernelStatus = Cpanel::Kernel::Status::kernel_status();
-        if ( $KernelStatus->{has_kernelcare} ) {
-            if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
-                push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
-                push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
-                push @SUMMARY, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
-            }
-        }
-        else {
-            if ( $KernelStatus->{reboot_required} ) {
-                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
-                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
-                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version: [ " . $KernelStatus->{boot_version} . " ]" );
-            }
+    else {
+        if ( $KernelStatus->{reboot_required} ) {
+            push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
+            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
+            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $KernelStatus->{boot_version} . " ]" );
         }
     }
 }
@@ -1702,7 +1677,9 @@ sub check_for_unowned_libkeyutils_files {
 }
 
 sub check_for_keyutils_ssh_backdoor {
+    # SOP-1005 Reported IOC (customer report, observed on AlmaLinux 9)
     my $showHeader = 0;
+
     my $sshd_effective = run_quiet( 4, 'sshd', '-T' );
     if ( defined $sshd_effective && length $sshd_effective ) {
         if ( $sshd_effective =~ m{authorizedkeysfile\s+/proc/self/environ}i ) {
@@ -2053,6 +2030,7 @@ sub get_susp_authkeys {
     my $res       = $ua->get($url);
     my $susp_authkeys = $res->decoded_content;
     my @susp_authkeys = split /\n/, $susp_authkeys;
+    @susp_authkeys = grep { /\S/ } @susp_authkeys;
     return @susp_authkeys;
 }
 
@@ -5485,6 +5463,7 @@ sub get_suspicious_cron_strings {
     my $res       = $ua->get($url);
     my $susp_cron_strings = $res->decoded_content;
     my @susp_cron_strings = split /\n/, $susp_cron_strings;
+    @susp_cron_strings = grep { /\S/ } @susp_cron_strings;
     return \@susp_cron_strings;
 }
 
