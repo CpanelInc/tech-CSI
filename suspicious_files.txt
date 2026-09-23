@@ -488,6 +488,7 @@
 /lib/libkeystats.so
 /lib/libkeyutils-1.2.so.0
 /lib/libkeyutils-1.2.so.2
+/lib/libkeyutils.so.1.10.2
 /lib/libkeyutils.so.1.3.0
 /lib/libkeyutils.so.1.3.2
 /lib/libkeyutils.so.1.9
@@ -564,6 +565,7 @@
 /lib64/libkeystats.so
 /lib64/libkeyutils-1.2.so.0
 /lib64/libkeyutils-1.2.so.2
+/lib64/libkeyutils.so.1.10.2
 /lib64/libkeyutils.so.1.3.0
 /lib64/libkeyutils.so.1.3.2
 /lib64/liblinux.so
@@ -1556,6 +1558,7 @@
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
 /usr/lib/libjucomm.so.1
+/usr/lib/libkeyutils.so.1.10.2
 /usr/lib/liblog.o
 /usr/lib/libm.c
 /usr/lib/libpanel.so.a.3
@@ -1604,6 +1607,7 @@
 /usr/lib/vmware-perfcharts/tc-instance/webapps/statsreport/vmware-perf-update.jsp
 /usr/lib/volc
 /usr/lib32/.X11/X0-lock
+/usr/lib64/libkeyutils.so.1.10.2
 /usr/lib64/libkeyutils.so.1.6.1
 /usr/lib64/pmtad
 /usr/lib64/seahorses/cpc
