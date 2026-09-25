@@ -405,6 +405,7 @@
 /etc/systemd/system/custom.service
 /etc/systemd/system/griphon.service
 /etc/systemd/system/kmodaudit.service
+/etc/systemd/system/monkey.service
 /etc/systemd/system/my_daemon.service
 /etc/systemd/system/myservice.service
 /etc/systemd/system/mysqI.service
@@ -820,6 +821,7 @@
 /sbin/xlogin
 /sys/firmware/qemu_fw_cfg/by_name/opt/usercontext/raw
 /sys/module/kworkerx
+/tmp/[0-9a-f]{64}
 /tmp./update
 /tmp.russ
 /tmp/.../a
