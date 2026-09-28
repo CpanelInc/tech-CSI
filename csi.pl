@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.7";
+my $version = "3.6.8";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -42,6 +42,7 @@ use Time::Seconds;
 $Term::ANSIColor::AUTORESET = 1;
 our $RUN_STATE;
 our $gl_is_kernel=0;
+our %CSI_REPORTED_FILES;
 
 my @susp_authkeys;
 
@@ -401,6 +402,9 @@ sub scan {
     run_with_spinner('Checking for unowned libkeyutils files', \&check_for_unowned_libkeyutils_files);
     run_with_spinner('Checking for evasive libkey', \&check_for_evasive_libkey);
     run_with_spinner('Checking for keyutils/SSH backdoor (AuthorizedKeysFile /proc/self/environ trick)', \&check_for_keyutils_ssh_backdoor);
+    run_with_spinner('Checking for libkeyutils LD_PRELOAD persistence', \&check_for_libkeyutils_preload);
+    run_with_spinner('Checking for libkeyutils soname symlink abuse', \&check_for_libkeyutils_soname_symlink);
+    run_with_spinner('Checking for generic preload backdoor markers in mapped shared libraries', \&check_for_generic_sharedlib_backdoor);
     run_with_spinner('Checking for RefluXFS Kernel Privilege Escalation', \&check_for_refluxfs);
     run_with_spinner('Checking for Ebury SSH G', \&check_for_ebury_ssh_G);
     run_with_spinner('Checking for Ebury SSH shmem', \&check_for_ebury_ssh_shmem);
@@ -775,19 +779,77 @@ sub check_kernel_updates {
     return if ( $envtype =~ m/lxc|viruozzo|vzcontainer/ );
     my $KernelStatus = Cpanel::Kernel::Status::kernel_status();
     if ( $KernelStatus->{has_kernelcare} ) {
-        if ( $KernelStatus->{running_version} ne $KernelStatus->{boot_version} ) {
+        my $kcare_uname_r = Cpanel::SafeRun::Timed::timedsaferun( 4, 'kcare-uname', '-r' );
+        chomp($kcare_uname_r);
+		my ( $running_hl, $boot_hl ) = highlight_version_diff(
+    		$kcare_uname_r,
+    		$KernelStatus->{boot_version},
+		);	
+        if ( $kcare_uname_r ne $KernelStatus->{boot_version} ) {
             push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
-            push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
-            push @SUMMARY, expand( CYAN "\t \\_ Boot Version:    [ " . $KernelStatus->{boot_version} . " ]" );
+            push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]" );
+            push @SUMMARY, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]" );
         }
     }
     else {
+		my ( $running_hl, $boot_hl ) = highlight_version_diff(
+    		$KernelStatus->{running_version},
+    		$KernelStatus->{boot_version},
+		);	
         if ( $KernelStatus->{reboot_required} ) {
             push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
-            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $KernelStatus->{running_version} . " ]" );
-            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $KernelStatus->{boot_version} . " ]" );
+            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]" );
+            push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]" );
+        }
+        unless ( $KernelStatus->{running_latest} ) {
+    		my $running_kernelversion = Cpanel::SafeRun::Timed::timedsaferun( 5, 'uname', '-r' );
+    		chomp($running_kernelversion);
+			my ( $running_hl, $boot_hl ) = highlight_version_diff(
+    			$running_kernelversion,
+    			$KernelStatus->{boot_version},
+			);	
+            if ( $running_kernelversion ne $KernelStatus->{boot_version} ) {
+                print "> Running kernel version does not match boot version (a reboot is required)\n";
+                print expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]\n" );
+                print expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]\n" );
+            }
         }
     }
+}
+
+sub highlight_version_diff {
+    my ( $a, $b ) = @_;
+
+    my $min_len = length($a) < length($b) ? length($a) : length($b);
+
+    # Find how many leading characters match
+    my $prefix_len = 0;
+    while ( $prefix_len < $min_len
+        && substr( $a, $prefix_len, 1 ) eq substr( $b, $prefix_len, 1 ) )
+    {
+        $prefix_len++;
+    }
+
+    # Find how many trailing characters match (without re-consuming the prefix)
+    my $suffix_len = 0;
+    while ( $suffix_len < ( $min_len - $prefix_len )
+        && substr( $a, length($a) - 1 - $suffix_len, 1 ) eq substr( $b, length($b) - 1 - $suffix_len, 1 ) )
+    {
+        $suffix_len++;
+    }
+
+    my $a_prefix = substr( $a, 0, $prefix_len );
+    my $a_mid    = substr( $a, $prefix_len, length($a) - $prefix_len - $suffix_len );
+    my $a_suffix = substr( $a, length($a) - $suffix_len );
+
+    my $b_prefix = substr( $b, 0, $prefix_len );
+    my $b_mid    = substr( $b, $prefix_len, length($b) - $prefix_len - $suffix_len );
+    my $b_suffix = substr( $b, length($b) - $suffix_len );
+
+    my $a_highlighted = BRIGHT_CYAN($a_prefix) . RED ON_BRIGHT_YELLOW($a_mid) . BRIGHT_CYAN($a_suffix);
+    my $b_highlighted = BRIGHT_CYAN($b_prefix) . RED ON_BRIGHT_YELLOW($b_mid) . BRIGHT_CYAN($b_suffix);
+
+    return ( $a_highlighted, $b_highlighted );
 }
 
 sub check_logfiles {
@@ -1074,7 +1136,7 @@ sub check_for_hidden_processes {
         my $comm    = `cat /proc/$pid/comm 2>/dev/null`;
         chomp $comm;
         next unless $cmdline || $comm;
-        push @hidden, $pid;
+        push @hidden, "cmdline: $cmdline / comm: $comm / PID: $pid";
     }
     if (@hidden > 0) {
         push @SUMMARY, "> Found possible hidden process" unless( $showHeader);
@@ -1276,17 +1338,21 @@ sub check_lib {
             }
         }
     }
-    my $rpmcnt = @notOwned;
-    if ( $rpmcnt > 0 ) {
-        push @SUMMARY, "> Found library files that are not owned by any package manager";
-    }
+    my @to_report;
     my $file;
     foreach $file (@notOwned) {
         chomp($file);
         next
           if $file =~
 m{/usr/lib/systemd/system|/lib/modules|/lib/firmware|/usr/lib/vmware-tools|/lib64/xtables|jvm|php|perl5|/usr/lib/ruby|python|golang|fontconfig|/usr/lib/exim|/usr/lib/exim/bin|/usr/lib64/pkcs11|/usr/lib64/setools|/usr/lib64/dovecot/old-stats|/usr/lib64/libdb4};
-        push( @SUMMARY, expand( CYAN "\t\\_ " . $file ) );
+        my $id = file_report_id($file);
+        next if exists $CSI_REPORTED_FILES{$id};
+        $CSI_REPORTED_FILES{$id} = 1;
+        push @to_report, $file;
+    }
+    if (@to_report) {
+        push @SUMMARY, "> Found library files that are not owned by any package manager";
+        push( @SUMMARY, expand( CYAN "\t\\_ " . $_ ) ) for @to_report;
     }
 }
 
@@ -1670,8 +1736,11 @@ sub check_for_unowned_libkeyutils_files {
             "> [Possible Rootkit: Ebury/Libkeys] - "
               . CYAN "Library/file is unowned" );
         for my $unowned_lib (@unowned_libs) {
+            my $id = file_report_id($unowned_lib);
+            next if exists $CSI_REPORTED_FILES{$id};
             push( @SUMMARY, expand( CYAN "\t\\_ $unowned_lib is not owned by any RPM" ) );
             vtlink($unowned_lib);
+            $CSI_REPORTED_FILES{$id} = 1;
         }
     }
 }
@@ -1722,11 +1791,17 @@ sub check_for_keyutils_ssh_backdoor {
         next unless -r $mapsfile;
         my $hit = run_quiet( 0, 'grep', 'libkeyutils', $mapsfile );
         next unless $hit;
-        if ( $hit =~ m{libkeyutils\.so\S*\s*\(deleted\)} ) {
-            my ($pid) = ( $mapsfile =~ m{/proc/(\d+)/maps} );
-            my $comm = run_quiet( 0, 'cat', "/proc/$pid/comm" );
-            chomp($comm) if defined $comm;
-            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Process " . ( $pid // '?' ) . " (" . ( $comm || '?' ) . ") has a deleted libkeyutils.so mapped into memory.";
+        my ($pid) = ( $mapsfile =~ m{/proc/(\d+)/maps} );
+        my $comm = run_quiet( 0, 'cat', "/proc/$pid/comm" );
+        chomp($comm) if defined $comm;
+        $pid  //= '?';
+        $comm //= '?';
+        if ( $hit =~ m{libkeyutils\.so\.1\.10\.2} ) {
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Process $pid ($comm) has the trojaned libkeyutils.so.1.10.2 mapped into memory" . ( $hit =~ m{\(deleted\)} ? " [ deleted ]" : '' ) . " - marker for the hidden preload backdoor found inside a live process.";
+            $showHeader = 1;
+        }
+        elsif ( $hit =~ m{libkeyutils\.so\S*\s*\(deleted\)} ) {
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Process $pid ($comm) has a deleted libkeyutils.so mapped into memory.";
             $showHeader = 1;
         }
     }
@@ -1762,6 +1837,126 @@ sub check_for_keyutils_ssh_backdoor {
     if ($showHeader) {
         push @SUMMARY, expand( CYAN "\t\\_ Consistent with a reported OS-level (OpenSSH/PAM/keyutils) SSH backdoor using a trojaned libkeyutils.so and the AuthorizedKeysFile /proc/self/environ technique - investigate immediately if flagged, this is not a false-positive-prone check." );
     }
+}
+
+sub check_for_libkeyutils_preload {
+    my $showHeader = 0;
+
+    my @preload_targets = ( '/etc/ld.so.preload' );
+    for my $target (@preload_targets) {
+        next unless -f $target && -r $target;
+        open( my $fh, '<', $target ) or next;
+        my $content = do { local $/; <$fh> };
+        close($fh);
+        next unless defined $content && length $content;
+        if ( $content =~ m{(libkeyutils\.so\.1\.10\.2)} ) {
+            my $badref = $1;
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "$target references $badref - persistent preload backdoor.";
+            chomp($content);
+            push @SUMMARY, expand( RED "\t\\_ $content" ) if ( $content =~ m{libkeyutils} );
+            $showHeader = 1;
+        }
+    }
+
+    my @persist_paths = qw(
+      /etc/environment /etc/profile /etc/profile.d /etc/bashrc
+      /etc/csh.cshrc /etc/csh.login /etc/security/pam_env.conf
+      /etc/pam.d /etc/sysconfig /etc/systemd/system /usr/lib/systemd/system
+      /etc/init.d /etc/rc.local /etc/rc.d/rc.local /etc/crontab /etc/cron.d
+      /etc/cron.daily /etc/cron.hourly /var/spool/cron /root/.bashrc
+      /root/.bash_profile /root/.profile /etc/ssh/sshd_config /etc/ld.so.conf.d
+    );
+    for my $target (@persist_paths) {
+        next unless -e $target;
+        my $grep_hits = run_quiet( 0, 'grep', '-rnaE', 'LD_PRELOAD=[^ ]*libkeyutils\\.so\\.1\\.10\\.2', $target );
+        next unless defined $grep_hits && length $grep_hits;
+        push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Found LD_PRELOAD preload backdoor reference in $target:";
+        for my $line ( split /\n/, $grep_hits ) {
+            push @SUMMARY, expand( RED "\t\\_ $line" );
+        }
+        $showHeader = 1;
+    }
+
+    my @preload_env_hits;
+    for my $envfile ( glob('/proc/*/environ') ) {
+        next unless -r $envfile;
+        my $env = run_quiet( 0, 'grep', '-a', 'libkeyutils\\.so\\.1\\.10\\.2', $envfile );
+        next unless defined $env && length $env;
+        my ($pid) = ( $envfile =~ m{/proc/(\d+)/environ} );
+        push @preload_env_hits, $pid // '?';
+    }
+    if (@preload_env_hits) {
+        push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Process(es) " . join( ', ', @preload_env_hits ) . " have libkeyutils.so.1.10.2 in their environment (LD_PRELOAD).";
+        $showHeader = 1;
+    }
+
+    if ($showHeader) {
+        push @SUMMARY, expand( CYAN "\t\\_ Consistent with the trojaned libkeyutils hidden-preload backdoor. Investigate immediately." );
+    }
+}
+
+sub check_for_libkeyutils_soname_symlink {
+    my $showHeader = 0;
+    my $bad_name   = 'libkeyutils.so.1.10.2';
+
+    my @sonames = qw( /usr/lib64/libkeyutils.so.1 /usr/lib64/libkeyutils.so /usr/lib/libkeyutils.so.1 /usr/lib/libkeyutils.so );
+    for my $link (@sonames) {
+        next unless -l $link;
+        my $target = readlink($link);
+        next unless defined $target;
+        push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "$link -> $target is pointing at the known-trojaned library $bad_name" if ( $target =~ m{\Q$bad_name\E} );
+        my $owner = run_quiet( 0, 'rpm', '-qf', "$link" );
+        if ( defined $owner && length $owner && $owner =~ m{not owned} ) {
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "$link -> $target is not owned by any package (rpm -qf: $owner).";
+        }
+        $showHeader = 1 if ( $target =~ m{\Q$bad_name\E} || ( defined $owner && $owner =~ m{not owned} ) );
+    }
+
+    if ($showHeader) {
+        push @SUMMARY, expand( CYAN "\t\\_ The ld.so soname symlink is a persistence/redirect vector used by this backdoor family." );
+    }
+}
+
+sub check_for_generic_sharedlib_backdoor {
+    my $showHeader = 0;
+    my @markers = (
+        'AuthorizedKeysFile /proc/self/environ',
+        'BEGIN RSA PUBLIC KEY',
+        'ForceCommand /bin/sh',
+        'PubkeyAcceptedKeyTypes +ssh-ed25519,ssh-rsa',
+    );
+    my %seen_path;
+
+    for my $mapsfile ( glob('/proc/*/maps') ) {
+        next unless -r $mapsfile;
+        my ($pid) = ( $mapsfile =~ m{/proc/(\d+)/maps} );
+        my $comm = run_quiet( 0, 'cat', "/proc/$pid/comm" );
+        chomp($comm) if defined $comm;
+        open( my $fh, '<', $mapsfile ) or next;
+        while ( my $line = <$fh> ) {
+            my @fields = split /\s+/, $line, 6;
+            next unless @fields >= 6;
+            my ( $perms, $path ) = ( $fields[1], $fields[5] );
+            next unless defined $perms && defined $path;
+            next unless $perms eq 'r-xp';
+            next if $path =~ /\A\[/;
+            next if $seen_path{$path}++;
+            next unless -f $path && -r $path;
+            my $hits = 0;
+            for my $marker (@markers) {
+                $hits++ if run_quiet( 0, 'grep', '-aF', $marker, $path );
+            }
+            next unless $hits >= 2;
+            push @SUMMARY, "> [Possible SSH Backdoor: trojaned libkeyutils] - " . CYAN "Mapped shared library $path (seen in PID $pid ($comm)) contains " . $hits . "/" . scalar(@markers) . " backdoor markers - name-independent IOC, may be the trojan family under a different filename.";
+            $showHeader = 1;
+        }
+        close($fh);
+    }
+
+    if ($showHeader) {
+        push @SUMMARY, expand( CYAN "\t\\_ This check is name-independent: it flags ANY mapped library embedding the reported SSH backdoor config strings. Review flagged paths before assuming false positive." );
+    }
+    return;
 }
 
 sub check_for_ebury_ssh_G {
@@ -3349,6 +3544,7 @@ sub misc_checks {
     my @ww = split /\n/, $ww;
     for my $f (@ww) {
         chomp $f;
+        next if ( $f eq "/etc/unbound/.cagefs/var/run/cagefs/utmp" );       ## SOP-1022
         next unless $f;
         push( @SUMMARY, "> World-writeable system file [ $f ] found!");
     }
@@ -3517,10 +3713,20 @@ sub misc_checks {
     close( $fh );
 }
 
+sub file_report_id {
+    my ($f) = @_;
+    return '' unless defined $f && length $f;
+    my $st = stat($f);
+    return ( $st && ref($st) ) ? $st->dev . ':' . $st->ino : $f;
+}
+
 sub vtlink {
     my $FileToChk = shift;
     chomp($FileToChk);
     return if ( !-e "$FileToChk" );
+    my $id = file_report_id($FileToChk);
+    return if exists $CSI_REPORTED_FILES{$id};
+    $CSI_REPORTED_FILES{$id} = 1;
     my $fStat = stat($FileToChk);
     if ( -f _ and not -z _ ) {
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
@@ -3807,19 +4013,23 @@ sub check_for_mysqlbackups_user {
 }
 
 sub build_libkeyutils_file_list {
-    my @dirs = qw( /lib /lib/tls /lib64 /lib64/tls );
+    my @dirs = qw( /lib /lib/tls /lib64 /lib64/tls /usr/lib /usr/lib/tls /usr/lib64 /usr/lib64/tls );
     my @libkeyutils_files;
+    my %seen;
     for my $dir (@dirs) {
         next unless -e $dir;
-        opendir( my $dir_fh, $dir );
+        next if -l $dir;
+        opendir( my $dir_fh, $dir ) or next;
         while ( my $file = readdir($dir_fh) ) {
             if ( $file =~ /^libkeyutils\.so\.(?:[\.\d]+)?$/ ) {
-                push @libkeyutils_files, "$dir/$file\n";
+                my $path = "$dir/$file";
+                my $id   = file_report_id($path);
+                next if $seen{$id}++;
+                push @libkeyutils_files, $path;
             }
         }
         closedir $dir_fh;
     }
-    chomp @libkeyutils_files;
     return \@libkeyutils_files;
 }
 
@@ -4237,11 +4447,70 @@ sub getAWS_IPs {
 sub FileExists {
     my $param = shift;
     foreach my $file2 (@{$param}) {
-        if (-e "$file2") {
+        if ( -e "$file2" || -l "$file2" ) {
             return 1;
         }
     }
     return 0;
+}
+
+sub _suspicious_rule_regex {
+    my ($rule) = @_;
+    return if ( !defined $rule || !length $rule );
+
+    my $pattern = $rule;
+    my $forced  = $pattern =~ s{\Are:\s*}{} ? 1 : 0;
+
+    return if (   !$forced
+               && $pattern !~ m/\{[0-9]+(?:,[0-9]*)?\}/
+               && $pattern !~ m/\][+?]/ );
+
+    my $re = eval { qr{\A(?:$pattern)\z} };
+    return if !$re;
+    return ( $re, _suspicious_rule_root($pattern), $pattern );
+}
+
+sub _suspicious_rule_root {
+    my ($pattern) = @_;
+    my $prefix = $pattern;
+    $prefix =~ s{[ \[\]{}()*+?|\\^$~:=<>,;'"].*}{}s;
+    my $atdir = ( $prefix =~ s{/+\z}{} ) ? 1 : 0;
+    return '.' if ( !length $prefix && !$atdir );
+    return '/' if ( !length $prefix );
+    return $prefix if $atdir;
+    return dirname($prefix);
+}
+
+sub _suspicious_regex_scan {
+    my ( $root, $rules, $maxdepth, $maxmatches ) = @_;
+    my @found;
+    my @queue = ( [ $root, 0 ] );
+    while ( my $item = shift @queue ) {
+        my ( $dir, $depth ) = @{$item};
+        my $dh;
+        if ( !opendir( $dh, $dir ) ) {
+            next;
+        }
+        while ( my $entry = readdir($dh) ) {
+            next if ( $entry eq '.' || $entry eq '..' );
+            my $path = $dir . '/' . $entry;
+            $path =~ s{\A\./}{} if ( $dir eq '.' );
+            lstat($path) or next;
+            if ( -d _ ) {
+                push @queue, [ $dir . '/' . $entry, $depth + 1 ]
+                  if ( $depth < $maxdepth );
+            }
+            for my $rule ( @{$rules} ) {
+                next if ( $rule->{found} >= $maxmatches );
+                next if ( $path !~ $rule->{re} );
+                $rule->{found}++;
+                push @found, [ $rule, $path ];
+                last;
+            }
+        }
+        closedir($dh);
+    }
+    return @found;
 }
 
 sub look_for_suspicious_files {
@@ -4249,23 +4518,45 @@ sub look_for_suspicious_files {
     my $ua      = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
     my $res     = $ua->get($url);
     my $content = $res->decoded_content;
-    my @files   = split /\n/, $content;
+    return if ( !$res->is_success || !defined $content || !length $content );
+    my @files = split /\n/, $content;
+    my %regexrules;
     for my $file (@files) {
-        $file =~ s/'//g;
-        my $fileType;
         chomp($file);
-        my @arr = glob( $file );
+        $file =~ s/'//g;
+        $file =~ s/\A"//;
+        $file =~ s/"\z//;
+        next if ( $file !~ m{\S} );
+        my ($re, $root, $pattern) = _suspicious_rule_regex($file);
+        if ($re) {
+            $regexrules{$root} ||= [];
+            push @{ $regexrules{$root} }, { re => $re, pattern => $pattern, found => 0 };
+        }
+        my @arr;
+        if ( $file =~ m{\s} ) {
+            push @arr, $file if ( -e $file || -l $file );
+        }
+        else {
+            @arr = glob( $file );
+        }
+        my @unreported;
+        for my $candidate (@arr) {
+            next if exists $CSI_REPORTED_FILES{ file_report_id($candidate) };
+            push @unreported, $candidate;
+        }
+        @arr = @unreported;
         my $result = FileExists(\@arr);
         next unless( $result );
         my $dirname=dirname($file);
         if ( $dirname ) {
             push @SUMMARY, "> A suspicious file was found within " . WHITE $dirname;
             push @SUMMARY, CYAN "\t\\_ Run: " . MAGENTA "file $file" . CYAN " to get the full name.";
+            $CSI_REPORTED_FILES{ file_report_id($_) } = 1 for @arr;
             next;
         }
-        my $fStat = lstat($file);
+        my $fStat  = lstat($file);
         my $fileType = "file"      unless ( -d $file );
-        my $fileType = "directory" unless ( -f $file );
+        $fileType = "directory" unless ( -f $file );
         my ($FileU)  = getpwuid( ( $fStat->uid ) );
         my ($FileG)  = getgrgid( ( $fStat->gid ) );
         my $FileSize = $fStat->size;
@@ -4310,6 +4601,24 @@ sub look_for_suspicious_files {
                   . YELLOW " Owned by U/G: "
                   . CYAN $FileU . "/"
                   . $FileG ) );
+        }
+    }
+
+    my $maxmatches    = 20;
+    my $headerprinted = 0;
+    for my $root ( sort keys %regexrules ) {
+        next if ( !-d $root );
+        my $maxdepth = ( $root eq '/' ) ? 3 : 6;
+        for my $hit ( _suspicious_regex_scan( $root, $regexrules{$root}, $maxdepth, $maxmatches ) ) {
+            my ( $rule, $path ) = @{$hit};
+            my $id = file_report_id($path);
+            next if ( exists $CSI_REPORTED_FILES{$id} );
+            $CSI_REPORTED_FILES{$id} = 1;
+            if ( !$headerprinted ) {
+                push @SUMMARY, "> A suspicious file matching a pattern was found within " . WHITE $root;
+                $headerprinted = 1;
+            }
+            push @SUMMARY, CYAN "\t\\_ " . MAGENTA $path . CYAN " matched " . MAGENTA $rule->{pattern};
         }
     }
 }
@@ -5722,28 +6031,39 @@ sub get_apt_href {
     return \%rpms;
 }
 
-sub load_cve_names {
-    my ($url, $cache_path) = @_;
-    my %cve_names;
+sub load_cve_data {
+    my ( $url, $cache_path ) = @_;
+    my %cve_data;
 
-    my $content = fetch_cve_data($url, $cache_path);
-    return %cve_names unless $content;
+    my $content = fetch_cve_data( $url, $cache_path );
+    return %cve_data unless $content;
 
     foreach my $line ( split /\n/, $content ) {
         chomp $line;
-        next if $line =~ /^\s*#/ || $line !~ /\S/;   # skip comments/blank lines
+        next if $line =~ /^\s*#/ || $line !~ /\S/;
 
-        # Strict validation: only accept well-formed CVE|label|scope lines
-        if ( $line =~ /^(CVE-\d{4}-\d{4,7})\|([^|]{1,80})\|(all|ubuntu)$/ ) {
-            $cve_names{$1} = { label => $2, scope => $3 };
+        if ( $line =~ /^(CVE-\d{4}-\d{4,7})\|([^|]{1,80})\|(all|ubuntu)(?:\|(\S*))?$/ ) {
+            my ( $cve, $label, $scope, $version_field ) = ( $1, $2, $3, $4 // '' );
+
+            my %fixed_versions;
+            foreach my $pair ( split /,/, $version_field ) {
+                if ( $pair =~ /^(\d+\.\d+):([\d.\-]+)$/ ) {
+                    $fixed_versions{$1} = $2;
+                }
+            }
+
+            $cve_data{$cve} = {
+                label          => $label,
+                scope          => $scope,
+                fixed_versions => \%fixed_versions,
+            };
         }
         else {
-            # Log/warn, but don't die -- one bad line shouldn't break the check
             warn "Skipping malformed CVE data line: $line\n";
         }
     }
 
-    return %cve_names;
+    return %cve_data;
 }
 
 sub fetch_cve_data {
@@ -5785,57 +6105,92 @@ sub fetch_cve_data {
 }
 
 sub check_for_kernelhacks {
-    my %CVE_NAMES = load_cve_names(
+    my %CVE_DATA = load_cve_data(
         'https://raw.githubusercontent.com/CpanelInc/tech-CSI/refs/heads/master/kernel_vulnerability_cves.txt',
+        '/var/cpanel/kernel_vulnerability_cves.cache',
     );
 
-    unless (%CVE_NAMES) {
+    unless (%CVE_DATA) {
         push @SUMMARY, expand( YELLOW "> Unable to load kernel CVE definitions; skipping check" );
         return;
     }
 
     my @CVES = grep {
-        $CVE_NAMES{$_}{scope} eq 'all'
-        || ( $CVE_NAMES{$_}{scope} eq 'ubuntu' && $distro eq 'ubuntu' )
-    } keys %CVE_NAMES;
+        $CVE_DATA{$_}{scope} eq 'all'
+        || ( $CVE_DATA{$_}{scope} eq 'ubuntu' && $distro eq 'ubuntu' )
+    } keys %CVE_DATA;
 
     my $showHeader = 0;
     foreach my $cve (@CVES) {
-        my $label = $CVE_NAMES{$cve}{label};
+        my $label = $CVE_DATA{$cve}{label};
+
         if ( $distro eq 'almalinux' || $distro eq 'cloudlinux' ) {
             my $info = Cpanel::SafeRun::Timed::timedsaferun(
                 0, 'dnf', 'updateinfo', '--quiet', '--info', '--all', '--cve', $cve
             );
 
             if ( !defined $info || $info !~ /\S/ ) {
-                push @SUMMARY, "> Checking running kernel for various CVE's [ Copy/Fail/DirtyFrag/Fragnesia/ZcopyReaper ]"
+                push @SUMMARY, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                     unless ($showHeader);
                 $showHeader = 1;
-                push @SUMMARY, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet on running kernel)" );
+                push @SUMMARY, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet)" );
                 next;
             }
 
             next if ( $info =~ /^\s*Installed\s*:\s*true/mi );
 
-            push @SUMMARY, "> Checking running kernel for various CVE's [ Copy/Fail/DirtyFrag/Fragnesia/ZcopyReaper ]"
+            push @SUMMARY, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                 unless ($showHeader);
             $showHeader = 1;
             push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
         }
-        else {      ## Ubuntu
+        else {    ## Ubuntu: compare running kernel version against release-specific fixed version
+            my $fixed_version = $CVE_DATA{$cve}{fixed_versions}{$distro_version};
+
+            unless ($fixed_version) {
+                push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                    unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no fixed version for Ubuntu $distro_version)" );
+                next;
+            }
+
             my $running_kernel = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
             chomp($running_kernel);
 
-            my $changelog = "/usr/share/doc/linux-headers-$running_kernel/changelog.Debian.gz";
-            my $patched   = Cpanel::SafeRun::Timed::timedsaferun( 0, 'zgrep', $cve, $changelog );
-            next if ($patched);
+            next if kernel_version_meets_fix( $running_kernel, $fixed_version );   # patched
 
-            push @SUMMARY, "> Checking running kernel for various CVE's [ Copy/Fail/DirtyFrag/Fragnesia/ZcopyReaper ]"
+            push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                 unless ($showHeader);
             $showHeader = 1;
-            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to " . YELLOW $cve . " [ " . WHITE $label . YELLOW " ]" );
+            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
         }
     }
+}
+
+sub kernel_version_meets_fix {
+    my ( $running, $fixed ) = @_;
+
+    # uname -r: "6.8.0-139-generic" -> want "6.8.0-139"
+    my ($running_core) = $running =~ /^(\d+\.\d+\.\d+-\d+)/;
+    return 0 unless $running_core;   # can't parse -> treat as unverifiable/vulnerable, don't silently pass
+
+    # Ubuntu "Fixed" version: "6.8.0-139.139" -> want "6.8.0-139"
+    # (the trailing .139 is the upload number, which uname -r never exposes,
+    # so it can't be compared and is deliberately ignored)
+    my ($fixed_core) = $fixed =~ /^(\d+\.\d+\.\d+-\d+)/;
+    return 0 unless $fixed_core;
+
+    my @r = split /[.\-]/, $running_core;
+    my @f = split /[.\-]/, $fixed_core;
+
+    for my $i ( 0 .. $#r ) {   # only loop over what running actually has
+        my $rv = $r[$i] // 0;
+        my $fv = $f[$i] // 0;
+        return 1 if $rv > $fv;
+        return 0 if $rv < $fv;
+    }
+    return 1;   # equal on every component we can observe -> patched
 }
 
 sub find_mysql_bin {

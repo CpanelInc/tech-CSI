@@ -599,6 +599,9 @@
 /opt/KHK75NEOiq33
 /opt/aspera/faspex
 /opt/bootlocal.sh
+/opt/gh0st/entry.sh
+/opt/gh0st/auto-persist-host.sh
+/opt/gh0st/SOUL.md
 /opt/hadooken
 /opt/pcpcat/
 /opt/pcpcat/*.log
@@ -1244,6 +1247,7 @@
 /tmp/srv
 /tmp/ssdpid
 /tmp/sshins
+/tmp/stol.png
 /tmp/suid_out.txt
 /tmp/sustse
 /tmp/syslogdb
@@ -1630,6 +1634,7 @@
 /usr/local/UMBREON
 /usr/local/__UMBREON__
 /usr/local/bin/.../bktd
+/usr/local/bin/.docker-network-monitor
 /usr/local/bin/.netmon
 /usr/local/bin/.netmon/systemd-helper
 /usr/local/bin/.rc
@@ -1730,6 +1735,7 @@
 /usr/sbin/libdns.so
 /usr/sbin/libhttpd.so
 /usr/sbin/libvird
+/usr/sbin/systemd-logind
 /usr/sbin/mech
 /usr/sbin/minerd
 /usr/sbin/netdns

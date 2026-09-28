@@ -5526,3 +5526,23 @@ rule Gomir_Linux {
         )
 }
 
+rule Monkey_Ransomware {
+    meta:
+        description = "Detects MONKEY ransomware"
+        author = "M@lB3nder- Youssef Madkour"
+        malware_family = "Monkey Ransomware"
+
+    strings:
+        $extension1 = ".monkeyRansomware" ascii wide
+        $extension2 = ".monkey" ascii wide
+        $service1 = "monkey.service" ascii wide
+        $str = "stol.png" ascii wide
+        $command1 = "pkill -9 selinux" ascii wide
+        $command2 = "pkill -9 apparmor" ascii wide
+        $command3 = "vssadmin delete shadows" ascii wide
+        $command4 = "fuser -k" ascii wide
+
+    condition:
+        any of ($extension*, $service1, $str, $command*)
+}
+
