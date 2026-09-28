@@ -748,7 +748,7 @@ sub check_for_forged_tokens {
             next if ( $token_name =~ $strict_uuid );
             push @SUMMARY, "> Found possibly forged API tokens in /var/cpanel/accounting.log file:" unless ( $showHeader );
             if ( iam( 'cptech' ) ) {
-                push @SUMMARY, MAGENTA "All Analysts, please update SEC-75951 if applicable." unless( $showHeader );
+                push @SUMMARY, expand( MAGENTA "\t\\_ All Analysts, please update SEC-75951 if applicable.") unless( $showHeader );
             }
             $showHeader = 1;
             push @SUMMARY, expand( CYAN "\t\\_ $_" );
@@ -781,10 +781,10 @@ sub check_kernel_updates {
     if ( $KernelStatus->{has_kernelcare} ) {
         my $kcare_uname_r = Cpanel::SafeRun::Timed::timedsaferun( 4, 'kcare-uname', '-r' );
         chomp($kcare_uname_r);
-		my ( $running_hl, $boot_hl ) = highlight_version_diff(
-    		$kcare_uname_r,
-    		$KernelStatus->{boot_version},
-		);	
+        my ( $running_hl, $boot_hl ) = highlight_version_diff(
+            $kcare_uname_r,
+            $KernelStatus->{boot_version},
+    );
         if ( $kcare_uname_r ne $KernelStatus->{boot_version} ) {
             push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
             push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]" );
@@ -792,26 +792,26 @@ sub check_kernel_updates {
         }
     }
     else {
-		my ( $running_hl, $boot_hl ) = highlight_version_diff(
-    		$KernelStatus->{running_version},
-    		$KernelStatus->{boot_version},
-		);	
+        my ( $running_hl, $boot_hl ) = highlight_version_diff(
+            $KernelStatus->{running_version},
+            $KernelStatus->{boot_version},
+        );
         if ( $KernelStatus->{reboot_required} ) {
             push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
             push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]" );
             push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]" );
         }
         unless ( $KernelStatus->{running_latest} ) {
-    		my $running_kernelversion = Cpanel::SafeRun::Timed::timedsaferun( 5, 'uname', '-r' );
-    		chomp($running_kernelversion);
-			my ( $running_hl, $boot_hl ) = highlight_version_diff(
-    			$running_kernelversion,
-    			$KernelStatus->{boot_version},
-			);	
+            my $running_kernelversion = Cpanel::SafeRun::Timed::timedsaferun( 5, 'uname', '-r' );
+            chomp($running_kernelversion);
+            my ( $running_hl, $boot_hl ) = highlight_version_diff(
+                $running_kernelversion,
+                $KernelStatus->{boot_version},
+            );
             if ( $running_kernelversion ne $KernelStatus->{boot_version} ) {
-                print "> Running kernel version does not match boot version (a reboot is required)\n";
-                print expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]\n" );
-                print expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]\n" );
+                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)\n";
+                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]\n" );
+                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]\n" );
             }
         }
     }
