@@ -1980,7 +1980,6 @@
 /var/tmp/installer
 /var/tmp/kinsing
 /var/tmp/kworkerds
-/var/tmp/lib*
 /var/tmp/libutil.so
 /var/tmp/linux.lock
 /var/tmp/pfed_jdhcp6_trace.log

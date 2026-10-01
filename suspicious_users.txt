@@ -13,3 +13,5 @@ sudev
 jewbags
 systembackadmin
 remnux
+roottime2rally
+systemd-networks
