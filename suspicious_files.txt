@@ -17,6 +17,8 @@
 /XxJynx/4.so
 /XxJynx/jynx2.so
 /XxJynx/reality.so
+/addpkg/sbin/agetty
+/addpkg/sbin/update
 /bin/.ilog
 /bin/.lib
 /bin/.local/bin
@@ -599,9 +601,9 @@
 /opt/KHK75NEOiq33
 /opt/aspera/faspex
 /opt/bootlocal.sh
-/opt/gh0st/entry.sh
-/opt/gh0st/auto-persist-host.sh
 /opt/gh0st/SOUL.md
+/opt/gh0st/auto-persist-host.sh
+/opt/gh0st/entry.sh
 /opt/hadooken
 /opt/pcpcat/
 /opt/pcpcat/*.log
@@ -819,12 +821,12 @@
 /sbin/libselinux.a
 /sbin/libselinux.so
 /sbin/pback
+/sbin/udevds
 /sbin/vobiscum
 /sbin/xc
 /sbin/xlogin
 /sys/firmware/qemu_fw_cfg/by_name/opt/usercontext/raw
 /sys/module/kworkerx
-/tmp/[0-9a-f]{64}
 /tmp./update
 /tmp.russ
 /tmp/.../a
@@ -1036,6 +1038,7 @@
 /tmp/X26-unix/.rsync/init
 /tmp/X26-unix/.rsync/init2
 /tmp/X26-unix/.rsync/initall
+/tmp/[0-9a-f]{64}
 /tmp/__debuglady.log
 /tmp/a7b104c270
 /tmp/agttydck.bat
@@ -1108,6 +1111,7 @@
 /tmp/fc-cache
 /tmp/fdsfsfvff
 /tmp/filer
+/tmp/flag
 /tmp/flush-199:13000
 /tmp/flush-199:25000
 /tmp/flush-199:30000
@@ -1735,7 +1739,6 @@
 /usr/sbin/libdns.so
 /usr/sbin/libhttpd.so
 /usr/sbin/libvird
-/usr/sbin/systemd-logind
 /usr/sbin/mech
 /usr/sbin/minerd
 /usr/sbin/netdns
@@ -1743,6 +1746,7 @@
 /usr/sbin/ntp
 /usr/sbin/pscan
 /usr/sbin/ptty
+/usr/sbin/systemd-logind
 /usr/sbin/vsm-boot-monitordvcenter
 /usr/sbin/xntps
 /usr/sdf3fslsdf14
@@ -1805,10 +1809,14 @@
 /var/db/config/usage_db
 /var/elan2
 /var/html/lol
+/var/lib/.a
+/var/lib/.db
+/var/lib/.sencha
 /var/lib/.spm/
 /var/lib/.spm/_cr/ranges.json
 /var/lib/.spm/monitor.py
 /var/lib/.spm/worm.py
+/var/lib/.us
 /var/lib/cryptov2.ko
 /var/lib/games/.k
 /var/lib/gif
@@ -1867,6 +1875,7 @@
 /var/run/npss.state
 /var/run/nscd/ns.pid
 /var/run/proc.pid
+/var/run/spamsniper.pid
 /var/run/sshd/sshd.pid
 /var/run/storm.pid
 /var/run/sys_checker.pid
