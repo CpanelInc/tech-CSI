@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.8";
+my $version = "3.6.9";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -146,7 +146,7 @@ GetOptions(
 # Set variables needed for later subs #
 #######################################
 our $CSISUMMARY;
-our @SUMMARY;
+our @SUMMARY = ();
 our @RECOMMENDATIONS;
 our @INFO;
 my $content=get_hashes();
@@ -786,7 +786,7 @@ sub check_kernel_updates {
             $KernelStatus->{boot_version},
     );
         if ( $kcare_uname_r ne $KernelStatus->{boot_version} ) {
-            push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact provider):";
+            push @SUMMARY, "> KernelCare installed but running kernel version does not match boot version (contact OS provider):";
             push @SUMMARY, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]" );
             push @SUMMARY, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]" );
         }
@@ -800,19 +800,6 @@ sub check_kernel_updates {
             push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)";
             push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]" );
             push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]" );
-        }
-        unless ( $KernelStatus->{running_latest} ) {
-            my $running_kernelversion = Cpanel::SafeRun::Timed::timedsaferun( 5, 'uname', '-r' );
-            chomp($running_kernelversion);
-            my ( $running_hl, $boot_hl ) = highlight_version_diff(
-                $running_kernelversion,
-                $KernelStatus->{boot_version},
-            );
-            if ( $running_kernelversion ne $KernelStatus->{boot_version} ) {
-                push @RECOMMENDATIONS, "> Running kernel version does not match boot version (a reboot is required)\n";
-                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Running Version: [ " . $running_hl . " ]\n" );
-                push @RECOMMENDATIONS, expand( CYAN "\t \\_ Boot Version:    [ " . $boot_hl . " ]\n" );
-            }
         }
     }
 }
@@ -1044,7 +1031,6 @@ sub check_processes {
     my $res = $ua->get($url);
     my $susp_procs  = $res->decoded_content;
     my @susp_procs  = split /\n/, $susp_procs;
-#    my $headerPrint = 0;
     foreach my $suspicious_process (@susp_procs) {
         chomp($suspicious_process);
         next if ( _ignore_susp_proc( $suspicious_process ) );
@@ -1055,8 +1041,6 @@ sub check_processes {
                 my ( $u, $p, $c ) = (split /\s+/, $line );
                 my ( $a1,$a2,$a3,$a4,$a5,$a6,$a7 ) = (split( /\s+/, $line ))[3,4,5,6,7,8,9];
                 my $a = $a1 . " " . $a2 . " " . $a3 . " " . $a4 . " " . $a5 . " " . $a6 . " " . $a7;
-#                push @SUMMARY, "> The following suspicious process was found (please verify)" unless ( $headerPrint == 1 );
-#                $headerPrint = 1;
                 push @SUMMARY, CYAN expand( "\t\\_ Found suspicious process " . YELLOW $suspicious_process . CYAN " running" );
                 push @SUMMARY, "\t\\_ " . MAGENTA "User: " . YELLOW $u . MAGENTA " / Pid: " . YELLOW $p . MAGENTA " / Command: " . YELLOW $c . MAGENTA " / Arguments: " . YELLOW $a;
                 my $proclink = '/proc/' . $p . '/exe';
@@ -1105,6 +1089,16 @@ sub check_network_connections {
                 push @SUMMARY, "> Found a suspicious port [ $port ] listening $suspicious_ports{$port}";
             }
         }
+    }
+    # Look for unexpected outbound network connections (ESTABLISHED)
+    my $all_ss_output = run_quiet( 0, 'ss', '-tunap' );
+    my @all_ss_output = split /\n/, $all_ss_output;
+    my $showHeader=0;
+    for my $ss (@all_ss_output) {
+        next unless( $ss =~ m/ESTABLISHED/ );
+        push( @SUMMARY, "> Found possible unexpected outbound network connection" ) unless( $showHeader );
+        $showHeader=1;
+        push( @SUMMARY, "\t\\_ $ss" );
     }
 }
 
@@ -1377,7 +1371,6 @@ sub get_ipcs_hash ($) {
 }
 
 sub hash_scan {
-    my $showHeader=0;
     my $known_hashes_ref = { map { lc($_) => 1 } @knownhashes };
     my $serverfiles = run_quiet( 0, "find / -maxdepth 5"
         . " -path /proc -prune"
@@ -1398,10 +1391,10 @@ sub hash_scan {
     );
 
     my @serverfiles = split( /\n/, $serverfiles );
-    my $cnt = scalar @serverfiles;
     print STDERR '|';
 
-    my $found = 0;
+    my @matched_hashes;
+    my %files_by_hash;
     for my $file (@serverfiles) {
         chomp $file;
         next if -l $file;
@@ -1418,12 +1411,19 @@ sub hash_scan {
             next;
         }
 
-        if ( $known_hashes_ref->{ lc $hash } ) {
-            push @SUMMARY, "> Found a system binary with a known suspicious hash (SHA-256)" unless( $showHeader );
-            $showHeader=1;
-            push @SUMMARY, expand( "\t\\_ File $file matches hash $hash" );
-            $found++;
-        }
+        my $key = lc $hash;
+        next unless ( $known_hashes_ref->{$key} );
+        push @matched_hashes, $key unless ( exists $files_by_hash{$key} );
+        push @{ $files_by_hash{$key} }, $file;
+    }
+
+    return unless @matched_hashes;
+
+    push @SUMMARY, "> Found a system binary with a known suspicious hash (SHA-256)";
+    for my $hash (@matched_hashes) {
+        push @SUMMARY,
+          expand( "\t\\_ The following files have a known suspicious hash of $hash" );
+        push @SUMMARY, expand( "\t\t\\_ File $_" ) for ( @{ $files_by_hash{$hash} } );
     }
 }
 
@@ -2475,27 +2475,8 @@ sub userscan {
     my %bad_php_patterns = (
             eval_encoded => qr/eval\s*\(\s*base64_decode/i,
             system_cmd   => qr/system\s*\(\s*\$_|shell_exec\s*\(\s*\$_|passthru\s*\(\s*\$_|exec\s*\(\s*\$_/i,
-            # file_put_contents/fwrite fed straight from a superglobal is a
-            # reasonable webshell/dropper indicator. move_uploaded_file()
-            # was deliberately dropped from this pattern - it's how every
-            # legitimate PHP upload handler (including WordPress core's own
-            # wp-admin/includes/file.php) moves an uploaded file, so its
-            # bare presence says nothing about intent and was a major
-            # source of false positives.
             file_manip   => qr/file_put_contents\s*\(\s*\$_|fwrite\s*\(\s*\$_/i,
-            # Bare gzinflate/str_rot13/create_function calls are common in
-            # legitimate code (zip/compression libraries, older sanitizers,
-            # etc). The actual malware signature is the *combination* with
-            # base64_decode (the classic eval(gzinflate(base64_decode(...)))
-            # dropper chain) or with attacker-controlled input, so require
-            # that combination instead of matching the bare function name.
             obfuscated   => qr/gzinflate\s*\(\s*base64_decode|str_rot13\s*\(\s*base64_decode|preg_replace\s*\(\s*['"][^'"]*\/e['"]|create_function\s*\(\s*['"][^'"]*\$_/i,
-            # Likewise, fsockopen/pfsockopen/stream_socket_client are normal
-            # in any code that speaks a network protocol (mail libraries
-            # like PHPMailer, POP3/SMTP clients, WordPress core's update
-            # checker, etc). A "backconnect" shell is specifically one that
-            # opens a socket to an attacker-supplied host/port taken from
-            # user input, so require the target come from a superglobal.
             backconnect  => qr/(?:fsockopen|pfsockopen|stream_socket_client)\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE)/i,
             c99_shell    => qr/\bc99\b|\bc100\b|\br57\b|\bshell\.php\b|\bcmd\.php\b|\bwso\b|\bwebshell\b/i,
             gluttonphp   => qr/l0ader_shell/,
@@ -2673,6 +2654,24 @@ sub userscan {
         }
         push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
     }
+    });
+
+    run_with_spinner("Checking for files not owned by $lcUserToScan within $RealHome", sub {
+        my $files_owned_by_another_user = Cpanel::SafeRun::Timed::timedsaferun( 0, 'find', $RealHome, '-not', '-user', $lcUserToScan );
+        my @files_owned_by_another_user = split /\n/, $files_owned_by_another_user;
+        my $reported_unowned_files = 0;
+        foreach my $file ( @files_owned_by_another_user ) {
+            chomp( $file);
+            next if ( $file =~ m/\.cpanel|\.cagefs|\.ftpquota|lscache|ea-podman/ );
+            my $fileinfo = Cpanel::SafeRun::Timed::timedsaferun( 0, 'stat', '-c', "User-Group: %U-%G / Size: %s / Type: %F / Created: %w", $file );
+            chomp($fileinfo);
+            next if ( $fileinfo =~ m/UNKNOWN/ );
+            push @SUMMARY, "> Found files not owned by $lcUserToScan within $RealHome" unless ( $reported_unowned_files );
+            push @SUMMARY, expand( CYAN "\t\\_ $file" );
+            push @SUMMARY, expand( YELLOW "\t\t\\_ $fileinfo");
+            $reported_unowned_files = 1;
+        }
+        push @SUMMARY, "\n" if ( $reported_unowned_files );
     });
 
     run_with_spinner('Checking for .sorry ransomware', sub {
@@ -2860,18 +2859,239 @@ sub userscan {
         }
     }
 
-    # Check for malware in MU-Plugins
-    my @files=qw( redirect.php index.php custom-js-loader.php hyper-publisher-tap.php flex-engine-dex.php media-component-ink.php prime-options-cue.php site-compat-layer.php 82048166.php wp-index.php widget-cache.php quark-router-cue.php wp-sec.php);
+    # Check for malware in MU-Plugins.
+    #
+    # The old approach matched a hardcoded list of known-bad filenames,
+    # which had to be edited by hand every time the malware family rotated
+    # its file names (which it does constantly). Instead, inspect the
+    # actual names and contents of every PHP file under each mu-plugins
+    # directory for high-signal malicious indicators. This is name agnostic,
+    # so no @files array upkeep is required, and it also catches the
+    # "fake plugin" dropped into mu-plugins that the SC family duplicates
+    # into wp-content/plugins.
+    my %mu_bad_patterns = (
+        'encoded eval'    => qr/eval\s*\(\s*(?:base64_decode|gzinflate|gzuncompress|gzdecode|str_rot13|stripslashes)/i,
+        'base64+gzip'     => qr/(?:gzinflate|gzuncompress|gzdecode)\s*\(\s*base64_decode/i,
+        'preg_replace /e' => qr/preg_replace\s*\(\s*['"][^'"]*\/e['"]/i,
+        'create_function' => qr/create_function\s*\(\s*['"][^'"]*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)/i,
+        'shell via input' => qr/(?:system|shell_exec|passthru|popen|proc_open|exec)\s*\(\s*\$_/i,
+        'write via input' => qr/file_put_contents\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE)|fwrite\s*\(\s*\$_/i,
+        'opcache refresh' => qr/opcache_invalidate\s*\(/i,
+        'shared memory'   => qr/\bshm_(?:attach|op_open)\b|shmop_open\s*\(/i,
+        'SC marker'       => qr/\bSC_[A-Za-z0-9_]+\b/,
+        'db trigger'      => qr/CREATE\s+TRIGGER\b.*?\bINSERT\b/is,
+        'prepend marker'  => qr/auto_(?:prepend|append)_file/i,
+    );
+
     my $allmuplugs = run_quiet( 0, 'find', "$RealHome/$pubhtml", '-maxdepth', '5', '-type', 'd', '-name', 'mu-plugins' );
-    my @allmuplugs = split /\n/, $allmuplugs;
-    foreach my $muplugins_path(@allmuplugs) {
-        foreach my $file( @files ) {
-            chomp( $file );
-            if ( -e "$muplugins_path/$file" ) {
-                push( @SUMMARY, "> Found possible malicious WordPress malware at $RealHome/$pubhtml/wp-content/mu-plugins folder [ $file ]");
-            }
+    my @allmuplugs = grep { length } split /\n/, $allmuplugs;
+
+    # Hash every regular plugin file once so we can spot the SC
+    # "duplicate copy" trick (identical payload in mu-plugins and plugins).
+    my %plugin_hashes;
+    foreach my $muplugins_path (@allmuplugs) {
+        my $plugin_root = $muplugins_path;
+        $plugin_root =~ s{/mu-plugins/?$}{/plugins};
+        next unless -d $plugin_root;
+        my $allplugins = run_quiet( 0, 'find', $plugin_root, '-maxdepth', '3', '-type', 'f', '-name', '*.php' );
+        foreach my $pfile ( grep { length } split /\n/, $allplugins ) {
+            next unless -f $pfile && -r _;
+            open my $pfh, '<', $pfile or next;
+            local $/;
+            my $pdata = <$pfh>;
+            close $pfh;
+            $plugin_hashes{ sha256_hex($pdata) } = $pfile if defined $pdata;
         }
     }
+
+    # Legacy known-bad filename list, retained as a supplementary signal
+    # "just in case". Detection no longer depends on this list (the
+    # heuristics above are sufficient), so it does not need to be kept up
+    # to date - it is only an extra safety net for the names seen so far.
+    my %mu_known_names = map { $_ => 1 } qw(
+        redirect.php index.php custom-js-loader.php hyper-publisher-tap.php
+        flex-engine-dex.php media-component-ink.php prime-options-cue.php
+        site-compat-layer.php 82048166.php wp-index.php widget-cache.php
+        quark-router-cue.php wp-sec.php hyper-engine-kit.php
+    );
+
+    my $mu_header = 0;
+    foreach my $muplugins_path (@allmuplugs) {
+        chomp( $muplugins_path );
+        my $mufiles = run_quiet( 0, 'find', $muplugins_path, '-maxdepth', '2', '-type', 'f', '-name', '*.php' );
+        foreach my $file ( grep { length } split /\n/, $mufiles ) {
+            chomp( $file );
+            next unless -f $file && -r _;
+            my $basefile = basename($file);
+            my $reason;
+
+            # Suspicious randomised / hidden loader names
+            if ( $basefile =~ m/^\.[^\/]+\.php$/ ) {
+                $reason = 'hidden (dot-prefixed) PHP loader';
+            }
+            elsif ( $basefile =~ m/^[0-9a-f]{8,}\.php$/i ) {
+                $reason = 'randomised hex filename';
+            }
+            elsif ( $basefile =~ m/^[a-z]+-[a-z]+-[a-z]+-[0-9a-f]{4}\.php$/ ) {
+                $reason = 'randomised slug filename';
+            }
+            elsif ( $mu_known_names{$basefile} ) {
+                $reason = 'known malicious filename';
+            }
+
+            unless ( $reason ) {
+                open my $mfh, '<', $file or next;
+                local $/;
+                my $mdata = <$mfh>;
+                close $mfh;
+                if ( defined $mdata ) {
+                    for my $type ( keys %mu_bad_patterns ) {
+                        if ( $mdata =~ $mu_bad_patterns{$type} ) {
+                            $reason = $type;
+                            last;
+                        }
+                    }
+                    if ( !$reason && $plugin_hashes{ sha256_hex($mdata) } ) {
+                        $reason = 'duplicate of plugin copy (fake-plugin redundancy)';
+                    }
+                }
+            }
+
+            next unless $reason;
+            push( @SUMMARY, "> Found possible malicious WordPress malware in mu-plugins folder [ " . WHITE $basefile . YELLOW " - " . $reason . " ]" ) unless( $mu_header );
+            $mu_header = 1;
+            push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
+        }
+    }
+    });
+
+    run_with_spinner('Checking for suspicious .user.ini files containing auto_prepend_file or auto_append_file', sub {
+
+    # A WordPress site shouldn't use or need .user.ini files (especially if
+    # they contain auto_prepend_file / auto_append_file, which the SC family
+    # abuses to run a loader before every request in the directory tree).
+    my $susp_user_ini = run_quiet( 0, 'find', $RealHome, '-type', 'f', '-name', '.user.ini', '-not', '-path', '/home/virtfs/*' );
+    my @susp_user_ini = grep { length } split /\n/, $susp_user_ini;
+    my $showHeader = 0;
+    foreach my $file ( @susp_user_ini ) {
+        chomp( $file );
+        my $found = run_quiet( 0, 'grep', '-E', 'auto_prepend_file|auto_append_file', $file );
+        next unless $found;
+        push( @SUMMARY, YELLOW "> [SECURITY ISSUE] auto_prepend_file or auto_append_file found within " . WHITE $file ) unless( $showHeader );
+        $showHeader = 1;
+        push( @SUMMARY, expand( MAGENTA "\t\\_ $found" ) );
+    }
+    });
+
+    run_with_spinner('Checking for SC WordPress malware indicators', sub {
+
+    # SC WordPress malware family (Sucuri, September 2026): a self-healing
+    # mesh of loaders, drop-ins, a fake plugin and off-disk persistence.
+    # https://blog.sucuri.net/2026/09/sc-wordpress-malware-a-self-healing-mesh-of-loaders-drop-ins-and-a-blockchain-controlled-backdoor.html
+    my $scroot = "$RealHome/$pubhtml";
+
+    # 1. auto_prepend_file / auto_append_file in .user.ini, php.ini or .htaccess.
+    #    SC points these at a hidden dot-prefixed PHP loader.
+    my $sc_ini = run_quiet( 0, 'find', $scroot, '-maxdepth', '6', '-type', 'f', '(', '-name', '.user.ini', '-o', '-name', 'php.ini', '-o', '-name', '.htaccess', ')' );
+    my $sc_ini_header = 0;
+    foreach my $file ( grep { length } split /\n/, $sc_ini ) {
+        chomp( $file );
+        my $found = run_quiet( 0, 'grep', '-E', 'auto_prepend_file|auto_append_file', $file );
+        next unless $found;
+        push( @SUMMARY, "> [SC Malware] auto_prepend/append directive found in config file " . WHITE $file ) unless( $sc_ini_header );
+        $sc_ini_header = 1;
+        push( @SUMMARY, expand( MAGENTA "\t\\_ $found" ) );
+        if ( $found =~ m{auto_(?:prepend|append)_file\s*=\s*["']?(?:[^\s"']*/)?\.([A-Za-z0-9_.-]+\.php)} ) {
+            push( @SUMMARY, expand( CYAN "\t\\_ prepend/append target is a hidden file: .$1" ) );
+        }
+    }
+
+    # 2. Malicious drop-ins: db.php and advanced-cache.php carrying SC
+    #    markers, gzip+base64 payloads or shared-memory rebuild logic.
+    my %sc_dropin_patterns = (
+        'SC marker'       => qr/\bSC_[A-Za-z0-9_]+\b/,
+        'base64+gzip'     => qr/(?:gzinflate|gzuncompress|gzdecode)\s*\(\s*base64_decode/i,
+        'shared memory'   => qr/\bshm_(?:attach|op_open)\b|shmop_open\s*\(/i,
+        'opcache refresh' => qr/opcache_invalidate\s*\(/i,
+        'auto prepend'    => qr/auto_(?:prepend|append)_file/i,
+    );
+    my $sc_dropin_header = 0;
+    foreach my $rel ( 'wp-content/db.php', 'wp-content/advanced-cache.php' ) {
+        my $path = "$scroot/$rel";
+        next unless -f $path && -r _;
+        open my $fh, '<', $path or next;
+        local $/;
+        my $data = <$fh>;
+        close $fh;
+        next unless defined $data;
+        for my $type ( keys %sc_dropin_patterns ) {
+            next unless $data =~ $sc_dropin_patterns{$type};
+            push( @SUMMARY, "> [SC Malware] Suspicious $rel drop-in [ $type ]" ) unless( $sc_dropin_header );
+            $sc_dropin_header = 1;
+            push( @SUMMARY, expand( CYAN "\t\\_ $path" ) );
+            last;
+        }
+    }
+
+    # 3. Injected bounded block in the active theme's functions.php
+    #    (fenced by begin/end markers) that rebuilds the fake plugin.
+    my %sc_funcs_patterns = (
+        'SC marker'       => qr/\bSC_[A-Za-z0-9_]+\b/,
+        'base64+gzip'     => qr/(?:gzinflate|gzuncompress|gzdecode)\s*\(\s*base64_decode/i,
+        'drop-in rebuild' => qr/file_put_contents\s*\([^)]*(?:db\.php|advanced-cache\.php|mu-plugins)/is,
+        'auto prepend'    => qr/auto_(?:prepend|append)_file/i,
+    );
+    my $sc_funcs = run_quiet( 0, 'find', "$scroot/wp-content/themes", '-maxdepth', '2', '-type', 'f', '-name', 'functions.php' );
+    my $sc_funcs_header = 0;
+    foreach my $file ( grep { length } split /\n/, $sc_funcs ) {
+        chomp( $file );
+        next unless -f $file && -r _;
+        open my $fh, '<', $file or next;
+        local $/;
+        my $data = <$fh>;
+        close $fh;
+        next unless defined $data;
+        for my $type ( keys %sc_funcs_patterns ) {
+            next unless $data =~ $sc_funcs_patterns{$type};
+            push( @SUMMARY, "> [SC Malware] Suspicious block in theme functions.php [ $type ]" ) unless( $sc_funcs_header );
+            $sc_funcs_header = 1;
+            push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
+            last;
+        }
+    }
+
+    # 4. Hidden dot-prefixed PHP loaders sitting in wp-content next to the
+    #    plainly named shim referenced by auto_prepend_file.
+    my $sc_hidden = run_quiet( 0, 'find', "$scroot/wp-content", '-maxdepth', '1', '-type', 'f', '-name', '.*.php' );
+    my $sc_hidden_header = 0;
+    foreach my $file ( grep { length } split /\n/, $sc_hidden ) {
+        chomp( $file );
+        push( @SUMMARY, "> [SC Malware] Hidden dot-prefixed PHP loader found in wp-content" ) unless( $sc_hidden_header );
+        $sc_hidden_header = 1;
+        push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
+    }
+
+    # 5. ZIP restore bundle with a random hex name (wp-content, uploads, themes).
+    my $sc_zips = run_quiet( 0, 'find', "$scroot/wp-content", '-maxdepth', '4', '-type', 'f', '-name', '*.zip' );
+    my $sc_zip_header = 0;
+    foreach my $file ( grep { length } split /\n/, $sc_zips ) {
+        chomp( $file );
+        next unless basename($file) =~ m/^[0-9a-f]{8,}\.zip$/i;
+        push( @SUMMARY, "> [SC Malware] ZIP restore bundle with random hex name found" ) unless( $sc_zip_header );
+        $sc_zip_header = 1;
+        push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
+    }
+
+    # 6. Command & control hidden in public Ethereum RPC gateways.
+    my $sc_eth = run_quiet( 0, 'grep', '-rIlE', '--include=*.php', 'mainnet\.infura\.io|cloudflare-eth\.com|rpc\.ankr\.com|ethereum\.publicnode\.com|rpc\.flashbots\.net|eth\.drpc\.org|1rpc\.io|rpc\.blastapi\.io|eth\.llamarpc\.com', "$scroot/wp-content" );
+    my $sc_eth_header = 0;
+    foreach my $file ( grep { length } split /\n/, $sc_eth ) {
+        chomp( $file );
+        push( @SUMMARY, "> [SC Malware] Possible command & control via public Ethereum RPC gateway" ) unless( $sc_eth_header );
+        $sc_eth_header = 1;
+        push( @SUMMARY, expand( CYAN "\t\\_ $file" ) );
+    }
+
     });
 
     run_with_spinner('Checking domlogs for wp2shell compromise', sub {
@@ -3549,6 +3769,7 @@ sub misc_checks {
         push( @SUMMARY, "> World-writeable system file [ $f ] found!");
     }
 
+
     if ( -d '/etc/systemd/system' ) {
         if (opendir my $dh, '/etc/systemd/system') {
             for my $entry (readdir $dh) {
@@ -3744,8 +3965,8 @@ sub vtlink {
 
         # First let's check Virustotal.com
         my $ticketnum = $ENV{'TICKET'};
-        chomp($ticketnum);
         $ticketnum = "DEBUG" if ($debug);
+        chomp($ticketnum);
         my $ipaddr = run_quiet( 0, 'curl', '-s', '-4', "https://myip.cpanel.net/v1.0/" );
         chomp($ipaddr);
         if ( $sha256only && $ipaddr && $ticketnum && iam('cptech') || $debug ) {
@@ -3760,8 +3981,7 @@ sub vtlink {
                 push @SUMMARY,
                   "> Checking hash at VirusTotal.com (3rd party)"
                   . expand( YELLOW "  [ Type: "
-                      . CYAN $output->{data}->{attributes}
-                      ->{type_description}
+                      . CYAN $output->{data}->{attributes}->{type_description}
                       . YELLOW " ]"
                       . YELLOW "\n\t\\_ Size: "
                       . CYAN $FileSize
@@ -3776,24 +3996,19 @@ sub vtlink {
                             YELLOW "\t \\_ 256hash: "
                           . CYAN $output->{data}->{attributes}->{sha256}
                           . YELLOW "\n\t\\_ Classification: "
-                          . CYAN $output->{data}->{attributes}
-                          ->{popular_threat_classification}
-                          ->{suggested_threat_label}
+                          . CYAN $output->{data}->{attributes}->{popular_threat_classification}->{suggested_threat_label}
                           . YELLOW "\n\t\\_ "
-                          . $output->{data}->{attributes}
-                          ->{last_analysis_stats}->{malicious}
+                          . $output->{data}->{attributes}->{last_analysis_stats}->{malicious}
                           . CYAN
 " anti-virus engines detected this as malicious at VirusTotal.com"
                           . YELLOW "\n\t\\_ First Seen: "
                           . CYAN scalar localtime(
-                            $output->{data}->{attributes}
-                              ->{first_submission_date}
+                            $output->{data}->{attributes}->{first_submission_date}
                           )
                           . YELLOW
                           . " / Last Analyzed: "
                           . CYAN scalar localtime(
-                            $output->{data}->{attributes}
-                              ->{last_analysis_date}
+                            $output->{data}->{attributes}->{last_analysis_date}
                           )
                       );
                 }
@@ -4130,10 +4345,10 @@ sub get_last_logins_SSH {
     my $headerPrinted = 0;
     foreach $SSHLogins (@sortedIPs) {
         if ( $headerPrinted == 0 ) {
-            push( @INFO, "> The following IP address(es) logged on via SSH successfully as " . CYAN $lcUser . YELLOW " (in $mon):" );
+            push( @INFO, "> The following IP address(es) logged on via SSH successfully as " . CYAN $lcUser . YELLOW " [ last -F root ]");
             $headerPrinted = 1;
         }
-        push( @INFO, expand( CYAN "\t\\_ IP: $SSHLogins" ) ) unless ( $SSHLogins =~ m/208.74.12|184.94.197./ );
+        push( @INFO, expand( CYAN "\t\\_ IP: $SSHLogins" ) ) unless ( $SSHLogins =~ m/208.74.12|184.94.197.|104.30.179.199|104.30.174.141/ );
     }
 }
 
@@ -4670,19 +4885,19 @@ sub known_sha256_hashes {
 }
 
 sub check_apitokens_json {
-    return unless ( -e "/var/cpanel/authn/api_tokens_v2/whostmgr/root.json" );
-    my $attr =
-      isImmutable("/var/cpanel/authn/api_tokens_v2/whostmgr/root.json");
-    if ($attr) {
-        push @SUMMARY,
-            "> Found the "
-          . CYAN "/var/cpanel/authn/api_tokens_v2/whostmgr/root.json"
-          . YELLOW " file set to "
-          . MAGENTA "IMMUTABLE";
-        push @SUMMARY,
-          expand(
-            "\t\\_ This is highly unusual and could indicate a root compromise!"
-          );
+    my $dir='/var/cpanel/authn/api_tokens_v2/whostmgr';
+    return unless( -d $dir );
+    opendir my $dh, $dir;
+    my @files = readdir($dh);
+    closedir $dh;
+    foreach my $file (@files ) {
+        next if ( $file eq '.' or $file eq '..' );
+        my $attr = isImmutable( "$dir/$file" );
+        if ($attr) {
+            push @SUMMARY,
+                "> Found the " . CYAN "$dir/$file" . YELLOW " file set to " . MAGENTA "IMMUTABLE";
+            push @SUMMARY, expand( "\t\\_ This is highly unusual and could indicate a root compromise!");
+        }
     }
 }
 
@@ -5525,31 +5740,39 @@ sub check_for_cve_vulnerabilities {
             logit("Could not determine a valid version for package '$pkg' (parsed value: '" . ( defined($pkgver) ? $pkgver : 'undef' ) . "') - skipping CVE check for this package");
             next;
         }
-        my $digitpkgver;
-        $digitpkgver = digit_to_alpha( $pkgver ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
-        chomp( $pkgver );
 
-        # report first vulnerable version (if verbose or debug is enabled)
-        my $alphapkgver;
-        $alphapkgver = alpha_to_digit( $firstvuln ) // '' if ( $pkg =~ m{openssl} && $pkgver < 3);
+        # OpenSSL 1.x uses letter suffixes (1.1.1w) plus, for packages such as
+        # ea-openssl11, a release number once the letters ran out (1.1.1w-10).
+        # Convert both to a purely numeric version (1.1.1.23.10) so version_compare() works.
+        my $legacy_ssl  = ( $pkg =~ m{openssl} && $pkgver =~ m{^1\.} ) ? 1 : 0;
+        my $pkgrel      = ( $legacy_ssl && $distro ne 'ubuntu' ) ? get_pkg_release( $pkg ) : '';
+        my $digitpkgver = '';
+        if ( $legacy_ssl ) {
+            $digitpkgver = digit_to_alpha( $pkgver, $pkgrel ) // '';
+            # cve_data.json may hold either the letter form (1.1.1w / 1.1.1w-10) or the digit form (1.1.1.23 / 1.1.1.23.10)
+            $patchedver = digit_to_alpha( $patchedver ) // $patchedver if ( defined $patchedver && $patchedver =~ /[a-z]/ );
+            $firstvuln  = digit_to_alpha( $firstvuln )  // $firstvuln  if ( defined $firstvuln  && $firstvuln  =~ /[a-z]/ );
+            print GREEN "$pkgver" . ( $pkgrel ne '' ? "-$pkgrel" : '' ) . " (Converted to: $digitpkgver)\n" if ( $debug );
+        }
 
         # check changelog for the CVE
         my $found_in_changelog = found_in_changelog( $pkg, $cve );
         next unless( ! $found_in_changelog );
 
+        # check to see if version is greater than the patchedver variable
+        # (compare only as many components as the data entry specifies)
         my $op1='>';
-        chomp($pkgver);
-        if ( $pkg =~ m{openssl} && $pkgver < 3) {
-            $pkgver=$digitpkgver;
-        }
-        my $vercmp = ( version_compare( $pkgver, $op1, $patchedver ) ) ? "Yes - Patched" : "No";
-        next if ( version_compare( $pkgver, $op1, $patchedver ) );
+        chomp($patchedver);
+        my $cmp_patched = $legacy_ssl ? trim_to_depth( $digitpkgver, $patchedver ) : $pkgver;
+        my $vercmp = ( version_compare( $cmp_patched, $op1, $patchedver ) ) ? "Yes - Patched" : "No";
+        next if ( $vercmp =~ m/^Yes/ );
 
-        # check to see if version is less than the firstvuln variable
+        # check to see if version is greater than the firstvuln variable
         my $op2='>';
         chomp($firstvuln);
-        my $vercmp = ( version_compare( $pkgver, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
-        next if ( version_compare( $pkgver, $op2, $firstvuln ) );
+        my $cmp_first = $legacy_ssl ? trim_to_depth( $digitpkgver, $firstvuln ) : $pkgver;
+        $vercmp = ( version_compare( $cmp_first, $op2, $firstvuln ) ) ? "Yes - Patched" : "No";
+        next if ( $vercmp =~ m/^Yes/ );
 
         push @SUMMARY, "> The following packages might be vulnerable to known CVE's" unless( $showHeader );
         $showHeader=1;
@@ -5565,7 +5788,7 @@ sub check_for_cve_vulnerabilities {
                 }
             }
             else {
-                push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
+                push @SUMMARY, expand( YELLOW "\t\\_ " . $cmp_patched . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
             }
         }
         else {
@@ -5574,7 +5797,7 @@ sub check_for_cve_vulnerabilities {
                 push @SUMMARY, expand( CYAN "\t\\_ This check does NOT take corrupt RPM dbs into account, and CAN report false-positive results if corrupt.");
             }
             else {
-                push @SUMMARY, expand( YELLOW "\t\\_ " . $pkgver . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
+                push @SUMMARY, expand( YELLOW "\t\\_ " . $cmp_patched . WHITE " is " . MAGENTA $op1 . " " . YELLOW $patchedver . ": " . $vercmp);
             }
         }
         push @SUMMARY, expand( BOLD BLUE "\t-----" );
@@ -5604,33 +5827,70 @@ sub is_os_vulnerable {
     return $os_vulnerable;
 }
 
+# Convert an OpenSSL 1.x letter version (plus optional release) into a numeric one.
+#   "1.1.1w"    => "1.1.1.23"
+#   "1.1.1za"   => "1.1.1.27"       (z=26, then za=27, zb=28 ...)
+#   "1.1.1w-10" => "1.1.1.23.10"
+#   "1.1.1"     => "1.1.1.0"
+# An explicit release may be passed as the second argument (it wins over one embedded in the string).
 sub digit_to_alpha {
-    my $tcPkgVer = shift;
-    return unless ( $tcPkgVer =~ /(\d+)\.(\d+)\.(\d+)([a-z])([a-z]?)/ );
-    my $retPkgVer;
-    my ( $maj, $min, $patch ) = ( $1, $2, $3 );
-    # If we map the alphas into a number and sum the values the version will be compatible with version_compare()
-    # and save us a lot of trouble, i.e. h=8, m=13, and za=27
-    my %al2num = map { ( "a" .. "z" )[ $_ - 1 ] => $_ } ( 1 .. 26 );
+    my ( $tcPkgVer, $tcRelease ) = @_;
+    return unless defined $tcPkgVer;
+    return unless $tcPkgVer =~ /^(\d+)\.(\d+)\.(\d+)(?:([a-z])([a-z]?))?(?:-(\d+))?/;
+    my ( $maj, $min, $patch, $l1, $l2, $rel ) = ( $1, $2, $3, $4, $5, $6 );
+    $tcRelease = $rel unless ( defined $tcRelease && $tcRelease ne '' );
+
     my $sub = 0;
-    if ($4) { $sub += $al2num{ lc($4) } }
-    if ($5) { $sub += $al2num{ lc($5) } }
-    $retPkgVer = join( '.', $maj, $min, $patch, $sub );
-    return $retPkgVer;
+    $sub += ord( lc $l1 ) - 96 if ( defined $l1 && $l1 ne '' );
+    $sub += ord( lc $l2 ) - 96 if ( defined $l2 && $l2 ne '' );
+
+    my @parts = ( $maj, $min, $patch, $sub );
+    push @parts, $tcRelease if ( defined $tcRelease && $tcRelease ne '' );
+    return join( '.', @parts );
 }
 
+# 1 => a ... 26 => z, 27 => za ... 52 => zz
+sub num_to_alpha {
+    my $n = shift;
+    return ''                        if ( !$n || $n < 1 );
+    return chr( 96 + $n )            if ( $n <= 26 );
+    return 'z' . chr( 96 + $n - 26 ) if ( $n <= 52 );
+    return 'zz';    # out of range, clamp
+}
+
+# "1.1.1.23" => "1.1.1w", "1.1.1.27.10" => "1.1.1za-10"
 sub alpha_to_digit {
     my $tcPkgVer = shift;
-    my @letters = ( "a" .. "z" );
-    my $retPkgVer;
-    my ( $maj, $min, $patch, $sub ) = ( split( /\./, $tcPkgVer ) );
-    my $sub1 = $letters[ $sub - 1 ];
-    $retPkgVer = join( '.', $maj, $min, $patch );
-    $retPkgVer .= $sub1;
+    return $tcPkgVer unless defined $tcPkgVer;
+    my ( $maj, $min, $patch, $sub, $rel ) = split( /\./, $tcPkgVer );
+    return $tcPkgVer unless ( defined $patch );
+    my $ret = join( '.', $maj, $min, $patch ) . num_to_alpha( $sub );
+    $ret .= "-$rel" if ( defined $rel && $rel ne '' );
+    return $ret;
+}
+
+# Release number of an installed rpm (e.g. "10.cp1186" => 10)
+sub get_pkg_release {
+    my $tcPkg = shift;
+    my $rel = run_quiet( 0, 'rpm', '-q', '--queryformat', '%{Release}', $tcPkg );
+    return ( defined $rel && $rel =~ /^(\d+)/ ) ? $1 : '';
+}
+
+# Cut $ver down to the same number of components as $ref, so a data entry of
+# "1.1.1.23" matches every release of 1.1.1w, while "1.1.1.23.10" is release-aware.
+sub trim_to_depth {
+    my ( $ver, $ref ) = @_;
+    return $ver unless ( defined $ver && defined $ref );
+    my @r = split /[\._]/, $ref;
+    my $depth = scalar( @r );
+    my @v = split /[\._]/, $ver;
+    splice( @v, $depth ) if ( @v > $depth );
+    return join( '.', @v );
 }
 
 sub is_kernel {
     my $tcPkg = shift;
+    $gl_is_kernel=0;
     if ( $tcPkg =~ m{kernel|linux-headers} ) {
         my $uname = run_quiet( 0, 'uname', '-r' );
         chomp($uname);
@@ -5795,6 +6055,16 @@ sub check_lsof_deleted {
             $showHeader=1;
             push @SUMMARY, "\t\\_  $line";
         }
+    }
+
+    my $showHeader=0;
+    my $memory_resident_executables = `ls -la /proc/*/exe 2>/dev/null | grep deleted`;
+    my @memory_resident_executables = split /\n/, $memory_resident_executables;
+    return unless( $memory_resident_executables );
+    for my $line ( @memory_resident_executables ) {
+        push @SUMMARY, "> Found process with no associated executable (memory-resident)" unless ($showHeader);
+        $showHeader=1;
+        push @SUMMARY, "\t\\_  $line";
     }
 }
 
@@ -6130,28 +6400,28 @@ sub check_for_kernelhacks {
             );
 
             if ( !defined $info || $info !~ /\S/ ) {
-                push @SUMMARY, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                push @INFO, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                     unless ($showHeader);
                 $showHeader = 1;
-                push @SUMMARY, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet)" );
+                push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet)" );
                 next;
             }
 
             next if ( $info =~ /^\s*Installed\s*:\s*true/mi );
 
-            push @SUMMARY, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+            push @INFO, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                 unless ($showHeader);
             $showHeader = 1;
-            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
+            push @INFO, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
         }
         else {    ## Ubuntu: compare running kernel version against release-specific fixed version
             my $fixed_version = $CVE_DATA{$cve}{fixed_versions}{$distro_version};
 
             unless ($fixed_version) {
-                push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                     unless ($showHeader);
                 $showHeader = 1;
-                push @SUMMARY, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no fixed version for Ubuntu $distro_version)" );
+                push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no fixed version for Ubuntu $distro_version)" );
                 next;
             }
 
@@ -6160,10 +6430,10 @@ sub check_for_kernelhacks {
 
             next if kernel_version_meets_fix( $running_kernel, $fixed_version );   # patched
 
-            push @SUMMARY, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+            push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                 unless ($showHeader);
             $showHeader = 1;
-            push @SUMMARY, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
+            push @INFO, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
         }
     }
 }
