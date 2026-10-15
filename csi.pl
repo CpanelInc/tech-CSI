@@ -6400,10 +6400,10 @@ sub check_for_kernelhacks {
             );
 
             if ( !defined $info || $info !~ /\S/ ) {
-                push @INFO, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                push @INFO, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper          variants..."
                     unless ($showHeader);
                 $showHeader = 1;
-                push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet)" );
+                push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet)"  );
                 next;
             }
 
@@ -6428,7 +6428,23 @@ sub check_for_kernelhacks {
             my $running_kernel = Cpanel::SafeRun::Timed::timedsaferun( 0, 'uname', '-r' );
             chomp($running_kernel);
 
-            next if kernel_version_meets_fix( $running_kernel, $fixed_version );   # patched
+            my $meets_fix = kernel_version_meets_fix( $running_kernel, $fixed_version );
+
+            if ( !defined $meets_fix ) {
+                # Either the running kernel string didn't parse, or it's on
+                # a different kernel series than the fix data (e.g. a 22.04
+                # box running the 6.8 HWE stack compared against a fix
+                # expressed for the 5.15 series). The ABI counters on
+                # different series aren't on the same scale, so don't guess
+                # at vulnerable/patched - say so plainly instead.
+                push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                    unless ($showHeader);
+                $showHeader = 1;
+                push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (running kernel '$running_kernel' is not on the same kernel series as the known fix '$fixed_version')" );
+                next;
+            }
+
+            next if $meets_fix;   # patched
 
             push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
                 unless ($showHeader);
@@ -6441,26 +6457,25 @@ sub check_for_kernelhacks {
 sub kernel_version_meets_fix {
     my ( $running, $fixed ) = @_;
 
-    # uname -r: "6.8.0-139-generic" -> want "6.8.0-139"
-    my ($running_core) = $running =~ /^(\d+\.\d+\.\d+-\d+)/;
-    return 0 unless $running_core;   # can't parse -> treat as unverifiable/vulnerable, don't silently pass
+    # uname -r: "6.8.0-146-generic" -> series "6.8.0", ABI "146"
+    my ( $running_series, $running_abi ) = $running =~ /^(\d+\.\d+\.\d+)-(\d+)/;
+    return undef unless defined $running_abi;
 
-    # Ubuntu "Fixed" version: "6.8.0-139.139" -> want "6.8.0-139"
-    # (the trailing .139 is the upload number, which uname -r never exposes,
-    # so it can't be compared and is deliberately ignored)
-    my ($fixed_core) = $fixed =~ /^(\d+\.\d+\.\d+-\d+)/;
-    return 0 unless $fixed_core;
+    # Ubuntu "Fixed" version: "6.8.0-147.147" -> series "6.8.0", ABI "147"
+    # (the trailing .147 is the upload number, which uname -r never
+    # exposes, so it can't be compared and is deliberately ignored)
+    my ( $fixed_series, $fixed_abi ) = $fixed =~ /^(\d+\.\d+\.\d+)-(\d+)/;
+    return undef unless defined $fixed_abi;
 
-    my @r = split /[.\-]/, $running_core;
-    my @f = split /[.\-]/, $fixed_core;
+    # A running kernel from a different series than the fixed-version data
+    # (e.g. a 22.04 box on the 6.8 HWE stack, compared against a fix
+    # expressed for the 5.15 series) can't be compared numerically - the
+    # ABI counters for different series are unrelated scales, so a raw
+    # component comparison would be meaningless. Report "can't verify"
+    # instead of guessing.
+    return undef unless $running_series eq $fixed_series;
 
-    for my $i ( 0 .. $#r ) {   # only loop over what running actually has
-        my $rv = $r[$i] // 0;
-        my $fv = $f[$i] // 0;
-        return 1 if $rv > $fv;
-        return 0 if $rv < $fv;
-    }
-    return 1;   # equal on every component we can observe -> patched
+    return $running_abi >= $fixed_abi ? 1 : 0;
 }
 
 sub find_mysql_bin {
