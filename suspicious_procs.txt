@@ -321,4 +321,6 @@ gsocket
 monkey
 malware
 \[kworker/u2:0\]
+\[kworker/u8:2\]
+kworker/u
 \[card0-crtc8\]
