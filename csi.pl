@@ -3,7 +3,7 @@
 # Current Maintainer: Peter Elsner
 
 use strict;
-my $version = "3.6.9";
+my $version = "3.6.10";
 use Cpanel::Config::LoadWwwAcctConf();
 use Cpanel::Config::LoadCpConf();
 use Cpanel::Config::LoadUserDomains();
@@ -43,6 +43,7 @@ $Term::ANSIColor::AUTORESET = 1;
 our $RUN_STATE;
 our $gl_is_kernel=0;
 our %CSI_REPORTED_FILES;
+binmode(STDOUT, ':encoding(UTF-8)');
 
 my @susp_authkeys;
 
@@ -109,7 +110,7 @@ if ( not length($hostname) ) {
 # Parse positional parameters for flags and set variables #
 ###########################################################
 # Set defaults for positional parameters
-my ( $userscan, $full, $help, $debug, $shadow, $hashscan, $symlink, $yarascan, $customdir, $scan, $skipkernel, %process, %ipcs, $distro, $distro_version, $distro_major, $distro_minor, $ignoreload, $overwrite, $cron, $skipauthchk);
+my ( $userscan, $full, $help, $debug, $shadow, $hashscan, $symlink, $customdir, $scan, $skipkernel, %process, %ipcs, $distro, $distro_version, $distro_major, $distro_minor, $ignoreload, $overwrite, $cron, $skipauthchk);
 
 get_ipcs_hash( \%ipcs );
 
@@ -133,7 +134,6 @@ GetOptions(
     'shadow'      => \$shadow,
     'symlink'     => \$symlink,
     'hashscan'    => \$hashscan,
-    'yarascan'    => \$yarascan,
     'ignoreload'  => \$ignoreload,
     'help'        => \$help,
     'debug'       => \$debug,
@@ -184,8 +184,7 @@ if ($help) {
 if ( $cron ) {
     $overwrite=1;
     $full=1;
-    $yarascan=1;
-    logit("Running with cron switch (full, yarascan and overwrite are automatically added)");
+    logit("Running with cron switch (full, and overwrite are automatically added)");
 }
 check_previous_scans();
 logit("=== STARTING CSI on $hostname ===");
@@ -214,21 +213,10 @@ if ( $loadavg > ( $corecnt * 3 ) && !$ignoreload ) {
 }
 
 my %cpconf = get_conf($CPANEL_CONFIG_FILE);
-if (
-    Cpanel::IONice::ionice(
-        'best-effort',
-        exists $cpconf{'ionice_import_exim_data'}
-        ? $cpconf{'ionice_import_exim_data'}
-        : 6
-    )
-  )
-{
-    print_info( "Setting I/O priority to reduce system load: "
-          . Cpanel::IONice::get_ionice()
-          . "\n" );
+if ( Cpanel::IONice::ionice( 'best-effort', exists $cpconf{'ionice_log_processing'} ? $cpconf{'ionice_log_processing'} : 6)) {
+    print_info( "Setting I/O priority to reduce system load: " . Cpanel::IONice::get_ionice() . "\n" );
     setpriority( 0, 0, 19 );
 }
-
 
 my $scanstarttime = Time::Piece->new;
 print_header( YELLOW "Scan started on $scanstarttime" );
@@ -291,11 +279,10 @@ sub show_help {
     print_header( "--shadow     Performs a check on all email accounts looking for variants of shadow.roottn hack.");
     print_header( "--symlink    Performs a symlink hack check for all accounts.");
     print_header( "--skipkernel Skip kernel update checks. Useful if a custom kernel is installed and kernel checking fails.");
-    print_header( "--yarascan   Skips installaton and confirmation during --full scan. CAUTION - Can cause very high load and take a very long time!");
     print_header( "--full       Performs all of the above checks - very time consuming. Can cause HIGH LOAD DURING YARA SCANS!!!");
     print_header( "--skipauthchk - Skip check for infected openssh backdoors");
     print_header( "--overwrite  Overwrite last summary and skip creation of new CSI directory under root.");
-    print_header( "--cron       Run via cron. Note: --full, --overwrite and --yarascan options will also be passed.");
+    print_header( "--cron       Run via cron. Note: --full, --overwrite options will also be passed.");
     print_header( "--debug      Shows additional extrenuous info including errors if any. Use only at direction of cPanel Support.");
     print_normal(" ");
     print_header("Examples");
@@ -303,7 +290,7 @@ sub show_help {
     print_status("            /root/csi.pl with no arguments does a quick scan [DEFAULT]");
     print_status("            /root/csi.pl --symlink");
     print_status("            /root/csi.pl --skipkernel");
-    print_status("            /root/csi.pl --full [--yarascan] [--skipauthchk]");
+    print_status("            /root/csi.pl --full [--skipauthchk]");
     print_status("            /root/csi.pl --overwrite");
     print_status("            /root/csi.pl --cron [ add this to roots crontab or to a file in /etc/cron.d or /etc/cron.daily ]");
     print_status("Userscan ");
@@ -411,6 +398,7 @@ sub scan {
     run_with_spinner('Checking for Mélofée', \&check_for_melofee);
     run_with_spinner('Checking for Glutton PHP', \&check_for_glutton_php);
     run_with_spinner('Checking for Ebury Socket', \&check_for_ebury_socket);
+    run_with_spinner('Checking for Ebury 2024 IOCs', \&check_for_ebury_2024_IOCs);
     run_with_spinner('Checking for Dragnet Bot', \&check_for_dragnet);
     run_with_spinner('Checking for Exim Vulnerability', \&check_for_exim_vuln);
     run_with_spinner('Checking for HiddenWasp', \&check_for_hiddenwasp);
@@ -423,9 +411,6 @@ sub scan {
     run_with_spinner('Checking for PanChan', \&check_for_panchan);
     run_with_spinner('Checking for CHAOS', \&check_for_chaos);
     run_with_spinner('Checking for Pack2TheRoot', \&check_for_pack2theroot);
-    if ( $full or $hashscan ) {
-        run_with_spinner('Checking system files against known hashes', \&hash_scan);
-    }
     run_with_spinner('Checking for BPFDoor', \&check_for_bpfdoor);
 
     logit("Checking installed packages for CVEs");
@@ -483,7 +468,7 @@ sub scan {
     logit("Checking for suspicious bitcoin miners");
     run_with_spinner('Checking for suspicious bitcoin miners', \&bitcoin_chk);
 
-    logit("Checking for suspicious mount points") if iam('cptech');;
+    logit("Checking for suspicious mount points") if iam('cptech');
     if ( iam('cptech')) {
         run_with_spinner('Checking for suspicious mount points', \&check_mounts) if iam('cptech');
     }
@@ -552,8 +537,8 @@ sub scan {
     logit("Checking kernel status") unless( $skipkernel );
     run_with_spinner('Checking kernel status', \&check_kernel_updates) unless( $skipkernel );
 
-    logit("Checking for Copy/Fail, DirtyFrag, Fragnesia variants");
-    run_with_spinner('Checking for Copy/Fail, DirtyFrag, Fragnesa variants', \&check_for_kernelhacks);
+    logit("Checking running kernel for various kernel CVE's (Copy/Fail, DirtyFrag, Fragnesia)");
+    run_with_spinner('Checking running kernel for various kernel CVE\'s  (Copy/Fail, DirtyFrag, Fragnesa)', \&check_for_kernelhacks);
 
     logit("Checking for suspicious MySQL users including Super privileges");
     run_with_spinner( 'Checking for suspicious MySQL users (Including Super privileges)', \&check_for_Super_privs);
@@ -570,6 +555,9 @@ sub scan {
     logit("Checking for suspicious Email Filters");
     run_with_spinner('Checking for suspicious Email Filters', \&check_email_filters);
 
+    if ( $full or $hashscan ) {
+        run_with_spinner('Additional Check for system files against known hashes', \&hash_scan);
+    }
     if ( $full or $symlink ) {
         logit("Checking for symlink hacks");
         run_with_spinner( 'Additional check for symlink hacks', \&check_for_symlinks );
@@ -588,59 +576,9 @@ sub scan {
         logit("Additional check for Log4JShell hack attempts in log files");
         run_with_spinner( 'Additional check for Log4JShell hack attempts in log files', \&check_for_log4JShell_attempts );
     }
-
     if ( $full ) {
-        print_header( YELLOW '[ Additional check for infections using YARA rules ]' );
-        my $yara_available = check_for_yara();
-        if ($yara_available) {
-            my $abort_scan=0;
-            if ( ! $yarascan ) {
-                my $continue_yara_scan = "This process can cause very high loads and may take a long time!!!";
-                if ( !IO::Prompt::prompt( $continue_yara_scan . " [y/N]: ", -default => 'n', -yes_no)) {
-                    print_status("User opted to NOT continue with Yara scan!");
-                    logit("User aborted Yara scan");
-                    $abort_scan=1;
-                }
-            }
-            if ( $abort_scan == 0 ) {
-                my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara');
-                my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
-                my $res       = $ua->get($url);
-                my $yara_data = $res->decoded_content;
-                my @yara_data = split /\n/, $yara_data;
-                print_header("Downloading csi_rules.yara file to $csidir");
-                open( my $yarafile_fh, '>:encoding(UTF-8)', "$csidir/csi_rules.yara" ) or die("Cannot create $csidir/csi_rules.yara: $!\n");
-                foreach my $yara_line (@yara_data) {
-                    chomp($yara_line);
-                    print $yarafile_fh $yara_line . "\n";
-                }
-                close($yarafile_fh);
-                my @dirs = qw( /bin /boot /etc /lib /lib64 /opt /root /sbin /tmp /usr );
-                for my $dir (@dirs) {
-                    chomp($dir);
-                    next unless -d $dir;
-                    print_status("\tScanning $dir directory");
-                    my $loadavg = get_loadavg();
-                    print_status( expand( "\t\t\\_ Yara file: csi_rules.yara [ Load: $loadavg ]") );
-                    my $results = run_quiet( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
-                    my @results   = split /\n/, $results;
-                    my $resultcnt = @results;
-                    if ( $resultcnt > 0 ) {
-                        my $showHeader = 0;
-                        foreach my $yara_result (@results) {
-                            chomp($yara_result);
-                            next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs|access_log|swpDSK} );
-                            my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
-                            my $ignore = _ignore( $triggered_rule, $triggered_file );
-                            next unless( $ignore );
-                            push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $showHeader );
-                            $showHeader = 1;
-                            push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK|csi.pl/ );
-                        }
-                    }
-                }
-            }
-        }
+        logit("[ Additional check for infections using YARA rules ]");
+        run_with_spinner( 'Additional check for for infections using YARA rules', \&yara_scan_server );
     }
 
     print_normal(' ');
@@ -694,6 +632,48 @@ sub scan {
     print_header('[ CSI Summary ]');
     print_normal('');
     dump_summary();
+}
+
+sub yara_scan_server {
+    my $yara_available = check_for_yara();
+    if ($yara_available) {
+        my $url = URI->new( 'https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/csi_rules.yara');
+        my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
+        my $res       = $ua->get($url);
+        my $yara_data = $res->decoded_content;
+        my @yara_data = split /\n/, $yara_data;
+        open( my $yarafile_fh, '>:encoding(UTF-8)', "$csidir/csi_rules.yara" ) or die("Cannot create $csidir/csi_rules.yara: $!\n");
+        foreach my $yara_line (@yara_data) {
+            chomp($yara_line);
+            print $yarafile_fh $yara_line . "\n";
+        }
+        close($yarafile_fh);
+        my @dirs = qw( /bin /boot /etc /lib /lib64 /opt /root /sbin /tmp /usr );
+        my %cpconf = get_conf($CPANEL_CONFIG_FILE);
+        if ( Cpanel::IONice::ionice( 'best-effort', exists $cpconf{'ionice_log_processing'} ? $cpconf{'ionice_log_processing'} : 6)) {
+            setpriority( 0, 0, 19 );
+        }
+        for my $dir (@dirs) {
+            chomp($dir);
+            next unless -d $dir;
+            my $results = run_quiet( 0, 'yara', '-fwNr', "$csidir/csi_rules.yara", "$dir" );
+            my @results   = split /\n/, $results;
+            my $resultcnt = @results;
+            if ( $resultcnt > 0 ) {
+                my $showHeader = 0;
+                foreach my $yara_result (@results) {
+                    chomp($yara_result);
+                    next if ( $yara_result =~ m{.yar|.yara|CSI|rfxn|.hdb|.ndb|csi.pl|modsec_vendor_configs|access_log|swpDSK} );
+                    my ( $triggered_rule, $triggered_file ) = ( split( '\s+', $yara_result ) );
+                    my $ignore = _ignore( $triggered_rule, $triggered_file );
+                    next unless( $ignore );
+                    push @SUMMARY, "> A Yara scan found some suspicious files..." unless ( $showHeader );
+                    $showHeader = 1;
+                    push @SUMMARY, expand( "\t\\_ Rule Triggered: " . CYAN $triggered_rule . YELLOW " in the file: " . MAGENTA $triggered_file ) unless ( $triggered_file =~ m/\.yar|\.yara|CSI|rfxn|\.hdb|\.ndb|\/usr\/swpDSK|csi.pl/ );
+                }
+            }
+        }
+    }
 }
 
 sub check_previous_scans {
@@ -1959,6 +1939,244 @@ sub check_for_generic_sharedlib_backdoor {
     return;
 }
 
+sub check_for_ebury_2024_IOCs {
+    # Ebury's userland rootkit hides its own files, process, and socket
+    # from a compromised shell by hooking libc functions and injecting
+    # itself via LD_PRELOAD into subprocesses spawned under an
+    # Ebury-infected SSH session. Per ESET's "Ebury is alive but
+    # unseen" whitepaper (May 2024), setting these three environment
+    # variables prevents the rootkit from activating in child
+    # processes, so every external command this check runs is spawned
+    # with them cleared. This doesn't help if csi.pl itself is already
+    # running under an Ebury-compromised shell, but it stops our own
+    # subprocess calls from being silently hooked.
+    local $ENV{'H'}          = 1;
+    local $ENV{'LD_PRELOAD'} = '';
+    local $ENV{'LD_DEBUG'}   = '';
+
+    my $showHeader = 0;
+    my $header_text = "> Possible Ebury compromise detected [ See: https://www.welivesecurity.com/en/eset-research/ebury-alive-unseen-400k-linux-servers-compromised-cryptocurrency-theft-financial-gain/ ]";
+
+    # Known filenames used to hide the Ebury payload next to a lightly
+    # patched libkeyutils.so (either a DT_NEEDED hijack or dlopen()'d
+    # from the patched library's constructor).
+    my @side_libs = qw(
+        libkeystats.so libkeyctl.so librwctl.so
+        libns2.so libns5.so libpw3.so libpw5.so
+        libsbr.so libslr.so libstz.so libtsq.so libtsr.so
+    );
+
+    # Known SHA-1 hashes of Ebury and related malware samples, from the
+    # Files IoC table in the ESET whitepaper.
+    my %known_sha1 = (
+        '98fbd545b5c1b1fe185730ba9b1cd4bebfae4476' => 'Ebury v1.7.0p (libstz.so)',
+        '44b04cfc095f93d17b1bd4f8820c16843fcbac3e' => 'Ebury v1.7.3 (libkeyutils.so)',
+        '013647e5ad347539eef6c5933b16ad01b1806c3c' => 'Ebury v1.8.0 (libkeyutils.so)',
+        '787a93f86e7f5fcf922e996b577df532270c7184' => 'Ebury v1.8.1 (libllz564)',
+        'e7debd6e453192ad8376db5bab03ed0d87566591' => 'Ebury v1.8.2 (libllz564)',
+        'cd9a5b823906cc620b28d69dbdb11bd9fe6b3e03' => 'Ebury v1.6.3 (libkeyutils.so)',
+        'ddae9417470f832db550efb716b5baeaaaa35372' => 'Ebury v1.6.2fp (libsbr.so)',
+        '71ca9b7c418264c2c856d47483666d123861d476' => 'Ebury v1.7.0c (libkeystats.so)',
+        '4a7303dd8e7bbbf063463b3852245abdd343f5b6' => 'Ebury v1.7.3c (libkeystats.so)',
+        'dfaecf7ebfc169cdf923af421edd537cce536a64' => 'Ebury v1.7.4c (librwctl.so)',
+        '3137dca3f6fbd566f4ed2f49076a63d84869e13c' => 'Ebury v1.7.4d (libkeyutils.so)',
+        '96fd9b3064f04ee3063b2b103f856bb729b58749' => 'FrizzySteal (ibz.so)',
+        '53829463a7de8c4bace97b1f6925728f3421df53' => 'Modified 3proxy used by HelimodProxy (pmtad)',
+        '947eee633e9347f72625fb652f94488a4b2b37f0' => 'Modified 3proxy used by HelimodProxy (pmtad)',
+        'e39667aa137e315bc26eaef791ccab52938fd809' => 'HelimodProxy Apache module (mod_dir.so)',
+        '0b91c3c2627f9948b8f3446822f99faf88081267' => 'HelimodRedirect Apache module (mod_dir.so)',
+        '580e6075c65d867667d507e2b00c8eef79c907a1' => 'HelimodRedirect Apache module (mod_auth_basic.so)',
+        '3988d1a743e83d532130bc8090a7bc7001fe1bb0' => 'HelimodRedirect Apache module (mod_authn_file.so)',
+        '429a81bbd18a35c3c4d1dcb8bc76f5a7d9724a79' => 'HelimodRedirect Apache module (mod_authz_host.so)',
+        '16ee09926a2109262686d58974079adc25e31aa1' => 'HelimodRedirect Apache module (mod_authz_user.so)',
+        'ec4941bdd9ffb241968fd59a28b70bce288ed261' => 'HelimodRedirect Apache module (mod_dir.so)',
+        'a64d6c7444fc2404a589ed7f8527e698682a3e68' => 'HelimodRedirect Apache module (mod_env.so)',
+        '15560b44286122fa0679c6c2368817ce2dc747e6' => 'HelimodSteal Apache module (mod_auth_basic.so)',
+        '94532111459e024bcb7e2025a6c145876a46f829' => 'HelimodSteal Apache module (mod_authn_file.so)',
+        'ad350d7da4bf1f7080026b683f93401cd735e974' => 'HelimodSteal Apache module (mod_authz_host.so)',
+        '75e8a197b6a9a7903ca43782bdd77cd9611fefe0' => 'HelimodSteal Apache module (mod_authz_user.so)',
+    );
+
+    # Abstract UNIX socket names used by the persistent "Ebury process"
+    # that holds state, configuration, and stolen credentials.
+    my @abstract_sockets = (
+        '/dev/event-E4LgEFWIcy', '/dev/event/loop0', '/dev/stats-MxPAxNpy3x',
+        '/proc/udevd', '/proc/ulog',
+        '/run/systemd/journal-YAjXO8luqOa', '/run/systemd/journal/dlog',
+        '/run/systemd/log', '/run/systemd/log-90zMvYX7uL', '/run/systemd/log-wuO3nuFBHN',
+        '/tmp/dbus-0m9eDQpdXZ', '/tmp/dbus-9XZXkmdfpN', '/tmp/dbus-VdyGBaqZws',
+        '/tmp/dbus-Xrga2cOewg', '/tmp/dbus-ZP7tFO4xsL', '/tmp/dbus-kZ8VEtJDOJ',
+        '/tmp/dbus-luzG4UqDt8', '/tmp/dbus-n3UUkeqEZG', '/tmp/dbus-vBWUDhHCHp',
+        'event-CRbBwZlvXa', 'ACPI-NYlT78Tj', 'UDEV-4kAmkRW3',
+    );
+
+    # IP addresses known to be used by Ebury operators to connect back
+    # to compromised servers, to receive exfiltrated credentials/HTTP
+    # POST data, or embedded in the trojanized iptables-multi
+    # "hide_me" allow-list.
+    my @network_iocs = qw(
+        45.59.120.146 65.21.54.164 141.255.166.187 146.70.124.102
+        185.59.103.8 195.123.225.83 213.232.235.104
+        185.145.245.167 135.181.148.230 141.164.52.243
+        217.163.23.173 140.82.34.55 194.36.191.108 94.140.120.163
+    );
+
+    # Domains used for DGA-based and HTTP-based exfiltration.
+    my @network_domains = qw( pbarsec.com checklicence.net qimpj6kkofzf.biz op3f1libgh.biz larfj7g1vaz3y.net );
+
+    #################################################################
+    # 1. libkeyutils.so and known Ebury "side library" filenames:   #
+    #    check for the setuid bit, a known-bad hash, or a NEEDED    #
+    #    dependency that isn't libc.                                #
+    #################################################################
+    my @lib_dirs = qw( /lib /lib64 /usr/lib /usr/lib64 /lib/tls /lib64/tls /usr/lib/tls /usr/lib64/tls );
+    my $has_readelf = has_command('readelf');
+    for my $dir (@lib_dirs) {
+        next unless -d $dir;
+        opendir( my $dh, $dir ) or next;
+        my @files = readdir($dh);
+        closedir($dh);
+        for my $file (@files) {
+            next unless $file =~ /^libkeyutils\.so(\.|$)/ || grep { $_ eq $file } @side_libs;
+            my $fullpath = "$dir/$file";
+            next unless -f $fullpath || -l $fullpath;
+
+            if ( -f $fullpath && ( ( stat($fullpath) )[2] & 04000 ) ) {
+                push @SUMMARY, $header_text unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( CYAN "\t\\_ $fullpath has the SETUID bit set - " . YELLOW "shared libraries never need this; Ebury sets it to recognize its own malicious file internally" );
+            }
+
+            my $sha1 = run_quiet( 4, 'sha1sum', $fullpath );
+            my ($hash) = ( split( /\s+/, $sha1 ) )[0];
+            if ( $hash && $known_sha1{ lc($hash) } ) {
+                push @SUMMARY, $header_text unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( CYAN "\t\\_ $fullpath matches a known hash of " . YELLOW $known_sha1{ lc($hash) } );
+            }
+
+            next unless $has_readelf;
+            my $needed = run_quiet( 0, 'readelf', '-d', $fullpath );
+            for my $line ( split /\n/, $needed ) {
+                next unless $line =~ /\(NEEDED\).*\[([^\]]+)\]/;
+                my $dep = $1;
+                next if $dep =~ /^(?:libc\.so|libpthread\.so|libdl\.so|ld-linux|libresolv\.so)/;
+                push @SUMMARY, $header_text unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( CYAN "\t\\_ $fullpath has an unusual dependency on " . RED $dep . YELLOW " - possible Ebury DT_NEEDED hijack" );
+            }
+        }
+    }
+
+    #################################################################
+    # 2. libz.so*: FrizzySteal patches libz to add a DT_NEEDED entry #
+    #    pointing to itself.                                        #
+    #################################################################
+    if ($has_readelf) {
+        for my $dir (@lib_dirs) {
+            next unless -d $dir;
+            opendir( my $dh, $dir ) or next;
+            my @files = grep { /^libz\.so(\.|$)/ } readdir($dh);
+            closedir($dh);
+            for my $file (@files) {
+                my $fullpath = "$dir/$file";
+                next unless -f $fullpath;
+                my $needed = run_quiet( 0, 'readelf', '-d', $fullpath );
+                for my $line ( split /\n/, $needed ) {
+                    next unless $line =~ /\(NEEDED\).*\[([^\]]+)\]/;
+                    my $dep = $1;
+                    next if $dep =~ /^(?:libc\.so|ld-linux)/;
+                    push @SUMMARY, $header_text unless ($showHeader);
+                    $showHeader = 1;
+                    push @SUMMARY, expand( CYAN "\t\\_ $fullpath has an unusual dependency on " . RED $dep . YELLOW " - possible FrizzySteal DT_NEEDED hijack" );
+                }
+            }
+        }
+    }
+
+    #################################################################
+    # 3. Abstract UNIX socket used by the persistent "Ebury process"#
+    #################################################################
+    if ( open( my $fh, '<', '/proc/net/unix' ) ) {
+        while (<$fh>) {
+            for my $sock (@abstract_sockets) {
+                next unless index( $_, $sock ) != -1;
+                push @SUMMARY, $header_text unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( CYAN "\t\\_ Found an abstract UNIX socket known to be used by Ebury: " . RED $sock );
+                last;
+            }
+        }
+        close($fh);
+    }
+
+    #################################################################
+    # 4. Trojanized iptables-multi used to hide firewall rules      #
+    #    ("hide_me") and allow specific IPs through.                #
+    #################################################################
+    for my $path ( '/sbin/iptables-multi-1.4.7', '/usr/sbin/iptables-multi' ) {
+        next unless -e $path;
+        push @SUMMARY, $header_text unless ($showHeader);
+        $showHeader = 1;
+        push @SUMMARY, expand( CYAN "\t\\_ Found $path - " . YELLOW "this exact path is called out by ESET as a known location for a trojanized iptables-multi binary used to hide Ebury-related firewall rules. Verify manually (e.g. compare against the real package) before assuming compromise." );
+    }
+
+    #################################################################
+    # 5. Apache/nginx modules matching known Helimod family hashes  #
+    #################################################################
+    for my $dir ( '/etc/apache2/modules', '/usr/local/apache/modules' ) {
+        next unless -d $dir;
+        opendir( my $dh, $dir ) or next;
+        my @files = grep { /\.so$/ } readdir($dh);
+        closedir($dh);
+        for my $file (@files) {
+            my $fullpath = "$dir/$file";
+            next unless -f $fullpath;
+            my $sha1 = run_quiet( 4, 'sha1sum', $fullpath );
+            my ($hash) = ( split( /\s+/, $sha1 ) )[0];
+            next unless $hash && $known_sha1{ lc($hash) };
+            push @SUMMARY, $header_text unless ($showHeader);
+            $showHeader = 1;
+            push @SUMMARY, expand( CYAN "\t\\_ $fullpath matches a known hash of " . YELLOW $known_sha1{ lc($hash) } );
+        }
+    }
+
+    #################################################################
+    # 6. Active/listening connections to known Ebury-related IPs    #
+    #################################################################
+    if ( has_command('ss') ) {
+        my $conns = run_quiet( 0, 'ss', '-tn' );
+        for my $line ( split /\n/, $conns ) {
+            for my $ip (@network_iocs) {
+                next unless index( $line, $ip ) != -1;
+                push @SUMMARY, $header_text unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( CYAN "\t\\_ Found a network connection to a known Ebury-related IP address: " . RED $ip );
+                push @SUMMARY, expand( "\t\t\\_ $line" );
+                last;
+            }
+        }
+    }
+
+    #################################################################
+    # 7. /etc/hosts entries for known Ebury-related domains         #
+    #################################################################
+    if ( open( my $fh, '<', '/etc/hosts' ) ) {
+        while (<$fh>) {
+            for my $dom (@network_domains) {
+                next unless /\Q$dom\E/i;
+                push @SUMMARY, $header_text unless ($showHeader);
+                $showHeader = 1;
+                push @SUMMARY, expand( CYAN "\t\\_ /etc/hosts references a known Ebury-related domain: " . RED $dom );
+                last;
+            }
+        }
+        close($fh);
+    }
+
+    return;
+}
+
 sub check_for_ebury_ssh_G {
     my $ssh = '/usr/bin/ssh';
     return if !-e $ssh;
@@ -2342,12 +2560,12 @@ sub logit {
     close($log_fh);
 }
 
-sub spin {
-    my %spinner = ( '|' => '/', '/' => '-', '-' => '\\', '\\' => '|' );
-    $spincounter = ( !defined $spincounter ) ? '|' : $spinner{$spincounter};
-    print STDERR "\b$spincounter";
-    print STDERR "\b";
-}
+#sub spin {
+#    my %spinner = ( '|' => '/', '/' => '-', '-' => '\\', '\\' => '|' );
+#    $spincounter = ( !defined $spincounter ) ? '|' : $spinner{$spincounter};
+#    print STDERR "\b$spincounter";
+#    print STDERR "\b";
+#}
 
 sub run_with_spinner {
     my ($label, $coderef) = @_;
@@ -2636,6 +2854,24 @@ sub userscan {
     }
     });
 
+    # Check for suspicious directory/files under users homedir - SOP-1144
+    run_with_spinner("Checking for suspicious directory/files under $RealHome", sub {
+        my $suspdir=run_quiet( 0, 'find', $RealHome, '-type', 'd', '-name', '.sysd-private-*' );
+        my @suspdir=split /\n/, $suspdir;
+        my @files=qw( .nm.conf .nm-dog.sh .nm-helper .nm-state );
+        my $showHeader=0;
+        foreach my $dir (@suspdir) {
+            push @SUMMARY, "> Found suspicious directory (possibly php2shell infection)" unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, RED "\t\\_ $dir";
+            foreach my $file(@files) {
+                if ( -f "$dir/$file" ) {
+                    push @SUMMARY, CYAN "\t\t\\_ $dir/$file";
+                }
+            }
+        }
+    });
+
     run_with_spinner('Checking .well-known directory for suspicious php scripts', sub {
 
     # Check for php scripts within the SSL DCV check directories.
@@ -2754,7 +2990,6 @@ sub userscan {
             $fullpath = $pkidir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-                spin();
                 $pkitroldesh_ransomware = 1;
                 last;
             }
@@ -2768,7 +3003,6 @@ sub userscan {
             $fullpath = $acmedir . "/" . $file;
             stat $fullpath;
             if ( -f _ and not -z _ ) {
-                spin();
                 $acmetroldesh_ransomware = 1;
                 last;
             }
@@ -2786,7 +3020,6 @@ sub userscan {
         $fullpath = "$RealHome/$pubhtml/" . $file;
         stat $fullpath;
         if ( -f _ and not -z _ ) {
-            spin();
             push( @SUMMARY, "> Found evidence of stealrat botnet" );
             push( @SUMMARY, expand( CYAN "\t\\_ $fullpath" ) );
         }
@@ -3145,6 +3378,11 @@ sub userscan {
                 push @SUMMARY, expand( MAGENTA "\t\t\\_ Likely related to the AnonymousF0x exploit" );
             }
         }
+        if ( $susp_dir =~ m{wp-content/plugins/wp2shell_[0-9a-f]{8}$} ) {
+            push @SUMMARY, "> Found suspicious directory name in a WordPress plugins folder:" unless( $showHeader );
+            $showHeader=1;
+            push @SUMMARY, expand( CYAN "\t\\_ $susp_dir" );
+        }
     }
 
     # Check for malicious @include line in wp-config.php files
@@ -3259,7 +3497,6 @@ sub userscan {
     find( { wanted => sub {
             return if -d $File::Find::name;
             return unless $File::Find::name =~ $IMAGE_RE;
-            spin();
             $cnt++;
 
             my $printable = extract_printable($File::Find::name);
@@ -3304,7 +3541,6 @@ sub userscan {
         logit("Running a user scan for $lcUserToScan");
         my $yara_available = check_for_yara();
         if ($yara_available) {
-            #my @yara_urls = qw( https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/suspicious_strings.yara https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
             my @yara_urls = qw( https://raw.githubusercontent.com/CpanelInc/tech-CSI/master/php_webshell_rules.yara);
             logit("Downloading yara rules to $csidir");
             my @data;
@@ -3370,6 +3606,7 @@ sub userscan {
                         last;
                     }
                     $ChangeDate =~ s/Change: //;
+
                     # check hash of $triggered_file against known256_hashes.txt
                     my ($sha256only) = (split(/\s+/,run_quiet( 0, 'sha256sum', "$triggered_file" )))[0];
                     my $knownHash  = known_sha256_hashes($sha256only);
@@ -3390,106 +3627,6 @@ sub userscan {
                 }
             }
         }
-        else {
-            ## grep scan (not Yara) a bit slower but should catch the same things.
-            my $url = URI->new( 'https://raw.githubusercontent.com/cPanelPeter/infection_scanner/master/strings.txt');
-            my $ua = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
-            my $res         = $ua->get($url);
-            my $definitions = $res->decoded_content;
-            my @DEFINITIONS = $definitions;
-            use open ":std", ":encoding(UTF-8)";
-            open( my $fh, '>:encoding(UTF-8)', "$csidir/csi_detections.txt" );
-            foreach my $def (@DEFINITIONS) {
-                print $fh $def;
-            }
-            close($fh);
-            logit("Scanning $RealHome/$pubhtml for known phrases/strings");
-            # Walk the account's files natively in Perl instead of shelling
-            # out to grep with interpolated paths, so that a crafted
-            # --customdir value (or unusual filename) cannot be used to
-            # inject shell metacharacters into an external command.
-            my @detection_terms;
-            if ( open( my $terms_fh, '<', "$csidir/csi_detections.txt" ) ) {
-                @detection_terms = grep { length } map { chomp; $_ } <$terms_fh>;
-                close($terms_fh);
-            }
-            my @retval;
-            if ( @detection_terms && -d "$RealHome/$pubhtml" ) {
-                my $term_re = join( '|', map { quotemeta($_) } @detection_terms );
-                my $compiled_re = qr/(?:$term_re)/i;
-                find( {
-                    no_chdir => 1,
-                    wanted   => sub {
-                        return if -d $File::Find::name;
-                        return if $File::Find::name =~ /\.(?:zip|gz)$/i;
-                        return unless -f $File::Find::name && -r _;
-                        open( my $scan_fh, '<', $File::Find::name ) or return;
-                        while ( my $scanline = <$scan_fh> ) {
-                            if ( $scanline =~ $compiled_re ) {
-                                push @retval, "$File::Find::name:$scanline";
-                            }
-                        }
-                        close($scan_fh);
-                    },
-                }, "$RealHome/$pubhtml/" );
-            }
-            my $TotalFound = @retval;
-            my $ItemFound;
-            my @FileNamesOnly;
-            my $FileOnly;
-
-            foreach $ItemFound (@retval) {
-                chomp($ItemFound);
-                ($FileOnly) = ( split( /:/, $ItemFound ) );
-                push( @FileNamesOnly, $FileOnly );
-            }
-            my @newRetVal       = uniq @FileNamesOnly;
-            my $TotalFilesFound = @newRetVal;
-            my $ChangeDate;
-            foreach $FileOnly (@newRetVal) {
-                my $ChangeDateStat = run_quiet( 3, 'stat', $FileOnly );
-                my @ChangeDateStat = split /\n/, $ChangeDateStat;
-                foreach my $line( @ChangeDateStat ) {
-                    next unless( $line =~ m/Change: / );
-                    ($ChangeDate) = ( split( /\./, $line ) );
-                    last;
-                }
-                $ChangeDate =~ s/Change: //;
-                # check hash of $triggered_file against known256_hashes.txt
-                my ($sha256only) = (split(/\s+/,run_quiet( 0, 'sha256sum', "$FileOnly" )))[0];
-                my $knownHash  = known_sha256_hashes($sha256only);
-                my $susp_hash="";
-                if ($knownHash) {
-                    $susp_hash = expand( CYAN "\n\t\t\\_ Has a hash " . GREEN . $sha256only . MAGENTA " known to be suspicious!" );
-                }
-                push(
-                    @SUMMARY,
-                    expand(
-                            CYAN "\t \\_ File: "
-                          . WHITE "$FileOnly "
-                          . BOLD RED
-                          . "looks suspicious "
-                          . BOLD MAGENTA
-                          . " [ Modified: "
-                          . BOLD BLUE $ChangeDate
-                          . $susp_hash
-                          . MAGENTA " ]"
-                    )
-                );
-            }
-            if ( $TotalFound == 0 ) {
-                push( @SUMMARY, GREEN "Result: Nothing suspicious found!\n" );
-            }
-            else {
-                push( @SUMMARY,
-                        RED "Result: "
-                      . WHITE $TotalFound
-                      . RED " suspicious items found in "
-                      . WHITE $TotalFilesFound
-                      . RED " files. " );
-                push( @SUMMARY, YELLOW "These should be investigated.\n" );
-            }
-        }
     }
     });
 
@@ -3504,67 +3641,64 @@ sub userscan {
 sub check_for_symlinks {
     my $totUsers = Cpanel::Config::LoadUserDomains::counttrueuserdomains();
     return if $totUsers == 0;
-    my @symlinks;
     my @conffiles =
       qw( functions.php confic.php db.php wp-config.php configuration.php conf_global.php Settings.php config.php settings.php settings.inc.php submitticket.php );
-    my $conffile;
-    foreach $conffile (@conffiles) {
-        chomp($conffile);
-        my $findit = run_quiet( 0, 'find', $HOMEDIR, '-type', 'l', '-lname', "$HOMEDIR/*/$conffile", '-ls' );
-        push @symlinks, $findit unless( ! $findit );
+    my @lname_args;
+    foreach my $conffile (@conffiles) {
+        push @lname_args, '-o' if @lname_args;
+        push @lname_args, '-lname', "$HOMEDIR/*/$conffile";
     }
+    my $findit = run_quiet( 0, 'find', $HOMEDIR, '-type', 'l', '(', @lname_args, ')', '-ls' );
+    my @symlinks = $findit ? split( /\n/, $findit ) : ();
+
     my $headerprinted = 0;
     my $hp1           = 0;
     my $hp2           = 0;
-    my $symlink;
-    foreach $symlink (@symlinks) {
+    foreach my $symlink (@symlinks) {
         my ( $symUID, $symGID, $link, $pointer, $realpath ) = ( split( /\s+/, $symlink ) )[ 5, 6, 11, 12, 13 ];
         my ( $SLfilename, $SLdir ) = fileparse($link);
         next if ( $SLdir =~ m{/home/virtfs} );
-        next unless( -d $realpath );
+        my $fStat = stat($realpath);
+        next unless $fStat && -d _;
         push( @SUMMARY, YELLOW "> Found symlink hacks under $SLdir" ) unless ($headerprinted);
         $headerprinted = 1;
-        my $fStat = stat($realpath);
-        if ( -e _ ) {
-            if ( $symUID eq "root" or $symGID eq "root" ) {
-                if ( $hp1 == 0 ) {
-                    push(
-                        @SUMMARY,
-                        expand(
-                                CYAN "\t\\_ root owned symlink "
-                              . BOLD RED
-                              "(should be considered root compromised!): "
-                        )
-                    );
-                    $hp1 = 1;
-                }
+        if ( $symUID eq "root" or $symGID eq "root" ) {
+            if ( $hp1 == 0 ) {
                 push(
                     @SUMMARY,
                     expand(
-                            "\t\t\\_ "
-                          . MAGENTA $link . " "
-                          . $pointer . " "
-                          . $realpath
+                            CYAN "\t\\_ root owned symlink "
+                          . BOLD RED
+                          "(should be considered root compromised!): "
                     )
                 );
-
+                $hp1 = 1;
             }
-            else {
-                if ( $hp2 == 0 ) {
-                    push( @SUMMARY,
-                        expand( CYAN "\t\\_ User owned ($symUID) symlink: " ) );
-                    $hp2 = 1;
-                }
-                push(
-                    @SUMMARY,
-                    expand(
-                            "\t\t\\_ "
-                          . MAGENTA $link . " "
-                          . $pointer . " "
-                          . $realpath
-                    )
-                );
+            push(
+                @SUMMARY,
+                expand(
+                        "\t\t\\_ "
+                      . MAGENTA $link . " "
+                      . $pointer . " "
+                      . $realpath
+                )
+            );
+        }
+        else {
+            if ( $hp2 == 0 ) {
+                push( @SUMMARY,
+                    expand( CYAN "\t\\_ User owned ($symUID) symlink: " ) );
+                $hp2 = 1;
             }
+            push(
+                @SUMMARY,
+                expand(
+                        "\t\t\\_ "
+                      . MAGENTA $link . " "
+                      . $pointer . " "
+                      . $realpath
+                )
+            );
         }
     }
 }
@@ -5236,21 +5370,8 @@ sub has_ps_command {
 
 sub check_for_yara {
     return 1 if ( -e "/usr/local/bin/yara" );
-    if ( $cron ) {
-        logit( 'Yara engine not installed, skipping Yara scans' );
-        return 0;       ## Don't ask to install Yara engine if running via cron
-    }
-    my $continue_yara_install = "Yara engine not installed, OK to install?";
-    unless ( $yarascan ) {
-        if ( !IO::Prompt::prompt( $continue_yara_install . " [y/N]: ", -default => 'n', -yes_no)) {
-            print_status("User opted to NOT install Yara!");
-            logit("User aborted Yara install");
-            return 0;
-        }
-    }
     my $yara_headers =
-      run_quiet( 30, 'curl', '-sL', '-4', '--head',
-        'https://github.com/VirusTotal/yara/releases/latest' );
+      run_quiet( 30, 'curl', '-sL', '-4', '--head', 'https://github.com/VirusTotal/yara/releases/latest' );
     my @yara_headers = split /\n/, $yara_headers;
     my $yara_version;
     foreach my $line (@yara_headers) {
@@ -5261,19 +5382,15 @@ sub check_for_yara {
         last;
     }
     if ( !$yara_version ) {
-        print_status(
-            "Could not obtain latest Yara version - Installation failed!");
         logit("Couldn't obtain lastest Yara version");
         return 0;
     }
     chomp($yara_version);
-    print_status("Downloading latest version of Yara [$yara_version]...");
     logit("Downloading latest Yara tarball");
     chdir("$csidir");
     my $download_yara = run_quiet( 30, 'wget', '-q',
         "https://github.com/VirusTotal/yara/archive/$yara_version.tar.gz" );
     if ( -e "$csidir/$yara_version.tar.gz" ) {
-        print_status("Extracting Yara tarball...");
         logit("Extracting Yara tarball");
         my $extract_tarball =
           run_quiet( 20, 'tar', 'xzf',
@@ -5281,10 +5398,7 @@ sub check_for_yara {
         $yara_version =~ s/v//g;
         if ( -d "$csidir/yara-$yara_version" ) {
             chdir("$csidir/yara-$yara_version");
-            print_status("Installing Yara - patience is a virtue...");
             logit("Installing Yara");
-            spin();
-            print "Running bootstrap.sh\n" unless ( !$debug );
             my $install_yara =
               run_quiet( 60,
                 "./bootstrap.sh 2>&1 > /dev/null" )
@@ -5292,8 +5406,6 @@ sub check_for_yara {
             my $install_yara =
               run_quiet( 60, "./bootstrap.sh" )
               unless ( !$debug );
-            spin();
-            print "Running configure\n" unless ( !$debug );
             my $install_yara =
               run_quiet( 60,
                 "./configure 2>&1 > /dev/null" )
@@ -5301,8 +5413,6 @@ sub check_for_yara {
             my $install_yara =
               run_quiet( 60, "./configure" )
               unless ( !$debug );
-            spin();
-            print "Running make\n" unless ( !$debug );
             my $install_yara =
               run_quiet( 60,
                 "make 2>&1 > /dev/null" )
@@ -5310,8 +5420,6 @@ sub check_for_yara {
             my $install_yara =
               run_quiet( 60, "make" )
               unless ( !$debug );
-            spin();
-            print "Running make install\n" unless ( !$debug );
             my $install_yara =
               run_quiet( 60,
                 "make install 2>&1 > /dev/null" )
@@ -5319,8 +5427,6 @@ sub check_for_yara {
             my $install_yara =
               run_quiet( 60, "make install" )
               unless ( !$debug );
-            spin();
-            print "Running make check\n" unless ( !$debug );
             my $install_yara =
               run_quiet( 60,
                 "make check 2>&1 > /dev/null" )
@@ -5328,37 +5434,29 @@ sub check_for_yara {
             my $install_yara =
               run_quiet( 60, "make check" )
               unless ( !$debug );
-            spin();
 
             if ( !-e "/etc/ld.so.conf.d/yaralib.conf" ) {
-                print "Creating /etc/ld.so.conf.d/yaralib.conf\n"
-                  unless ( !$debug );
                 if ( open( my $yaralib_fh, '>', '/etc/ld.so.conf.d/yaralib.conf' ) ) {
                     print $yaralib_fh "/usr/local/lib\n";
                     close($yaralib_fh);
                 }
-                print "Running ldconfig\n" unless ( !$debug );
                 run_quiet( 40, 'ldconfig' );
             }
             if ( -e "/usr/local/bin/yara" ) {
-                print_header("Yara successfully installed!");
                 logit("Yara install successful");
                 return 1;
             }
             else {
-                print_header("Yara install failed!");
                 logit("Yara install failed");
                 return 0;
             }
         }
         else {
-            print_header("Extraction failed!");
             logit("Yara extraction failed");
             return 0;
         }
     }
     else {
-        print_header("Download failed!");
         logit("Yara download failed");
         return 0;
     }
@@ -5541,8 +5639,6 @@ sub check_for_perfcc {
 
 sub check_for_xbash {
     return if( ! -f '/etc/my.cnf' );
-    my $XBash_Table;
-    my $RansomwareNote;
     my ( %mycnf_variables, $mycnf_key, $mycnf_value );
     open( my $fh, '<', '/etc/my.cnf' );
     while( <$fh> ) {
@@ -5555,28 +5651,79 @@ sub check_for_xbash {
     }
     close($fh);
     my $mysql_datadir = ( defined $mycnf_variables{'datadir'} ) ? $mycnf_variables{'datadir'} : '/var/lib/mysql';
-    if ( -d $mysql_datadir ) {
-        opendir( my $dh, $mysql_datadir );
-        my @mysql_databases = readdir($dh);
-        closedir $dh;
-        foreach my $database (@mysql_databases) {
-            chomp $database;
-            next unless ( $database =~ m/PLEASE_READ|README_TO_RECOVER|GODRANSOM/ );
-            push( @SUMMARY, "> Possible Xbash variant ransomware detected. Database's missing? Database " . CYAN $database . YELLOW " exists!" );
-            if ( -e '/run/mysqld/mysqld.pid' ) {
-                my $MYSQL_BIN=find_mysql_bin();
-                $XBash_Table = run_quiet( 6, $MYSQL_BIN, '-BNe', "SHOW TABLES FROM $database;" );
-                chomp($XBash_Table);
-                if ($XBash_Table) {
-                    $RansomwareNote = run_quiet( 6, $MYSQL_BIN, '-BNe', "SELECT * FROM $database.$XBash_Table;" );
-                    if ($RansomwareNote) {
-                        chomp($RansomwareNote);
-                        push( @SUMMARY, expand( CYAN "\t\\_ Ransomeware Note: $RansomwareNote" ) );
-                    }
-                }
+    return unless ( -d $mysql_datadir );
+
+    opendir( my $dh, $mysql_datadir );
+    my @mysql_databases = readdir($dh);
+    closedir $dh;
+
+    foreach my $database (@mysql_databases) {
+        chomp $database;
+        next unless ( $database =~ m/PLEASE_READ|README_TO_RECOVER|GODRANSOM/ );
+
+        # The database directory name, and later each table name SHOW
+        # TABLES returns, are both chosen by whoever owns the database -
+        # on shared hosting, an unprivileged customer with no shell
+        # access. Neither may ever be interpolated into SQL as raw text.
+        # Require a strict identifier shape (letters, digits, underscore,
+        # '$') before using a name at all, and additionally backtick-quote
+        # it (doubling any embedded backtick) as a second layer, since a
+        # bare identifier should never be trusted even after validation.
+        my $safe_db = _safe_mysql_identifier($database);
+        unless ($safe_db) {
+            push( @SUMMARY, "> Possible Xbash variant ransomware detected. Found a suspicious database name that does not look like a valid MySQL identifier (skipping further checks on it for safety): " . CYAN $database );
+            next;
+        }
+
+        push( @SUMMARY, "> Possible Xbash variant ransomware detected. Database's missing? Database " . CYAN $database . YELLOW " exists!" );
+
+        # Rather than depending on a specific pid-file path (which varies
+        # by OS and MySQL/MariaDB package, and per field testing may not
+        # exist at all on some Ubuntu MariaDB installs), check the
+        # already-collected process list for a live mysqld/mariadbd
+        # process instead. That's what this check actually needs to know,
+        # and it works the same way regardless of where - or whether - a
+        # pid file is kept.
+        next unless grep { /\b(?:mysqld|mariadbd)\b/ } @process_list;
+
+        my $MYSQL_BIN = find_mysql_bin();
+        my $tables_raw = run_quiet( 6, $MYSQL_BIN, '-BNe', "SHOW TABLES FROM $safe_db;" );
+        next unless defined $tables_raw && length $tables_raw;
+
+        # Handle each table name on its own line as a separate, validated
+        # statement, instead of interpolating the whole (possibly
+        # multi-line, attacker-controlled) SHOW TABLES output into one
+        # SELECT - that single combined string is what let a crafted
+        # table name smuggle a second, stacked SQL statement in before.
+        foreach my $table ( split /\n/, $tables_raw ) {
+            chomp $table;
+            next unless length $table;
+            my $safe_table = _safe_mysql_identifier($table);
+            unless ($safe_table) {
+                push( @SUMMARY, expand( CYAN "\t\\_ Skipped a table name that does not look like a valid MySQL identifier (possible SQL injection attempt): " . YELLOW $table ) );
+                next;
             }
+            # LIMIT caps how much a single call can pull back, in case a
+            # legitimate-looking "ransom note" table is unexpectedly huge.
+            my $RansomwareNote = run_quiet( 6, $MYSQL_BIN, '-BNe', "SELECT * FROM $safe_db.$safe_table LIMIT 5;" );
+            next unless defined $RansomwareNote && length $RansomwareNote;
+            chomp($RansomwareNote);
+            push( @SUMMARY, expand( CYAN "\t\\_ Ransomeware Note: $RansomwareNote" ) );
         }
     }
+}
+
+sub _safe_mysql_identifier {
+    # Validates a MySQL database/table name against a strict identifier
+    # character class and returns it backtick-quoted (with any embedded
+    # backtick doubled) for safe interpolation into a statement, or undef
+    # if the name doesn't look like an ordinary identifier. Used anywhere
+    # a database- or table-owner-controlled name needs to go into SQL.
+    my $name = shift;
+    return undef unless defined $name && length $name;
+    return undef unless $name =~ /^[A-Za-z0-9_\$]+$/;
+    ( my $escaped = $name ) =~ s/`/``/g;
+    return "`$escaped`";
 }
 
 sub check_for_cronRAT {
@@ -6400,7 +6547,7 @@ sub check_for_kernelhacks {
             );
 
             if ( !defined $info || $info !~ /\S/ ) {
-                push @INFO, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper          variants..."
+                push @INFO, "> Checking running kernel for various kernel CVE's (Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper)..."
                     unless ($showHeader);
                 $showHeader = 1;
                 push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no advisory published yet)"  );
@@ -6409,7 +6556,7 @@ sub check_for_kernelhacks {
 
             next if ( $info =~ /^\s*Installed\s*:\s*true/mi );
 
-            push @INFO, "> Checking running kernel for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+            push @INFO, "> Checking running kernel for various kernel CVE's (Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper)..."
                 unless ($showHeader);
             $showHeader = 1;
             push @INFO, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
@@ -6418,7 +6565,7 @@ sub check_for_kernelhacks {
             my $fixed_version = $CVE_DATA{$cve}{fixed_versions}{$distro_version};
 
             unless ($fixed_version) {
-                push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                push @INFO, "> Checking running kernel for various kernel CVE's (Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper)..."
                     unless ($showHeader);
                 $showHeader = 1;
                 push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (no fixed version for Ubuntu $distro_version)" );
@@ -6437,7 +6584,7 @@ sub check_for_kernelhacks {
                 # expressed for the 5.15 series). The ABI counters on
                 # different series aren't on the same scale, so don't guess
                 # at vulnerable/patched - say so plainly instead.
-                push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+                push @INFO, "> Checking running kernel for various kernel CVE's (Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper)..."
                     unless ($showHeader);
                 $showHeader = 1;
                 push @INFO, expand( YELLOW "\t\\_ Unable to verify $cve [ $label ] (running kernel '$running_kernel' is not on the same kernel series as the known fix '$fixed_version')" );
@@ -6446,7 +6593,7 @@ sub check_for_kernelhacks {
 
             next if $meets_fix;   # patched
 
-            push @INFO, "> Checking for Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper variants..."
+            push @INFO, "> Checking running kernel for various kernel CVE's (Copy/Fail, DirtyFrag, Fragnesia, ZcopyReaper)..."
                 unless ($showHeader);
             $showHeader = 1;
             push @INFO, expand( CYAN "\t\\_ Vulnerable to $cve [ $label ]" );
@@ -6575,8 +6722,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 =item --symlink - Includes a check for symlink hacks during scan.
 
 =item --full - Performs a full scan including symlink and Yara scan.
-
-=item --yarascan - Skips confirmation during --full scan. CAUSES HIGH LOAD!!!
 
 =item --overwrite - Use already exisitng /root/CSI directory.
 
