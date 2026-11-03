@@ -2011,3 +2011,15 @@
 /var/www/html/shell.php
 /watchd0g.sh
 /xpnjdfx.txt
+/var/run/nscd/ns.pid
+/var/run/udev/ud.pid
+/var/run/udevd.pid
+/var/run/sshd/sshd.pid
+/var/tmp/gf_pid_port_mapping/1720612917017064091
+/etc/bioset
+/bin/a
+/bin/cls
+/bin/clean
+/var/tmp/.cpg91511_sh
+/var/tmp/.cpg91511
+/var/tmp/.cpg91511/loot.tgz
