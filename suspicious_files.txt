@@ -86,6 +86,7 @@
 /boot/os_tools/update_version
 /boot/pro
 /boot/proh
+/boot/system.pub
 /chernobyl.sh
 /data/local/tmp/.t
 /dev/...
@@ -227,6 +228,7 @@
 /etc/atddd
 /etc/audisp/plugins.d/6hsnefbp
 /etc/bin/ava
+/etc/bioset
 /etc/cmd.n
 /etc/com.json
 /etc/conf.n
@@ -248,6 +250,7 @@
 /etc/cron.d/apache.bak
 /etc/cron.d/apachecat
 /etc/cron.d/ebpfbackdoor
+/etc/cron.d/i93677
 /etc/cron.d/pwnrig
 /etc/cron.d/r*-syslog.log
 /etc/cron.d/root
@@ -340,8 +343,10 @@
 /etc/pprt
 /etc/profile.d/.h
 /etc/profile.d/.helpdd
+/etc/profile.d/bash.cfg
 /etc/profile.d/diskmanagerd
 /etc/profile.d/emacs.sh
+/etc/profile.d/gateway.sh
 /etc/profile.d/kacpi_notify
 /etc/profile.d/system_profiled_service.sh
 /etc/profile.d/systemd.sh
@@ -542,6 +547,7 @@
 /lib/security/.config
 /lib/security/update.so
 /lib/systemd/system/chrome.service
+/lib/systemd/system/defunct.dat
 /lib/systemd/system/display-managerd.service
 /lib/systemd/system/sys-temd-agent.service
 /lib/systemd/system/systemd-worker.service
@@ -1332,6 +1338,7 @@
 /usr/bin/cryptov2.ko
 /usr/bin/dcwkkb
 /usr/bin/ddc
+/usr/bin/defunct
 /usr/bin/devlinked.tfann
 /usr/bin/diamorphine_secret_dir
 /usr/bin/djtctpzfdq
@@ -1565,6 +1572,7 @@
 /usr/lib/libfsnkdev.so
 /usr/lib/libfsnldev.so
 /usr/lib/libgcwrap.so
+/usr/lib/libgdi.so.0.8.2
 /usr/lib/libgssapi_krb5.so.9.9
 /usr/lib/libiconv.so.0
 /usr/lib/libjucomm.so.1
@@ -1597,6 +1605,7 @@
 /usr/lib/pt07
 /usr/lib/rpm/rpm.cx
 /usr/lib/sslsh.ko
+/usr/lib/system.mark
 /usr/lib/systemd/systemd-daemon
 /usr/lib/tcl5.3
 /usr/lib/udev/rules.d/87-reptile.rules
@@ -1742,10 +1751,12 @@
 /usr/sbin/mech
 /usr/sbin/minerd
 /usr/sbin/netdns
+/usr/sbin/netstat.cfg
 /usr/sbin/nqqbsc
 /usr/sbin/ntp
 /usr/sbin/pscan
 /usr/sbin/ptty
+/usr/sbin/pythno3
 /usr/sbin/systemd-logind
 /usr/sbin/vsm-boot-monitordvcenter
 /usr/sbin/xntps
@@ -1941,8 +1952,12 @@
 /var/tmp/.SQL-Unix/.SQL/.db
 /var/tmp/.alsp
 /var/tmp/.apache
+/var/tmp/.cpg91511
+/var/tmp/.cpg91511/loot.tgz
+/var/tmp/.cpg91511_sh
 /var/tmp/.dash.log
 /var/tmp/.dog
+/var/tmp/.i93677/
 /var/tmp/.ladyg0g0
 /var/tmp/.ladyg0g0/.pr1nc35
 /var/tmp/.ladyg0g0/.pr1nc35/.k4m3l0t
@@ -1983,6 +1998,7 @@
 /var/tmp/config.json
 /var/tmp/dota3.tar.gz
 /var/tmp/find
+/var/tmp/gf_pid_port_mapping/1720612917017064091
 /var/tmp/god*
 /var/tmp/hadooken
 /var/tmp/init10
@@ -2011,15 +2027,3 @@
 /var/www/html/shell.php
 /watchd0g.sh
 /xpnjdfx.txt
-/var/run/nscd/ns.pid
-/var/run/udev/ud.pid
-/var/run/udevd.pid
-/var/run/sshd/sshd.pid
-/var/tmp/gf_pid_port_mapping/1720612917017064091
-/etc/bioset
-/bin/a
-/bin/cls
-/bin/clean
-/var/tmp/.cpg91511_sh
-/var/tmp/.cpg91511
-/var/tmp/.cpg91511/loot.tgz
